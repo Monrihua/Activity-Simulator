@@ -1,524 +1,102 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>夏日環遊大富翁</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>換皮活動模擬器</title>
 <style>
-  :root{
-    --bg1:#62d7f0;
-    --bg2:#ffe3a7;
-    --ink:#3d302d;
-    --panel:#fff9e9;
-    --pink:#ff76aa;
-    --blue:#4fc7e8;
-    --yellow:#ffd66e;
-    --purple:#a86ee8;
-    --shadow:0 8px 0 rgba(102,69,45,.22);
-  }
-
-  *{box-sizing:border-box}
-  html,body{margin:0;min-height:100%;font-family:"Arial","Microsoft JhengHei",sans-serif;color:var(--ink)}
-  body{
-    background:
-      radial-gradient(circle at 12% 18%,rgba(255,255,255,.75) 0 16px,transparent 17px),
-      radial-gradient(circle at 80% 12%,rgba(255,255,255,.55) 0 22px,transparent 23px),
-      linear-gradient(var(--bg1) 0 29%, var(--bg2) 29% 100%);
-    display:flex;
-    justify-content:center;
-  }
-
-  .game{
-    width:min(100%,760px);
-    min-height:100vh;
-    padding:14px 12px calc(20px + env(safe-area-inset-bottom));
-  }
-
-  .title-card{
-    background:#8d552f;
-    color:#fff;
-    border:5px solid #5f351f;
-    border-radius:20px;
-    padding:10px 16px;
-    text-align:center;
-    box-shadow:var(--shadow);
-    margin-bottom:12px;
-  }
-  .title-card h1{margin:0;font-size:clamp(26px,7vw,44px);letter-spacing:2px}
-  .title-card p{margin:5px 0 0;font-weight:700;color:#ffeca2}
-
-  .status{
-    display:grid;
-    grid-template-columns:1fr auto;
-    gap:10px;
-    align-items:center;
-    background:var(--panel);
-    border:4px solid #6a4b3c;
-    border-radius:20px;
-    padding:10px 12px;
-    box-shadow:var(--shadow);
-    margin-bottom:16px;
-  }
-
-  .progress-wrap{min-width:0}
-  .progress-label{
-    display:flex;
-    justify-content:space-between;
-    font-weight:900;
-    font-size:14px;
-    margin-bottom:6px;
-  }
-  .progress{
-    height:22px;
-    border:3px solid #4c3a34;
-    border-radius:999px;
-    overflow:hidden;
-    background:#d9e7e8;
-  }
-  .progress > div{
-    height:100%;
-    width:0%;
-    background:linear-gradient(90deg,#ffd966,#ff9c66);
-    transition:width .45s ease;
-  }
-  .coins{
-    white-space:nowrap;
-    background:#3b3030;
-    color:white;
-    border-radius:999px;
-    padding:8px 13px;
-    font-weight:900;
-    border:3px solid #1e1818;
-  }
-
-  .board-shell{
-    background:rgba(255,255,255,.25);
-    border:4px solid rgba(255,255,255,.65);
-    border-radius:28px;
-    padding:10px;
-    box-shadow:0 16px 30px rgba(73,63,50,.18);
-  }
-
-  .board{
-    display:grid;
-    grid-template-columns:repeat(7,1fr);
-    grid-template-rows:repeat(7,1fr);
-    gap:5px;
-    aspect-ratio:1/1;
-    position:relative;
-  }
-
-  .tile{
-    border:3px solid #684632;
-    border-radius:12px;
-    box-shadow:0 4px 0 #7a533d;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    font-weight:900;
-    font-size:clamp(10px,2.5vw,16px);
-    min-width:0;
-    position:relative;
-    user-select:none;
-    transform:translateZ(0);
-  }
-  .tile .icon{font-size:clamp(18px,4.2vw,34px);line-height:1}
-  .tile .reward{font-size:clamp(9px,2vw,14px);margin-top:3px}
-  .tile.gold{background:#ffdd7e}
-  .tile.gem{background:#f4a6ff}
-  .tile.energy{background:#8ee6ff}
-  .tile.mystery{background:#c8a7ff}
-  .tile.start{background:#fff4d1}
-  .tile.active{animation:pulse .7s ease infinite alternate}
-  @keyframes pulse{
-    from{transform:translateY(0);filter:brightness(1)}
-    to{transform:translateY(-4px);filter:brightness(1.15)}
-  }
-
-  .center{
-    grid-column:2/7;
-    grid-row:2/7;
-    border:5px solid #6b4935;
-    border-radius:24px;
-    background:
-      linear-gradient(45deg,rgba(255,255,255,.18) 25%,transparent 25% 50%,rgba(255,255,255,.18) 50% 75%,transparent 75%),
-      #55c9e8;
-    background-size:42px 42px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    flex-direction:column;
-    text-align:center;
-    padding:10px;
-    box-shadow:inset 0 0 0 8px rgba(255,255,255,.35);
-  }
-  .center .pool{
-    width:54%;
-    aspect-ratio:1.5/1;
-    border-radius:45%;
-    background:#9be8f6;
-    border:5px solid #fff;
-    box-shadow:inset 0 -10px 0 rgba(38,157,192,.22);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:clamp(34px,9vw,72px);
-  }
-  .center h2{margin:10px 0 3px;font-size:clamp(18px,4.8vw,32px)}
-  .center p{margin:0;font-weight:800;font-size:clamp(11px,2.8vw,16px)}
-
-  .player{
-    position:absolute;
-    z-index:20;
-    width:clamp(30px,7vw,52px);
-    height:clamp(30px,7vw,52px);
-    border-radius:50%;
-    background:#ff826e;
-    border:4px solid white;
-    box-shadow:0 4px 0 rgba(68,43,35,.35);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:clamp(17px,4vw,30px);
-    transition:left .24s ease, top .24s ease;
-    pointer-events:none;
-  }
-
-  .controls{
-    display:grid;
-    grid-template-columns:1fr minmax(130px,220px);
-    gap:12px;
-    margin-top:16px;
-    align-items:stretch;
-  }
-  .inventory, .roll-panel{
-    background:var(--panel);
-    border:4px solid #67483a;
-    border-radius:22px;
-    box-shadow:var(--shadow);
-    padding:12px;
-  }
-  .inventory h3,.roll-panel h3{margin:0 0 8px}
-  .items{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:7px;
-  }
-  .item{
-    background:white;
-    border:3px solid #e0b97b;
-    border-radius:12px;
-    padding:7px 4px;
-    text-align:center;
-    font-weight:900;
-  }
-  .item b{display:block;font-size:20px}
-
-  .roll-panel{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    background:#ff91b8;
-  }
-  .dice{
-    width:76px;height:76px;
-    border-radius:18px;
-    background:#fff8dc;
-    border:4px solid #3f3028;
-    display:flex;align-items:center;justify-content:center;
-    font-size:46px;font-weight:900;
-    box-shadow:0 7px 0 rgba(75,47,38,.25);
-    margin-bottom:10px;
-  }
-  button{
-    width:100%;
-    border:none;
-    border-radius:999px;
-    padding:13px 16px;
-    font-size:20px;
-    font-weight:900;
-    cursor:pointer;
-    color:#4b332d;
-    background:#ffd66e;
-    border:4px solid #5b4036;
-    box-shadow:0 6px 0 #8d5e40;
-    touch-action:manipulation;
-  }
-  button:active{transform:translateY(4px);box-shadow:0 2px 0 #8d5e40}
-  button:disabled{opacity:.55;cursor:not-allowed}
-
-  .log{
-    margin-top:14px;
-    background:rgba(255,255,255,.82);
-    border:3px solid #6b4a3d;
-    border-radius:16px;
-    padding:10px 12px;
-    font-weight:800;
-    min-height:48px;
-  }
-
-  .toast{
-    position:fixed;
-    left:50%;
-    top:18%;
-    transform:translate(-50%,-20px) scale(.9);
-    background:#342828;
-    color:white;
-    border:4px solid white;
-    border-radius:18px;
-    padding:13px 20px;
-    font-size:22px;
-    font-weight:900;
-    opacity:0;
-    pointer-events:none;
-    z-index:100;
-    transition:.25s ease;
-    text-align:center;
-  }
-  .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
-
-  @media (max-width:520px){
-    .game{padding-left:7px;padding-right:7px}
-    .board{gap:3px}
-    .tile{border-width:2px;border-radius:8px;box-shadow:0 3px 0 #7a533d}
-    .controls{grid-template-columns:1fr 145px}
-    .items{grid-template-columns:1fr 1fr}
-    .item:last-child{grid-column:1/3}
-  }
+*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft JhengHei",sans-serif;background:linear-gradient(#70d5eb 0 180px,#f7dda0 180px);color:#302925}
+.app{max-width:1100px;margin:auto;padding:12px 12px 40px}.hero,.card{border:4px solid #65483a;border-radius:20px;box-shadow:0 7px 0 #7b5b4933}
+.hero{background:#8d542f;color:#fff;padding:16px}.hero h1{margin:0}.hero p{color:#ffe8a1;font-weight:bold}
+.tools,.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tabs{overflow:auto;flex-wrap:nowrap}
+button,.file{padding:9px 13px;border:3px solid #493831;border-radius:12px;background:#ffd66d;font-weight:900;cursor:pointer}.danger{background:#ffb0b0}.blue{background:#c8eff9}.green{background:#b9e963}
+input[type=file]{display:none}.tab{white-space:nowrap}.tab.on{background:#ef6aa7;color:#fff}
+.panel{display:none}.panel.on{display:block}.card{background:#fff9eb;padding:14px;margin:12px 0}.card h2{margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:430px){.grid{grid-template-columns:1fr}}
+label{font-size:13px;font-weight:bold}input,select,textarea{width:100%;margin-top:5px;padding:9px;border:2px solid #a38676;border-radius:9px;font-size:15px}
+.item{background:#fff;border:3px solid #a7836d;border-radius:14px;padding:10px;margin-top:10px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;margin-top:8px}@media(max-width:750px){.row{grid-template-columns:1fr 1fr}}
+.preview{background:#edf9fc;border:2px dashed #65a8b8;border-radius:9px;padding:8px;margin-top:8px;font-size:13px;line-height:1.55}.bad{background:#fff0f0;border-color:#d77878}
+.small{font-size:12px;color:#6e625c}.toggle{display:flex;gap:6px;align-items:center;margin-top:8px}.toggle input{width:auto;margin:0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:650px){.stats{grid-template-columns:1fr 1fr}}.stat{background:#fff;border:3px solid #987664;border-radius:12px;padding:9px;text-align:center}.stat b{display:block;font-size:25px}
+table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}th{background:#efdfc8}.ok{color:#27863a;font-weight:bold}.warn{color:#b33b42;font-weight:bold}
 </style>
 </head>
-<body>
-<div class="game">
-  <header class="title-card">
-    <h1>🏖️ 夏日環遊</h1>
-    <p>擲骰子前進，踩到什麼就拿什麼！</p>
-  </header>
-
-  <section class="status">
-    <div class="progress-wrap">
-      <div class="progress-label">
-        <span>環遊進度</span>
-        <span id="progressText">0 / 100</span>
-      </div>
-      <div class="progress"><div id="progressBar"></div></div>
-    </div>
-    <div class="coins">🪙 <span id="coinTop">0</span></div>
-  </section>
-
-  <div class="board-shell">
-    <div class="board" id="board">
-      <div class="center">
-        <div class="pool">🦦</div>
-        <h2>夏日派對</h2>
-        <p>每走完一圈可獲得額外 10 金幣</p>
-      </div>
-      <div class="player" id="player">🐹</div>
-    </div>
-  </div>
-
-  <section class="controls">
-    <div class="inventory">
-      <h3>🎒 我的資源</h3>
-      <div class="items">
-        <div class="item">🪙 金幣<b id="coins">0</b></div>
-        <div class="item">💎 寶石<b id="gems">0</b></div>
-        <div class="item">⚡ 能量<b id="energy">0</b></div>
-      </div>
-    </div>
-    <div class="roll-panel">
-      <div class="dice" id="dice">🎲</div>
-      <button id="rollBtn">擲骰子</button>
-    </div>
-  </section>
-
-  <div class="log" id="log">準備出發！按下「擲骰子」。</div>
+<body><div class="app">
+<header class="hero"><h1>🏝️ 換皮活動模擬器</h1><p>任務、禮包、進度與兌換內容都能自由新增、刪除、匯入與匯出。</p></header>
+<div class="tools">
+<button class="green" onclick="save()">💾 儲存</button><button class="blue" onclick="download()">⬇ 匯出 JSON</button>
+<label class="file">⬆ 匯入 JSON<input id="file" type="file" accept=".json"></label>
+<button onclick="example()">載入大富翁範例</button><button class="danger" onclick="resetAll()">全部重設</button>
+</div>
+<div class="tabs">
+<button class="tab on" data-p="basic">活動設定</button><button class="tab" data-p="tasks">活動委託</button><button class="tab" data-p="packs">禮包</button><button class="tab" data-p="progress">進度獎勵</button><button class="tab" data-p="exchange">兌換商店</button><button class="tab" data-p="summary">模擬總覽</button>
 </div>
 
-<div class="toast" id="toast"></div>
+<section id="basic" class="panel on"><div class="card"><h2>基本資料</h2><div class="grid">
+<label>活動名稱<input id="eventName" value="夏日環遊"></label><label>活動天數<input id="eventDays" type="number" value="7"></label>
+<label>目前第幾天<input id="currentDay" type="number" value="1"></label><label>每日重置時間<input id="resetTime" type="time" value="00:00"></label>
+<label>玩法代幣名稱<input id="tokenName" value="骰子"></label><label>高級兌換幣名稱<input id="premiumName" value="火龍果汁"></label>
+<label>普通兌換幣名稱<input id="normalName" value="奇異果汁"></label><label>付費貨幣名稱<input id="paidName" value="寶石"></label>
+</div></div>
+<div class="card"><h2>積分規則</h2><div class="grid">
+<label>每獲得 1 個玩法代幣積分<input id="pointsPerToken" type="number" value="2"></label>
+<label>每獲得 1 個高級兌換幣積分<input id="pointsPerPremium" type="number" value="0"></label>
+<label>每完成 1 圈積分<input id="pointsPerLap" type="number" value="10"></label>
+<label>每日進度重置<select id="dailyReset"><option value="yes">是</option><option value="no">否</option></select></label>
+</div><p class="small">內容物格式：骰子:10, 寶石:600, 寶箱:1。也支援全形冒號與頓號。</p></div></section>
 
+<section id="tasks" class="panel"><div class="card"><h2>活動委託</h2><div class="actions"><button onclick="add('tasks')">＋新增任務</button><button class="danger" onclick="clearList('tasks')">清空全部</button></div><div id="taskList"></div></div></section>
+<section id="packs" class="panel"><div class="card"><h2>禮包</h2><div class="actions"><button onclick="add('packs')">＋新增禮包</button><button class="danger" onclick="clearList('packs')">清空全部</button></div><div id="packList"></div></div></section>
+<section id="progress" class="panel"><div class="card"><h2>進度獎勵</h2><div class="actions"><button onclick="add('progress')">＋新增階段</button><button class="danger" onclick="clearList('progress')">清空全部</button></div><div id="progressList"></div></div></section>
+<section id="exchange" class="panel"><div class="card"><h2>兌換商店</h2><div class="actions"><button onclick="add('exchange','普通')">＋普通兌換</button><button onclick="add('exchange','高級')">＋高級兌換</button><button class="danger" onclick="clearList('exchange')">清空全部</button></div><div id="exchangeList"></div></div></section>
+
+<section id="summary" class="panel">
+<div class="card"><h2>模擬條件</h2><div class="grid">
+<label>模擬天數<input id="simDays" type="number" value="7"></label><label>預計圈數<input id="simLaps" type="number" value="0"></label>
+<label>額外獲得玩法代幣<input id="manualToken" type="number" value="0"></label><label>額外獲得高級兌換幣<input id="manualPremium" type="number" value="0"></label>
+</div><button style="margin-top:10px" onclick="calc()">重新計算</button></div>
+<div class="card"><h2>結果</h2><div class="stats">
+<div class="stat">任務玩法代幣<b id="sTask">0</b></div><div class="stat">禮包玩法代幣<b id="sPack">0</b></div><div class="stat">高級兌換幣<b id="sPremium">0</b></div><div class="stat">預估積分<b id="sPoints">0</b></div>
+</div></div>
+<div class="card"><h2>資源收入</h2><div id="income"></div></div><div class="card"><h2>禮包花費</h2><div id="cost"></div></div><div class="card"><h2>階段判定</h2><div id="tierResult"></div></div>
+</section>
+</div>
 <script>
-(() => {
-  const board = document.getElementById('board');
-  const player = document.getElementById('player');
-  const rollBtn = document.getElementById('rollBtn');
-  const dice = document.getElementById('dice');
-  const log = document.getElementById('log');
-  const toast = document.getElementById('toast');
-
-  const state = {
-    position: 0,
-    coins: 0,
-    gems: 0,
-    energy: 0,
-    progress: 0,
-    rolling: false
-  };
-
-  const rewards = [
-    {type:'start', icon:'🏁', text:'起點', amount:0},
-    {type:'gold', icon:'🪙', text:'金幣', amount:5},
-    {type:'gem', icon:'💎', text:'寶石', amount:2},
-    {type:'energy', icon:'⚡', text:'能量', amount:3},
-    {type:'gold', icon:'🪙', text:'金幣', amount:8},
-    {type:'mystery', icon:'🎁', text:'驚喜', amount:0},
-    {type:'gem', icon:'💎', text:'寶石', amount:3},
-    {type:'gold', icon:'🪙', text:'金幣', amount:4},
-    {type:'energy', icon:'⚡', text:'能量', amount:5},
-    {type:'gem', icon:'💎', text:'寶石', amount:2},
-    {type:'gold', icon:'🪙', text:'金幣', amount:10},
-    {type:'mystery', icon:'🎁', text:'驚喜', amount:0},
-    {type:'energy', icon:'⚡', text:'能量', amount:4},
-    {type:'gold', icon:'🪙', text:'金幣', amount:6},
-    {type:'gem', icon:'💎', text:'寶石', amount:4},
-    {type:'energy', icon:'⚡', text:'能量', amount:2},
-    {type:'gold', icon:'🪙', text:'金幣', amount:7},
-    {type:'mystery', icon:'🎁', text:'驚喜', amount:0},
-    {type:'gem', icon:'💎', text:'寶石', amount:5},
-    {type:'gold', icon:'🪙', text:'金幣', amount:9},
-    {type:'energy', icon:'⚡', text:'能量', amount:3},
-    {type:'gem', icon:'💎', text:'寶石', amount:3},
-    {type:'gold', icon:'🪙', text:'金幣', amount:12},
-    {type:'mystery', icon:'🎁', text:'驚喜', amount:0}
-  ];
-
-  // 7x7 外圈，共 24 格，順時針排列
-  const coords = [];
-  for(let c=0;c<7;c++) coords.push([1,c+1]);          // 上
-  for(let r=1;r<7;r++) coords.push([r+1,7]);          // 右
-  for(let c=5;c>=0;c--) coords.push([7,c+1]);          // 下
-  for(let r=5;r>=1;r--) coords.push([r+1,1]);          // 左
-
-  const tiles = rewards.map((reward, index) => {
-    const tile = document.createElement('div');
-    tile.className = `tile ${reward.type}`;
-    tile.style.gridRow = coords[index][0];
-    tile.style.gridColumn = coords[index][1];
-    tile.innerHTML = `
-      <span class="icon">${reward.icon}</span>
-      <span class="reward">${reward.type === 'start' ? reward.text : reward.type === 'mystery' ? reward.text : '×' + reward.amount}</span>
-    `;
-    board.appendChild(tile);
-    return tile;
-  });
-
-  function tileCenter(index){
-    const boardRect = board.getBoundingClientRect();
-    const tileRect = tiles[index].getBoundingClientRect();
-    return {
-      left: tileRect.left - boardRect.left + tileRect.width/2 - player.offsetWidth/2,
-      top: tileRect.top - boardRect.top + tileRect.height/2 - player.offsetHeight/2
-    };
-  }
-
-  function placePlayer(index){
-    const p = tileCenter(index);
-    player.style.left = `${p.left}px`;
-    player.style.top = `${p.top}px`;
-    tiles.forEach(t => t.classList.remove('active'));
-    tiles[index].classList.add('active');
-  }
-
-  function updateUI(){
-    document.getElementById('coins').textContent = state.coins;
-    document.getElementById('coinTop').textContent = state.coins;
-    document.getElementById('gems').textContent = state.gems;
-    document.getElementById('energy').textContent = state.energy;
-    document.getElementById('progressText').textContent = `${state.progress} / 100`;
-    document.getElementById('progressBar').style.width = `${Math.min(state.progress,100)}%`;
-  }
-
-  function showToast(text){
-    toast.textContent = text;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 1300);
-  }
-
-  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-  async function move(steps){
-    for(let i=0;i<steps;i++){
-      const old = state.position;
-      state.position = (state.position + 1) % rewards.length;
-      if(state.position === 0 && old === rewards.length - 1){
-        state.coins += 10;
-        state.progress = Math.min(100, state.progress + 10);
-        updateUI();
-        showToast('完成一圈！🪙 +10');
-      }
-      placePlayer(state.position);
-      await wait(250);
-    }
-  }
-
-  function grantReward(){
-    const reward = rewards[state.position];
-    let message = '';
-
-    if(reward.type === 'gold'){
-      state.coins += reward.amount;
-      message = `獲得金幣 ${reward.amount} 枚！`;
-    } else if(reward.type === 'gem'){
-      state.gems += reward.amount;
-      message = `獲得寶石 ${reward.amount} 顆！`;
-    } else if(reward.type === 'energy'){
-      state.energy += reward.amount;
-      message = `獲得能量 ${reward.amount} 點！`;
-    } else if(reward.type === 'mystery'){
-      const options = [
-        {key:'coins', amount:15, label:'金幣 15 枚', icon:'🪙'},
-        {key:'gems', amount:6, label:'寶石 6 顆', icon:'💎'},
-        {key:'energy', amount:8, label:'能量 8 點', icon:'⚡'}
-      ];
-      const pick = options[Math.floor(Math.random()*options.length)];
-      state[pick.key] += pick.amount;
-      message = `驚喜禮盒：獲得${pick.label}！`;
-      showToast(`${pick.icon} ${pick.label}`);
-    } else {
-      message = '回到起點，繼續旅行！';
-    }
-
-    state.progress = Math.min(100, state.progress + 2);
-    updateUI();
-    log.textContent = message;
-    if(reward.type !== 'mystery') showToast(message);
-
-    if(state.progress >= 100){
-      setTimeout(() => {
-        showToast('🎉 完成夏日環遊！');
-        log.textContent = '恭喜完成 100 點環遊進度！你仍可繼續遊玩。';
-      }, 600);
-    }
-  }
-
-  async function roll(){
-    if(state.rolling) return;
-    state.rolling = true;
-    rollBtn.disabled = true;
-
-    let result = 1;
-    for(let i=0;i<8;i++){
-      result = Math.floor(Math.random()*6)+1;
-      dice.textContent = result;
-      await wait(70 + i*18);
-    }
-
-    log.textContent = `擲出 ${result} 點，前進 ${result} 格！`;
-    await move(result);
-    grantReward();
-
-    state.rolling = false;
-    rollBtn.disabled = false;
-  }
-
-  rollBtn.addEventListener('click', roll);
-  window.addEventListener('resize', () => placePlayer(state.position));
-
-  updateUI();
-  requestAnimationFrame(() => placePlayer(0));
-})();
-</script>
-</body>
-</html>
+const $=s=>document.querySelector(s), uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let db={tasks:[],packs:[],progress:[],exchange:[]};
+const n=v=>Number(v)||0, esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+function parse(t){if(!String(t||'').trim())return[];return String(t).split(/[,，、;\n]+/).map(x=>x.trim()).filter(Boolean).map(x=>{let m=x.match(/^(.+?)\s*[:：xX×]\s*(-?\d+(?:\.\d+)?)$/);return m?{name:m[1].trim(),amount:n(m[2]),ok:true}:{name:x,amount:0,ok:false}})}
+function preview(t){const a=parse(t);if(!a.length)return '<span class="warn">尚未輸入</span>';return a.map(x=>(x.ok?'✓ ':'✕ ')+esc(x.name)+(x.ok?' × '+x.amount:'（請用 名稱:數量）')).join('<br>')}
+function add(type,kind){if(type==='tasks')db.tasks.push({id:uid(),name:'新任務',condition:'完成指定內容',reward:'骰子:3',daily:true,on:true});
+if(type==='packs')db.packs.push({id:uid(),name:'新禮包',priceResource:$('#paidName').value,price:1000,limit:1,planned:0,daily:true,contents:'骰子:10',on:true});
+if(type==='progress')db.progress.push({id:uid(),tier:db.progress.length+1,threshold:90,rewards:'寶箱:1, 寶石:50',on:true});
+if(type==='exchange')db.exchange.push({id:uid(),kind:kind||'普通',name:'兌換品',costResource:kind==='高級'?$('#premiumName').value:$('#normalName').value,cost:1,limit:1,rewards:'道具:1',on:true});render()}
+function del(type,id){db[type]=db[type].filter(x=>x.id!==id);render()}function dup(type,id){let x=db[type].find(a=>a.id===id);if(x){x=JSON.parse(JSON.stringify(x));x.id=uid();x.name+='（複製）';db[type].push(x);render()}}
+function clearList(type){if(confirm('確定清空？')){db[type]=[];render()}}function setv(type,id,k,v){let x=db[type].find(a=>a.id===id);if(x)x[k]=v}
+function btns(t,id){return `<div><button onclick="dup('${t}','${id}')">複製</button> <button class="danger" onclick="del('${t}','${id}')">刪除</button></div>`}
+function render(){
+$('#taskList').innerHTML=db.tasks.length?db.tasks.map((x,i)=>`<div class="item"><div class="head"><b>任務 ${i+1}</b>${btns('tasks',x.id)}</div><div class="row"><label>名稱<input value="${esc(x.name)}" oninput="setv('tasks','${x.id}','name',this.value)"></label><label>條件<input value="${esc(x.condition)}" oninput="setv('tasks','${x.id}','condition',this.value)"></label><label>獎勵<input value="${esc(x.reward)}" oninput="setv('tasks','${x.id}','reward',this.value);render()"></label><label>重置<select onchange="setv('tasks','${x.id}','daily',this.value==='1')"><option value="1"${x.daily?' selected':''}>每日</option><option value="0"${!x.daily?' selected':''}>活動一次</option></select></label></div><label class="toggle"><input type="checkbox"${x.on?' checked':''} onchange="setv('tasks','${x.id}','on',this.checked)">納入模擬</label><div class="preview ${parse(x.reward).some(a=>!a.ok)?'bad':''}">${preview(x.reward)}</div></div>`).join(''):'<p class="small">尚無任務。</p>';
+$('#packList').innerHTML=db.packs.length?db.packs.map((x,i)=>`<div class="item"><div class="head"><b>禮包 ${i+1}</b>${btns('packs',x.id)}</div><div class="row"><label>名稱<input value="${esc(x.name)}" oninput="setv('packs','${x.id}','name',this.value)"></label><label>價格貨幣<input value="${esc(x.priceResource)}" oninput="setv('packs','${x.id}','priceResource',this.value)"></label><label>單價<input type="number" value="${x.price}" oninput="setv('packs','${x.id}','price',n(this.value))"></label><label>每日/活動限購<input type="number" value="${x.limit}" oninput="setv('packs','${x.id}','limit',n(this.value))"></label></div><div class="row"><label>內容物<input value="${esc(x.contents)}" oninput="setv('packs','${x.id}','contents',this.value);render()"></label><label>預計每次購買<input type="number" value="${x.planned}" oninput="setv('packs','${x.id}','planned',n(this.value))"></label><label>重置<select onchange="setv('packs','${x.id}','daily',this.value==='1')"><option value="1"${x.daily?' selected':''}>每日</option><option value="0"${!x.daily?' selected':''}>活動一次</option></select></label></div><label class="toggle"><input type="checkbox"${x.on?' checked':''} onchange="setv('packs','${x.id}','on',this.checked)">納入模擬</label><div class="preview ${parse(x.contents).some(a=>!a.ok)?'bad':''}">${preview(x.contents)}</div></div>`).join(''):'<p class="small">尚無禮包。</p>';
+$('#progressList').innerHTML=db.progress.length?db.progress.map((x,i)=>`<div class="item"><div class="head"><b>階段 ${i+1}</b>${btns('progress',x.id)}</div><div class="row"><label>階數<input type="number" value="${x.tier}" oninput="setv('progress','${x.id}','tier',n(this.value))"></label><label>積分門檻<input type="number" value="${x.threshold}" oninput="setv('progress','${x.id}','threshold',n(this.value))"></label><label>獎勵<input value="${esc(x.rewards)}" oninput="setv('progress','${x.id}','rewards',this.value);render()"></label></div><label class="toggle"><input type="checkbox"${x.on?' checked':''} onchange="setv('progress','${x.id}','on',this.checked)">啟用</label><div class="preview">${preview(x.rewards)}</div></div>`).join(''):'<p class="small">尚無階段。</p>';
+$('#exchangeList').innerHTML=db.exchange.length?db.exchange.map((x,i)=>`<div class="item"><div class="head"><b>${esc(x.kind)}兌換 ${i+1}</b>${btns('exchange',x.id)}</div><div class="row"><label>類型<select onchange="setv('exchange','${x.id}','kind',this.value)"><option${x.kind==='普通'?' selected':''}>普通</option><option${x.kind==='高級'?' selected':''}>高級</option></select></label><label>品項<input value="${esc(x.name)}" oninput="setv('exchange','${x.id}','name',this.value)"></label><label>消耗貨幣<input value="${esc(x.costResource)}" oninput="setv('exchange','${x.id}','costResource',this.value)"></label><label>單次消耗<input type="number" value="${x.cost}" oninput="setv('exchange','${x.id}','cost',n(this.value))"></label></div><div class="row"><label>限購<input type="number" value="${x.limit}" oninput="setv('exchange','${x.id}','limit',n(this.value))"></label><label>取得內容<input value="${esc(x.rewards)}" oninput="setv('exchange','${x.id}','rewards',this.value);render()"></label></div><div class="preview">${preview(x.rewards)}</div></div>`).join(''):'<p class="small">尚無兌換品。</p>'}
+function settings(){let ids=['eventName','eventDays','currentDay','resetTime','tokenName','premiumName','normalName','paidName','pointsPerToken','pointsPerPremium','pointsPerLap','dailyReset','simDays','simLaps','manualToken','manualPremium'],o={};ids.forEach(id=>o[id]=$('#'+id).value);return o}
+function apply(o){Object.entries(o||{}).forEach(([k,v])=>{let e=$('#'+k);if(e)e.value=v})}
+function save(){localStorage.setItem('activitySim',JSON.stringify({settings:settings(),db}));alert('已儲存。')}
+function download(){let b=new Blob([JSON.stringify({version:1,settings:settings(),db},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=($('#eventName').value||'活動')+'_設定.json';a.click()}
+$('#file').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader;r.onload=()=>{try{let o=JSON.parse(r.result);db=o.db;apply(o.settings);render();calc()}catch{alert('格式錯誤')}};r.readAsText(f)}
+function ag(o,k,v){if(k)o[k]=(o[k]||0)+n(v)}function table(o){let a=Object.entries(o).filter(x=>x[1]);return a.length?`<table><tr><th>資源</th><th>數量</th></tr>${a.map(x=>`<tr><td>${esc(x[0])}</td><td>${x[1].toLocaleString()}</td></tr>`).join('')}</table>`:'<p class="small">沒有資料。</p>'}
+function calc(){let days=Math.max(1,n($('#simDays').value)),token=$('#tokenName').value,premium=$('#premiumName').value,inc={},cost={},taskToken=0,packToken=0;
+db.tasks.filter(x=>x.on).forEach(x=>{let m=x.daily?days:1;parse(x.reward).filter(a=>a.ok).forEach(a=>{ag(inc,a.name,a.amount*m);if(a.name===token)taskToken+=a.amount*m})});
+db.packs.filter(x=>x.on).forEach(x=>{let m=x.daily?days:1,q=Math.min(n(x.planned),n(x.limit))*m;ag(cost,x.priceResource,n(x.price)*q);parse(x.contents).filter(a=>a.ok).forEach(a=>{ag(inc,a.name,a.amount*q);if(a.name===token)packToken+=a.amount*q})});
+ag(inc,token,n($('#manualToken').value));ag(inc,premium,n($('#manualPremium').value));let pts=(inc[token]||0)*n($('#pointsPerToken').value)+(inc[premium]||0)*n($('#pointsPerPremium').value)+n($('#simLaps').value)*n($('#pointsPerLap').value);
+$('#sTask').textContent=taskToken;$('#sPack').textContent=packToken;$('#sPremium').textContent=inc[premium]||0;$('#sPoints').textContent=pts;$('#income').innerHTML=table(inc);$('#cost').innerHTML=table(cost);
+$('#tierResult').innerHTML=db.progress.filter(x=>x.on).sort((a,b)=>a.tier-b.tier).map(x=>`<div class="item"><b>第 ${x.tier} 階｜${x.threshold} 分</b><span class="${pts>=x.threshold?'ok':'warn'}" style="float:right">${pts>=x.threshold?'可達成':'尚差 '+(x.threshold-pts)}</span><div class="small">${esc(x.rewards)}</div></div>`).join('')||'<p class="small">尚無階段。</p>'}
+function example(){apply({eventName:'夏日環遊',eventDays:7,tokenName:'骰子',premiumName:'火龍果汁',normalName:'奇異果汁',paidName:'寶石',pointsPerToken:2,pointsPerLap:10,simDays:7});db={tasks:[
+{id:uid(),name:'登入遊戲1次',condition:'1/1',reward:'骰子:3',daily:true,on:true},{id:uid(),name:'參加2次挑戰之塔或地牢',condition:'0/2',reward:'骰子:2',daily:true,on:true},{id:uid(),name:'挑戰3次競技場',condition:'0/3',reward:'骰子:3, 普通寶箱:1',daily:true,on:true},{id:uid(),name:'消耗體力100',condition:'0/100',reward:'骰子:3',daily:true,on:true}],
+packs:[{id:uid(),name:'廣告骰子禮包',priceResource:'廣告',price:1,limit:1,planned:1,daily:true,contents:'骰子:2',on:true},{id:uid(),name:'寶石骰子禮包',priceResource:'寶石',price:1000,limit:7,planned:0,daily:true,contents:'骰子:10',on:true},{id:uid(),name:'火龍果汁禮包 I',priceResource:'付費點數',price:1000,limit:2,planned:0,daily:true,contents:'火龍果汁:2, 寶箱:2, 寶石:1200',on:true}],
+progress:[90,180,300,450,650].map((v,i)=>({id:uid(),tier:i+1,threshold:v,rewards:'火龍果汁隨機箱:1, 寶石:'+(50+i*50),on:true})),
+exchange:[{id:uid(),kind:'高級',name:'覺醒核心自選箱',costResource:'火龍果汁',cost:25,limit:5,rewards:'覺醒核心自選箱:1',on:true},{id:uid(),kind:'普通',name:'一般資源箱',costResource:'奇異果汁',cost:5,limit:20,rewards:'一般資源箱:1',on:true}]};render();calc()}
+function resetAll(){if(confirm('確定全部重設？')){localStorage.removeItem('activitySim');location.reload()}}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.p).classList.add('on');if(b.dataset.p==='summary')calc()});
+try{let o=JSON.parse(localStorage.getItem('activitySim'));if(o){db=o.db;apply(o.settings);render();calc()}else example()}catch{example()}
+</script></body></html>
