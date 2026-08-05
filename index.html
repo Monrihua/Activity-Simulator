@@ -1,250 +1,1437 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>換皮活動最佳攻略與實玩模擬器 v4</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>活動玩法模擬器｜機率批次模擬版</title>
 <style>
-:root{--ink:#302925;--line:#65483a;--card:#fff9eb;--pink:#ef6aa7;--blue:#55c5e8;--yellow:#ffd66d;--danger:#ffb0b0;--green:#b9e963}
-*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft JhengHei",sans-serif;background:linear-gradient(#70d5eb 0 180px,#f7dda0 180px);color:var(--ink)}
-.app{max-width:1180px;margin:auto;padding:12px 12px 55px}.hero,.card{border:4px solid var(--line);border-radius:20px;box-shadow:0 7px 0 #7b5b4933}.hero{background:#8d542f;color:#fff;padding:16px}.hero h1{margin:0}.hero p{color:#ffe8a1;font-weight:bold;margin:7px 0 0}
-.tools,.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.tabs{overflow:auto;flex-wrap:nowrap;position:sticky;top:0;z-index:30;background:#f7dda0e8;padding:7px 0;backdrop-filter:blur(5px)}
-button,.file{padding:9px 13px;border:3px solid #493831;border-radius:12px;background:var(--yellow);font-weight:900;cursor:pointer;box-shadow:0 3px 0 #8f654b;font-size:14px}.danger{background:var(--danger)}.blue{background:#c8eff9}.green{background:var(--green)}input[type=file]{display:none}.tab{white-space:nowrap}.tab.on{background:var(--pink);color:#fff}
-.panel{display:none}.panel.on{display:block}.card{background:var(--card);padding:14px;margin:12px 0}.card h2{margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:780px){.two{grid-template-columns:1fr}}@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:430px){.grid{grid-template-columns:1fr}}
-label{font-size:13px;font-weight:bold}input,select,textarea{width:100%;margin-top:5px;padding:9px;border:2px solid #a38676;border-radius:9px;font-size:16px;background:#fff;color:#302925}textarea{min-height:74px;resize:vertical}.item{background:#fff;border:3px solid #a7836d;border-radius:14px;padding:10px;margin-top:10px}.head{display:flex;justify-content:space-between;align-items:center;gap:8px}.row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;margin-top:8px}@media(max-width:750px){.row{grid-template-columns:1fr 1fr}}
-.preview{background:#edf9fc;border:2px dashed #65a8b8;border-radius:9px;padding:8px;margin-top:8px;font-size:13px;line-height:1.55}.bad{background:#fff0f0;border-color:#d77878}.small{font-size:12px;color:#6e625c;line-height:1.55}.toggle{display:flex;gap:6px;align-items:center;margin-top:8px}.toggle input{width:auto;margin:0}.ok{color:#27863a;font-weight:bold}.warn{color:#b33b42;font-weight:bold}.muted{color:#756b66}
-.boardWrap{overflow:auto;padding:4px}.board{width:min(100%,760px);min-width:620px;aspect-ratio:9/8;margin:auto;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(8,1fr);gap:5px;position:relative}.tile{border:3px solid #674634;border-radius:12px;background:#ffd878;box-shadow:0 4px 0 #8c6146;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;font-weight:900;font-size:12px;cursor:pointer;position:relative;padding:3px;overflow:hidden}.tile:nth-child(3n){background:#f4a5e8}.tile:nth-child(3n+1){background:#83dcf2}.tile.selected{outline:5px solid #ff4f86;z-index:5}.tile.current{outline:6px solid #fff;box-shadow:0 0 0 9px #ff4f86,0 4px 0 #8c6146;z-index:8}.tile .no{position:absolute;left:4px;top:2px;font-size:10px;opacity:.7}.tile .ico{font-size:24px;line-height:1}.tile .txt{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.center{grid-column:2/9;grid-row:2/8;border:4px solid #674634;border-radius:22px;background:linear-gradient(45deg,#67cce7 25%,#8fe1f2 25% 50%,#67cce7 50% 75%,#8fe1f2 75%);background-size:42px 42px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:12px}.center h2{font-size:30px;margin:0 0 8px}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:650px){.stats{grid-template-columns:1fr 1fr}}.stat{background:#fff;border:3px solid #987664;border-radius:12px;padding:9px;text-align:center}.stat b{display:block;font-size:24px}.dayCard{border-left:8px solid #50bfe2}.dayCard h3{margin:0 0 8px}.step{padding:5px 0;border-bottom:1px dashed #dac7bb}.step:last-child{border-bottom:0}.costline{font-size:18px;font-weight:900}.notice{padding:10px;border-left:6px solid #e29930;background:#fff3cd;border-radius:9px;line-height:1.55}.loader{display:none;padding:12px;text-align:center;font-weight:900}.loader.on{display:block}.playBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.playLog{max-height:250px;overflow:auto;background:#fff;border:3px solid #a7836d;border-radius:12px;padding:9px}.playLog div{padding:5px 0;border-bottom:1px dashed #d9c7bb}.playLog div:last-child{border-bottom:0}.pill{display:inline-block;padding:4px 9px;border-radius:999px;background:#302925;color:#fff;font-weight:900;margin:2px}.searchStatus{font-size:13px;color:#6e625c;margin-top:6px}
+:root{
+  --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
+  --blue:#2f8de4;--blue2:#58c8ef;--pink:#ff6e9d;--gold:#ffbf3e;
+  --green:#53bd72;--purple:#9267e8;--danger:#dc3f52;
+  --shadow:0 12px 28px rgba(34,56,86,.14);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;color:var(--ink);
+  font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  background:
+    radial-gradient(circle at 12% 7%,rgba(255,255,255,.8) 0 45px,transparent 46px),
+    linear-gradient(180deg,#5bd0f1 0 230px,#f8e2a3 230px 73%,#7bd7e4 73%);
+  min-height:100vh;
+}
+button,input,select{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.45}
+.app{max-width:1440px;margin:auto;padding:16px}
+.hero{
+  position:relative;overflow:hidden;background:linear-gradient(135deg,#fff7db,#fff);
+  border:4px solid rgba(255,255,255,.8);border-radius:28px;padding:18px 20px;
+  box-shadow:var(--shadow);margin-bottom:12px;
+}
+.hero:before,.hero:after{content:"";position:absolute;border-radius:50%;opacity:.18}
+.hero:before{width:180px;height:180px;background:#ff9c65;right:-50px;top:-80px}
+.hero:after{width:110px;height:110px;background:#37bce3;right:130px;bottom:-75px}
+.hero-row{display:flex;align-items:center;justify-content:space-between;gap:14px;position:relative;z-index:1}
+.hero h1{font-size:clamp(25px,4vw,42px);margin:0 0 4px;color:#154d70;text-shadow:0 2px #fff}
+.hero p{margin:0;color:#577185}
+.hero-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn{
+  border:0;border-radius:14px;padding:10px 15px;font-weight:900;color:#fff;
+  background:linear-gradient(#4ca9ff,#267cdb);box-shadow:0 4px 0 #1c61ad;
+}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #1c61ad}
+.btn.secondary{background:linear-gradient(#fff,#edf2f7);color:#425066;box-shadow:0 4px 0 #c8d3df;border:1px solid #d6e0e9}
+.btn.pink{background:linear-gradient(#ff8bb3,#f35389);box-shadow:0 4px 0 #c43869}
+.btn.green{background:linear-gradient(#71d58a,#3aa95b);box-shadow:0 4px 0 #288844}
+.btn.gold{background:linear-gradient(#ffd868,#f5a927);color:#6a3b00;box-shadow:0 4px 0 #c58113}
+.btn.red{background:linear-gradient(#ff6c7c,#d8344a);box-shadow:0 4px 0 #a42133}
+.btn.small{padding:7px 11px;border-radius:10px;font-size:13px;box-shadow:0 3px 0 #1c61ad}
+.btn.secondary.small{box-shadow:0 3px 0 #c8d3df}
+.week-switch{
+  display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin:12px 0;
+  background:rgba(255,255,255,.8);padding:9px;border-radius:18px;box-shadow:var(--shadow)
+}
+.day-btn{
+  border:2px solid #d8e4ed;border-radius:13px;background:#fff;padding:9px 4px;
+  color:#617080;font-weight:900;min-width:0
+}
+.day-btn.active{color:#fff;border-color:#f34b83;background:linear-gradient(#ff8ab1,#f2558a);box-shadow:0 4px 0 #c43b68}
+.stats{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px;margin-bottom:12px}
+.stat{
+  background:rgba(255,255,255,.94);border:3px solid #fff;border-radius:17px;padding:11px 12px;
+  box-shadow:var(--shadow)
+}
+.stat-label{font-size:12px;color:var(--muted);font-weight:800}
+.stat-value{font-size:20px;font-weight:1000;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.55fr);gap:12px}
+.card{
+  background:rgba(255,255,255,.96);border:4px solid rgba(255,255,255,.9);
+  border-radius:24px;box-shadow:var(--shadow);padding:14px
+}
+.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.card-title h2,.card-title h3{margin:0}
+.board-shell{
+  position:relative;border-radius:24px;padding:10px;
+  background:
+    radial-gradient(circle at 14% 15%,rgba(255,255,255,.9) 0 6px,transparent 7px),
+    radial-gradient(circle at 86% 23%,rgba(255,255,255,.6) 0 11px,transparent 12px),
+    linear-gradient(155deg,#ffd77c,#f5c15d 48%,#f1ad45);
+  overflow:auto;border:3px solid #ebac42;
+}
+.board{
+  width:100%;min-width:690px;aspect-ratio:1.43;
+  display:grid;gap:5px;position:relative;
+}
+.board.mobile-shape{min-width:390px;aspect-ratio:.72}
+.board-center{
+  z-index:0;border-radius:25px;overflow:hidden;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:12px;
+  background:
+    radial-gradient(circle at 50% 35%,#bff4ff 0 13%,transparent 14%),
+    linear-gradient(145deg,#56d0ed,#278ccf);
+  border:5px solid #176ca9;box-shadow:inset 0 0 0 5px rgba(255,255,255,.36)
+}
+.board-center:before{
+  content:"";position:absolute;inset:11% 15%;border-radius:25px;
+  border:4px dashed rgba(255,255,255,.32)
+}
+.mascot{font-size:clamp(34px,6vw,70px);filter:drop-shadow(0 4px 2px rgba(0,0,0,.18));z-index:1}
+.center-score{z-index:1;background:rgba(255,255,255,.88);border-radius:999px;padding:4px 12px;font-weight:1000;margin-bottom:7px}
+.dice-button{
+  z-index:1;border:5px solid #fff;border-radius:50%;width:clamp(86px,12vw,126px);height:clamp(86px,12vw,126px);
+  background:linear-gradient(#ffdc68,#ff9d34);box-shadow:0 7px 0 #bf6624,0 12px 24px rgba(100,50,0,.25);
+  color:#663d14;font-weight:1000;display:flex;flex-direction:column;align-items:center;justify-content:center
+}
+.dice-button .face{font-size:clamp(28px,5vw,51px);line-height:1}
+.dice-button .text{font-size:clamp(13px,2vw,18px)}
+.center-options{z-index:1;margin-top:9px;display:flex;align-items:center;gap:7px;font-weight:800;color:#fff;font-size:13px}
+.tile{
+  z-index:2;position:relative;background:linear-gradient(#fff09a,#ffc653);border-radius:12px;border:3px solid rgba(30,63,90,.65);
+  box-shadow:0 4px 0 rgba(70,57,48,.42);min-width:0;min-height:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:2px;overflow:visible;text-align:center
+}
+.tile.material{background:linear-gradient(#55cef6,#2395cf)}
+.tile.randomKiwi{background:linear-gradient(#fff09a,#ffc653)}
+.tile.smallKiwi{background:linear-gradient(#a7ed94,#53c875)}
+.tile.largeKiwi{background:linear-gradient(#ba92fa,#8055db)}
+.tile.start{background:linear-gradient(135deg,#fffbef,#ffe6a1);border-color:#934e26}
+.tile-icon{font-size:clamp(15px,2.4vw,29px);line-height:1;filter:drop-shadow(0 2px 0 rgba(255,255,255,.5))}
+.tile-amount{font-weight:1000;font-size:clamp(8px,1.15vw,13px);color:#fff;text-shadow:0 2px 1px rgba(0,0,0,.7);line-height:1.1}
+.tile-index{position:absolute;top:1px;left:3px;font-size:8px;font-weight:900;opacity:.55}
+.player{
+  position:absolute;z-index:6;right:-10px;top:-16px;width:30px;height:30px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:21px;background:#fff7cd;
+  border:2px solid #74462a;box-shadow:0 3px 8px rgba(0,0,0,.28);
+  animation:bob .65s infinite alternate
+}
+@keyframes bob{to{transform:translateY(-4px)}}
+.roll-message{
+  margin-top:10px;background:linear-gradient(#fff,#edf9ff);border:2px solid #9bd8ef;
+  border-radius:15px;padding:10px 12px;font-weight:900;min-height:46px
+}
+.tabs{display:flex;gap:7px;overflow:auto;padding-bottom:4px;margin-bottom:10px}
+.tab-btn{white-space:nowrap;border:0;border-radius:12px;background:#eaf0f5;color:#526174;padding:9px 12px;font-weight:900}
+.tab-btn.active{background:linear-gradient(#63b8ff,#3389db);color:#fff}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.form-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.input,select{
+  border:2px solid #d7e2eb;border-radius:11px;background:#fff;padding:8px 9px;color:#334155;min-width:0
+}
+.input[type=number]{width:110px}
+.progress-bar{height:18px;border-radius:999px;background:#dce6ed;overflow:hidden;border:2px solid #c1d0dc;margin:10px 0}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#55c8ef,#4377e8,#a063ec)}
+.list{display:grid;gap:8px}
+.row-card{
+  border:2px solid #e0e8ef;border-radius:14px;background:#fbfdff;padding:10px
+}
+.row-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row-desc{font-size:13px;color:#66758a;line-height:1.55;margin-top:5px}
+.badge{display:inline-flex;border-radius:999px;padding:3px 8px;background:#edf1f6;color:#536174;font-size:12px;font-weight:900}
+.badge.ok{background:#dff6e4;color:#268043}
+.badge.warn{background:#fff0d0;color:#a75e00}
+.resource-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px dashed #dbe3ea;padding:8px 2px}
+.resource-row:last-child{border-bottom:0}
+.log{
+  max-height:350px;overflow:auto;background:#17243a;color:#ddecff;border-radius:15px;padding:10px;
+  font:12px/1.55 ui-monospace,Consolas,monospace
+}
+.log div{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.side-stack{display:grid;gap:12px}
+.help{font-size:13px;color:#6a7889;line-height:1.55}
+.settings-modal{
+  position:fixed;inset:0;background:rgba(17,31,47,.72);z-index:100;display:none;
+  align-items:center;justify-content:center;padding:14px
+}
+.settings-modal.open{display:flex}
+.settings-window{
+  width:min(1180px,100%);height:min(900px,96vh);background:#f4f7fa;border-radius:24px;
+  overflow:hidden;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 25px 70px rgba(0,0,0,.3)
+}
+.settings-head,.settings-foot{background:#fff;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid #dce5ed}
+.settings-foot{border-top:1px solid #dce5ed;border-bottom:0;justify-content:flex-end}
+.settings-main{display:grid;grid-template-columns:210px 1fr;min-height:0}
+.settings-nav{padding:12px;background:#e8f0f6;overflow:auto}
+.settings-nav button{
+  width:100%;border:0;background:transparent;text-align:left;padding:11px;border-radius:11px;color:#526174;font-weight:900;margin-bottom:5px
+}
+.settings-nav button.active{background:#fff;color:#2078bd;box-shadow:0 3px 10px rgba(60,90,120,.12)}
+.settings-content{padding:15px;overflow:auto}
+.setting-section{display:none}.setting-section.active{display:block}
+.setting-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.field{background:#fff;border:1px solid #dce5ed;border-radius:13px;padding:10px}
+.field label{display:block;font-size:12px;color:#6a7889;font-weight:900;margin-bottom:5px}
+.field input,.field select{width:100%}
+.editor-card{background:#fff;border:2px solid #dce5ed;border-radius:16px;padding:12px;margin-bottom:10px}
+.editor-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.editor-head h3{margin:0;font-size:17px}
+.editor-table{display:grid;gap:6px}
+.editor-row{
+  display:grid;grid-template-columns:minmax(140px,1fr) 100px 100px auto;gap:6px;align-items:center;
+  background:#f4f7fa;border-radius:10px;padding:6px
+}
+.editor-row.package-reward{grid-template-columns:minmax(150px,1fr) 110px auto}
+.icon-input{width:70px!important}
+.prob-total{font-weight:900}
+.prob-total.bad{color:#d43149}
+.checkline{display:flex;align-items:center;gap:8px;font-weight:800}
+.empty{padding:14px;text-align:center;color:#7a8796}
+
+.multiplier-wrap{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.multiplier-label{font-size:13px;font-weight:900;color:#5f6f82}
+.multiplier-group{display:flex;gap:5px;background:#e8f0f6;border-radius:13px;padding:5px}
+.multiplier-btn{
+  border:0;border-radius:9px;background:#fff;color:#536174;font-weight:1000;padding:7px 11px;
+  box-shadow:0 2px 5px rgba(40,65,90,.1)
+}
+.multiplier-btn.active{background:linear-gradient(#ff8ab1,#f2558a);color:#fff}
+.history-note{font-size:12px;color:#6f7d8d;min-width:120px}
+.sim-baseline{
+  border:2px solid #9dd7ef;background:linear-gradient(#f5fcff,#e8f8ff);
+  border-radius:15px;padding:12px;margin-bottom:10px
+}
+.sim-controls{
+  display:grid;grid-template-columns:repeat(4,minmax(130px,1fr));gap:9px;
+  background:#f6f9fc;border:2px solid #e0e8ef;border-radius:15px;padding:10px
+}
+.sim-controls .field{padding:8px}
+.sim-summary{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin:12px 0}
+.sim-stat{border:2px solid #dce8f1;border-radius:14px;background:#fff;padding:10px}
+.sim-stat .k{font-size:12px;color:#718096;font-weight:900}
+.sim-stat .v{font-size:21px;font-weight:1000;margin-top:3px}
+.sim-table-wrap{overflow:auto;border:2px solid #dce5ed;border-radius:14px;background:#fff}
+.sim-table{width:100%;border-collapse:collapse;min-width:760px;font-size:13px}
+.sim-table th,.sim-table td{padding:8px 9px;border-bottom:1px solid #e4eaf0;text-align:right}
+.sim-table th{position:sticky;top:0;background:#eaf3fa;color:#41536a;font-weight:1000}
+.sim-table th:first-child,.sim-table td:first-child{text-align:center}
+.sim-table tr:last-child td{border-bottom:0}
+.sim-progress{height:10px;background:#dfe8ef;border-radius:999px;overflow:hidden;margin-top:9px}
+.sim-progress > div{height:100%;width:0;background:linear-gradient(90deg,#4cb9ec,#775fe9)}
+.negative{color:#cf3048!important}
+@media(max-width:720px){
+  .sim-controls{grid-template-columns:1fr 1fr}
+  .sim-summary{grid-template-columns:1fr 1fr}
+}
+
+.toast{
+  position:fixed;right:18px;bottom:18px;z-index:200;background:#172033;color:#fff;
+  border-radius:13px;padding:11px 15px;box-shadow:var(--shadow);opacity:0;transform:translateY(12px);
+  pointer-events:none;transition:.2s
+}
+.toast.show{opacity:1;transform:none}
+@media(max-width:1050px){
+  .main-grid{grid-template-columns:1fr}
+  .side-stack{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stats{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:720px){
+  .app{padding:8px}.hero{border-radius:20px;padding:14px}
+  .hero-row{align-items:flex-start;flex-direction:column}.hero-actions{justify-content:flex-start}
+  .week-switch{gap:4px;padding:6px}.day-btn{font-size:12px;padding:8px 2px}
+  .stats{grid-template-columns:repeat(2,1fr)}.stat-value{font-size:18px}
+  .card{border-radius:19px;padding:9px}.board-shell{padding:5px}
+  .board{min-width:390px}
+  .side-stack{grid-template-columns:1fr}
+  .settings-main{grid-template-columns:1fr}.settings-nav{display:flex;overflow:auto;padding:8px}
+  .settings-nav button{width:auto;white-space:nowrap;margin:0 4px 0 0}
+  .setting-grid{grid-template-columns:1fr}
+  .editor-row{grid-template-columns:1fr 74px 75px auto;font-size:12px}
+  .editor-row.package-reward{grid-template-columns:1fr 90px auto}
+}
 </style>
 </head>
-<body><div class="app">
-<header class="hero"><h1>🧭 換皮活動最佳攻略與實玩模擬器 v4</h1><p>輸入目標高級兌換幣，系統依每日任務、禮包、30 格玩法與每日進度，自動找出「達標且翡翠石最少、寶石最少」的 1～7 日攻略。</p></header>
-<div class="tools"><button class="green" onclick="saveAll()">💾 儲存</button><button class="blue" onclick="exportJSON()">⬇ 匯出 JSON</button><label class="file">⬆ 匯入 JSON<input id="file" type="file" accept=".json"></label><button onclick="loadExample()">載入夏日範例</button><button class="danger" onclick="resetAll()">全部重設</button></div>
-<div class="tabs"><button class="tab on" data-p="basic">活動設定</button><button class="tab" data-p="boardPanel">30 格玩法</button><button class="tab" data-p="packs">禮包</button><button class="tab" data-p="progress">每日進度</button><button class="tab" data-p="planner">最佳攻略</button></div>
+<body>
+<div class="app">
+  <header class="hero">
+    <div class="hero-row">
+      <div>
+        <h1 id="eventName">夏日環遊模擬器</h1>
+        <p>遊戲式棋盤、每日切換與圖形化設定清單</p>
+      </div>
+      <div class="hero-actions">
+        <button class="btn secondary" id="undoBtn" disabled>↶ 復原上一步</button>
+        <button class="btn secondary" id="redoBtn" disabled>↷ 重做</button>
+        <button class="btn secondary" id="saveBtn">💾 儲存</button>
+        <button class="btn secondary" id="loadBtn">📂 讀取</button>
+        <button class="btn gold" id="settingsBtn">⚙️ 活動設定</button>
+        <button class="btn red" id="resetBtn">↻ 重置</button>
+      </div>
+    </div>
+  </header>
 
-<section id="basic" class="panel on">
-<div class="card"><h2>活動與資源名稱</h2><div class="grid">
-<label>活動名稱<input id="eventName" value="夏日環遊"></label><label>活動天數<input id="eventDays" type="number" min="1" max="7" value="7"></label><label>玩法代幣名稱<input id="tokenName" value="骰子"></label><label>每日任務最多取得玩法代幣<input id="dailyTaskToken" type="number" min="0" value="11"></label>
-<label>高級兌換幣名稱<input id="premiumName" value="火龍果汁"></label><label>寶石名稱<input id="gemName" value="寶石"></label><label>課金代幣名稱<input id="emeraldName" value="翡翠石"></label><label>每次遊玩消耗玩法代幣<input id="tokenCost" type="number" min="1" value="1"></label>
-</div></div>
-<div class="card"><h2>進度積分規則</h2><div class="grid">
-<label>每獲得 1 個玩法代幣積分<input id="pointsPerToken" type="number" step="0.01" value="2"></label><label>每獲得 1 個高級兌換幣積分<input id="pointsPerPremium" type="number" step="0.01" value="0"></label><label>每完成 1 圈積分<input id="pointsPerLap" type="number" step="0.01" value="10"></label><label>骰子平均點數<input id="averageRoll" type="number" step="0.01" value="3.5"></label>
-</div><p class="small">攻略使用期望值：30 格棋盤下，每使用 1 顆骰子的預期圈數＝平均點數 ÷ 30。若活動是「取得玩法代幣給高分」，系統會自然傾向每日買；若「完成圈數影響大」，系統可把骰子囤到某一天集中使用。</p></div>
-<div class="card"><h2>隨機箱期望值</h2><label>格式：箱子名稱:每箱預期高級兌換幣<textarea id="boxExpectations">火龍果汁隨機箱:1.051</textarea></label><p class="small">例如 95%×1、4.9%×2、0.1%×3，其期望值為 1.051。進度獎勵填「火龍果汁隨機箱:3」時，會換算成預期 3.153 個火龍果汁。</p></div>
-</section>
+  <nav class="week-switch" id="weekSwitch"></nav>
+  <section class="stats" id="stats"></section>
 
-<section id="boardPanel" class="panel"><div class="card"><h2>30 格玩法</h2><div class="boardWrap"><div class="board" id="board"><div class="center"><h2 id="boardTitle">夏日環遊</h2><p><b>可在下方實際擲骰驗證攻略</b></p><p class="small">攻略採期望值；實玩區會使用真正的 1～6 隨機骰點與實際落點。</p></div></div></div></div>
-<div class="two"><div class="card"><h2>棋盤期望摘要</h2><div id="boardExpectation" class="preview"></div></div><div class="card"><h2>格子編輯器</h2><p class="small">點選格子後修改，再按「套用」。輸入時不重建畫面，不會中斷注音。</p><div class="grid"><label>格號<input id="tileIndex" readonly></label><label>圖示<input id="tileIcon" maxlength="4"></label><label>資源名稱<input id="tileName"></label><label>數量<input id="tileAmount" type="number" step="0.01"></label></div><label style="display:block;margin-top:8px">備註<input id="tileNote"></label><div class="actions"><button onclick="applyTileEdit()">套用此格</button><button class="blue" onclick="copyTileToNext()">複製到下一格</button><button class="danger" onclick="clearTile()">清除此格</button></div></div></div>
-<div class="card"><h2>🎲 實際遊玩驗證</h2>
-<div class="grid">
-<label>目前天數<input id="playDay" type="number" value="1" readonly></label>
-<label>持有玩法代幣<input id="playStock" type="number" value="0" readonly></label>
-<label>今日進度積分<input id="playPoints" type="number" value="0" readonly></label>
-<label>累積高級兌換幣<input id="playPremium" type="number" value="0" readonly></label>
-<label>手動加入玩法代幣<input id="playAddToken" type="number" min="0" value="0"></label>
-<label>目前位置<input id="playPosition" value="第 1 格" readonly></label>
-<label>完成圈數<input id="playLaps" value="0" readonly></label>
-<label>上次骰點<input id="playLastRoll" value="尚未擲骰" readonly></label>
+  <div class="main-grid">
+    <main>
+      <section class="card">
+        <div class="card-title">
+          <div>
+            <h2>🏝️ 大富翁地圖</h2>
+            <div class="help" id="boardMeta"></div>
+          </div>
+          <button class="btn secondary small" id="refreshBoardBtn">刷新地圖</button>
+        </div>
+        <div class="board-shell">
+          <div class="board" id="board">
+            <div class="board-center" id="boardCenter">
+              <div class="center-score" id="centerScore">今日 0 分</div>
+              <div class="mascot">🦫</div>
+              <button class="dice-button" id="rollBtn">
+                <span class="face" id="diceFace">🎲</span>
+                <span class="text">擲骰子</span>
+              </button>
+              <label class="center-options"><input type="checkbox" id="skipAnimation"> 跳過動畫</label>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:10px;justify-content:space-between">
+          <div class="multiplier-wrap">
+            <span class="multiplier-label">每次擲骰</span>
+            <div class="multiplier-group" id="multiplierGroup">
+              <button class="multiplier-btn active" data-roll-count="1">×1</button>
+              <button class="multiplier-btn" data-roll-count="3">×3</button>
+              <button class="multiplier-btn" data-roll-count="5">×5</button>
+              <button class="multiplier-btn" data-roll-count="10">×10</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <button class="btn green" id="autoRollBtn">自動使用全部骰子</button>
+            <button class="btn secondary" id="stopAutoBtn" disabled>停止自動</button>
+          </div>
+        </div>
+        <div class="roll-message" id="rollMessage">請先領取每日任務或基金骰子。</div>
+      </section>
+
+      <section class="card" style="margin-top:12px">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="daily">每日進度</button>
+          <button class="tab-btn" data-tab="packages">每日禮包</button>
+          <button class="tab-btn" data-tab="simulation">批次模擬</button>
+          <button class="tab-btn" data-tab="inventory">背包與箱子</button>
+          <button class="tab-btn" data-tab="log">模擬紀錄</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-daily">
+          <div class="card-title"><h3 id="dailyTitle">週一進度</h3></div>
+          <div class="form-row">
+            <label>今日任務完成量</label>
+            <input class="input" type="number" id="dailyDiceInput" min="0">
+            <button class="btn" id="claimDailyBtn">領取每日骰子</button>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="help" id="progressText"></div>
+
+          <h3>🎟️ 活動基金</h3>
+          <div class="list" id="fundList"></div>
+
+          <h3>🎁 每日進度獎勵</h3>
+          <div class="list" id="stageList"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-packages">
+          <div id="packageGroups"></div>
+        </div>
+
+
+        <div class="tab-panel" id="tab-simulation">
+          <div class="sim-baseline">
+            <div class="row-top">
+              <div>
+                <strong>📌 模擬基準</strong>
+                <div class="row-desc" id="baselineStatus">尚未建立。完成七天領取與購買後，先建立基準。</div>
+              </div>
+              <div class="form-row">
+                <button class="btn gold small" id="captureBaselineBtn">建立／更新基準</button>
+                <button class="btn secondary small" id="restoreBaselineBtn" disabled>恢復基準</button>
+                <button class="btn red small" id="clearBaselineBtn" disabled>清除</button>
+              </div>
+            </div>
+          </div>
+          <div class="help" style="margin-bottom:9px">
+            批次模擬會從完全相同的天數、背包、骰子、棋盤與購買狀態開始，每次把全部骰子用完，再自動回到基準。
+            完成後目前操作畫面不會被改動。
+          </div>
+          <div class="sim-controls">
+            <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="10"></div>
+            <div class="field"><label>達標統計項目</label><select id="targetMetric"></select></div>
+            <div class="field"><label>達標值（大於等於）</label><input class="input" type="number" id="targetValue" step="any" value="2055"></div>
+            <div class="field"><label>執行</label><button class="btn green" id="runSimulationBtn" style="width:100%">全砸 → 重置 → 重複</button></div>
+          </div>
+          <div class="sim-progress"><div id="simulationProgress"></div></div>
+          <div class="help" id="simulationProgressText" style="margin-top:5px"></div>
+          <div class="sim-summary" id="simulationSummary"></div>
+          <div class="sim-table-wrap" id="simulationResults"></div>
+        </div>
+
+        <div class="tab-panel" id="tab-inventory">
+          <div class="form-row" style="margin-bottom:9px">
+            <select id="boxSelect"></select>
+            <button class="btn green" id="openOneBoxBtn">開 1 箱</button>
+            <button class="btn secondary" id="openAllBoxesBtn">全部開啟</button>
+          </div>
+          <div class="setting-grid">
+            <div class="row-card"><h3 style="margin-top:0">目前資源</h3><div id="inventoryList"></div></div>
+            <div class="row-card"><h3 style="margin-top:0">累計支出</h3><div id="spentList"></div></div>
+          </div>
+        </div>
+
+        <div class="tab-panel" id="tab-log">
+          <div class="form-row" style="margin-bottom:9px"><button class="btn secondary small" id="clearLogBtn">清除紀錄</button></div>
+          <div class="log" id="logList"></div>
+        </div>
+      </section>
+    </main>
+
+    <aside class="side-stack">
+      <section class="card">
+        <div class="card-title"><h3>📦 快速資源</h3></div>
+        <div id="quickResources"></div>
+      </section>
+      <section class="card">
+        <div class="card-title"><h3>🗺️ 本圈格子分布</h3></div>
+        <div id="distribution"></div>
+      </section>
+      <section class="card">
+        <div class="card-title"><h3>⭐ 計分規則</h3></div>
+        <div class="help" id="scoreRules"></div>
+      </section>
+      <section class="card">
+        <div class="card-title"><h3>操作說明</h3></div>
+        <div class="help">
+          週一至週日可隨時切換，每一天會各自保存積分、任務、階段獎勵及禮包購買次數。
+          棋盤位置、圈數與背包資源則是整個活動共用。完成準備後可建立「模擬基準」，
+          重複全砸骰子並統計達標機率；任何一般操作也能使用上方的復原與重做。
+        </div>
+      </section>
+    </aside>
+  </div>
 </div>
-<div class="playBtns">
-<button onclick="claimDailyPlay()">領取每日任務代幣</button>
-<button class="blue" onclick="addPlayTokens()">加入指定代幣</button>
-<button class="green" onclick="rollActual()">擲骰子並前進</button>
-<button onclick="nextPlayDay()">進入下一天</button>
-<button class="danger" onclick="resetPlay()">重設實玩</button>
+
+<div class="settings-modal" id="settingsModal">
+  <div class="settings-window">
+    <div class="settings-head">
+      <div><strong style="font-size:20px">⚙️ 活動設定清單</strong><div class="help">直接輸入或增刪，不需要編寫 JSON。</div></div>
+      <button class="btn secondary small" id="closeSettingsBtn">關閉</button>
+    </div>
+    <div class="settings-main">
+      <nav class="settings-nav" id="settingsNav">
+        <button class="active" data-setting-tab="basic">基本設定</button>
+        <button data-setting-tab="items">物品名稱</button>
+        <button data-setting-tab="cells">格子與機率</button>
+        <button data-setting-tab="stages">進度獎勵</button>
+        <button data-setting-tab="packages">禮包清單</button>
+        <button data-setting-tab="backup">備份與還原</button>
+      </nav>
+      <div class="settings-content" id="settingsContent"></div>
+    </div>
+    <div class="settings-foot">
+      <button class="btn secondary" id="cancelSettingsBtn">取消變更</button>
+      <button class="btn green" id="applySettingsBtn">套用設定</button>
+    </div>
+  </div>
 </div>
-<p class="small">取得玩法代幣會立即依設定增加進度分；完成一圈、踩到高級兌換幣格，也會依規則加分。達到每日進度門檻時會自動領取。</p>
-<div id="playClaimed" class="preview">今日尚未領取進度獎勵。</div>
-<div id="playInventory" class="preview">目前沒有其他棋盤資源。</div>
-<div id="playLog" class="playLog"><div>實玩已準備完成。</div></div>
-</div></section>
 
-<section id="packs" class="panel"><div class="card"><h2>禮包清單</h2><div class="actions"><button onclick="addPack()">＋新增禮包</button><button class="danger" onclick="clearList('packs')">清空全部</button></div><p class="small">價格類型固定分成「廣告、寶石、翡翠石」。攻略優先比較翡翠石，再比較寶石；廣告視為免費來源。</p><div id="packList"></div></div></section>
+<input type="file" id="importConfigInput" accept=".json,application/json" hidden>
+<div class="toast" id="toast"></div>
 
-<section id="progress" class="panel"><div class="card"><h2>每日進度獎勵</h2><div class="actions"><button onclick="addProgress()">＋新增階段</button><button class="danger" onclick="clearList('progress')">清空全部</button></div><p class="small">每日重置。獎勵可直接填高級兌換幣，也可填上方設定過期望值的隨機箱。</p><div id="progressList"></div></div></section>
-
-<section id="planner" class="panel">
-<div class="card"><h2>目標</h2><div class="grid"><label>目標高級兌換幣數量<input id="targetPremium" type="number" min="0" step="0.01" value="40"></label><label>攻略天數（1～7）<input id="planDays" type="number" min="1" max="7" value="7"></label><label>每天最多使用玩法代幣<input id="maxUsePerDay" type="number" min="0" value="999"></label><label>搜尋精細度<select id="searchMode"><option value="normal">一般（推薦）</option><option value="fine">精細（較慢）</option></select></label></div><div class="actions"><button class="green" onclick="startPlan()">🔍 分析最省攻略</button></div><div class="notice">不需要輸入目前持有資源。攻略會列出完整需求；玩家再自行判斷是否有足夠寶石／翡翠石，資源不足時可降低目標重新分析。</div></div>
-<div id="loader" class="loader">正在搜尋每日購買、囤積與使用組合……</div>
-<div id="planResult"></div>
-</section>
-</div>
 <script>
-const $=s=>document.querySelector(s), num=v=>Number(v)||0, uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-let db={tiles:[],packs:[],progress:[]},selectedTile=0;
-function parseItems(text){if(!String(text||'').trim())return[];return String(text).split(/[,，、;\n]+/).map(x=>x.trim()).filter(Boolean).map(part=>{let m=part.match(/^(.+?)\s*[:：xX×]\s*(-?\d+(?:\.\d+)?)$/);return m?{name:m[1].trim(),amount:num(m[2]),ok:true}:{name:part,amount:0,ok:false}})}
-function preview(text){const a=parseItems(text);if(!a.length)return '<span class="warn">尚未輸入</span>';return a.map(x=>(x.ok?'✓ ':'✕ ')+esc(x.name)+(x.ok?' × '+x.amount:'（請用 名稱:數量）')).join('<br>')}
-function defaultTiles(){const names=[['寶石',20,'💎'],['奇異果汁',8,'🥤'],['寶石',20,'💎'],['高級煉金試劑',1,'🧪'],['奇異果汁',4,'🥤'],['高級煉金試劑',1,'🧪'],['寶石',30,'💎'],['萬能碎片',5,'🧩'],['萬能碎片',5,'🧩'],['奇異果汁',2,'🥤'],['寶石',20,'💎'],['寶石',40,'💎'],['奇異果汁',4,'🥤'],['寶石',40,'💎'],['寶石',30,'💎'],['寶石',20,'💎'],['奇異果汁',3,'🥤'],['高級煉金試劑',1,'🧪'],['寶石',30,'💎'],['寶石',40,'💎'],['萬能碎片',5,'🧩'],['寶石',30,'💎'],['寶石',20,'💎'],['奇異果汁',5,'🥤'],['寶石',20,'💎'],['奇異果汁',8,'🥤'],['萬能碎片',5,'🧩'],['寶石',20,'💎'],['奇異果汁',8,'🥤'],['寶石',20,'💎']];return names.map((x,i)=>({id:i,name:x[0],amount:x[1],icon:x[2],note:''}))}
-function boardCoords(){let a=[];for(let c=1;c<=9;c++)a.push([1,c]);for(let r=2;r<=8;r++)a.push([r,9]);for(let c=8;c>=1;c--)a.push([8,c]);for(let r=7;r>=2;r--)a.push([r,1]);return a}
-function renderBoard(){const board=$('#board'),center=board.querySelector('.center');board.innerHTML='';board.appendChild(center);$('#boardTitle').textContent=$('#eventName').value||'活動';const coords=boardCoords();db.tiles.forEach((t,i)=>{let d=document.createElement('div');d.className='tile'+(i===selectedTile?' selected':'')+(playState&&i===playState.position?' current':'');d.style.gridRow=coords[i][0];d.style.gridColumn=coords[i][1];d.innerHTML=`<span class="no">${i+1}</span><span class="ico">${esc(t.icon||'▫️')}</span><span class="txt">${esc(t.name||'空格')}</span><span>${num(t.amount)}</span>`;d.onclick=()=>selectTile(i);board.appendChild(d)});renderBoardExpectation()}
-function selectTile(i){selectedTile=i;let t=db.tiles[i];$('#tileIndex').value=i+1;$('#tileIcon').value=t.icon||'';$('#tileName').value=t.name||'';$('#tileAmount').value=t.amount||0;$('#tileNote').value=t.note||'';renderBoard()}
-function applyTileEdit(){let t=db.tiles[selectedTile];t.icon=$('#tileIcon').value;t.name=$('#tileName').value.trim();t.amount=num($('#tileAmount').value);t.note=$('#tileNote').value;renderBoard()}
-function copyTileToNext(){applyTileEdit();let n=(selectedTile+1)%30;db.tiles[n]={...db.tiles[selectedTile],id:n};selectTile(n)}
-function clearTile(){db.tiles[selectedTile]={id:selectedTile,name:'',amount:0,icon:'▫️',note:''};selectTile(selectedTile)}
-function boardExpectedMap(){let o={};db.tiles.forEach(t=>{if(t.name)o[t.name]=(o[t.name]||0)+num(t.amount)/30});return o}
-function renderBoardExpectation(){let o=boardExpectedMap(),rows=Object.entries(o).filter(x=>x[1]);$('#boardExpectation').innerHTML=rows.length?rows.map(([k,v])=>`每使用 1 次玩法代幣，預期獲得 <b>${esc(k)} ${v.toFixed(3)}</b>`).join('<br>'):'棋盤沒有任何獎勵。'}
-function addPack(obj={}){db.packs.push({id:uid(),name:'新禮包',costType:'寶石',price:1000,limit:1,daily:true,contents:($('#tokenName').value||'玩法代幣')+':10',on:true,...obj});renderLists()}
-function addProgress(obj={}){db.progress.push({id:uid(),tier:db.progress.length+1,threshold:90,rewards:'火龍果汁隨機箱:1',on:true,...obj});renderLists()}
-function removeItem(type,id){db[type]=db[type].filter(x=>x.id!==id);renderLists()}function duplicateItem(type,id){let x=db[type].find(a=>a.id===id);if(x){x=JSON.parse(JSON.stringify(x));x.id=uid();x.name=(x.name||'')+'（複製）';db[type].push(x);renderLists()}}function clearList(type){if(confirm('確定清空？')){db[type]=[];renderLists()}}
-function setValue(type,id,key,value){let x=db[type].find(a=>a.id===id);if(x)x[key]=value}function buttons(t,id){return `<div><button onclick="duplicateItem('${t}','${id}')">複製</button> <button class="danger" onclick="removeItem('${t}','${id}')">刪除</button></div>`}
-function renderLists(){
-$('#packList').innerHTML=db.packs.length?db.packs.map((x,i)=>`<div class="item"><div class="head"><b>禮包 ${i+1}</b>${buttons('packs',x.id)}</div><div class="row"><label>名稱<input value="${esc(x.name)}" oninput="setValue('packs','${x.id}','name',this.value)"></label><label>價格類型<select onchange="setValue('packs','${x.id}','costType',this.value)"><option${x.costType==='廣告'?' selected':''}>廣告</option><option${x.costType==='寶石'?' selected':''}>寶石</option><option${x.costType==='翡翠石'?' selected':''}>翡翠石</option></select></label><label>單價<input type="number" min="0" value="${x.price}" oninput="setValue('packs','${x.id}','price',num(this.value))"></label><label>限購次數<input type="number" min="0" value="${x.limit}" oninput="setValue('packs','${x.id}','limit',num(this.value))"></label></div><div class="row"><label>內容物<input value="${esc(x.contents)}" oninput="setValue('packs','${x.id}','contents',this.value)" onchange="updatePreview(this)"></label><label>重置<select onchange="setValue('packs','${x.id}','daily',this.value==='1')"><option value="1"${x.daily?' selected':''}>每日</option><option value="0"${!x.daily?' selected':''}>活動一次</option></select></label><label class="toggle"><input type="checkbox"${x.on?' checked':''} onchange="setValue('packs','${x.id}','on',this.checked)">啟用</label></div><div class="preview">${preview(x.contents)}</div></div>`).join(''):'<p class="small">尚無禮包。</p>';
-$('#progressList').innerHTML=db.progress.length?db.progress.map((x,i)=>`<div class="item"><div class="head"><b>階段 ${i+1}</b>${buttons('progress',x.id)}</div><div class="row"><label>階數<input type="number" min="1" value="${x.tier}" oninput="setValue('progress','${x.id}','tier',num(this.value))"></label><label>積分門檻<input type="number" min="0" value="${x.threshold}" oninput="setValue('progress','${x.id}','threshold',num(this.value))"></label><label>獎勵內容<input value="${esc(x.rewards)}" oninput="setValue('progress','${x.id}','rewards',this.value)" onchange="updatePreview(this)"></label><label class="toggle"><input type="checkbox"${x.on?' checked':''} onchange="setValue('progress','${x.id}','on',this.checked)">啟用</label></div><div class="preview">${preview(x.rewards)}</div></div>`).join(''):'<p class="small">尚無進度階段。</p>'}
-function updatePreview(input){const box=input.closest('.item').querySelector('.preview');box.innerHTML=preview(input.value);box.classList.toggle('bad',parseItems(input.value).some(x=>!x.ok))}
-function boxMap(){let o={};parseItems($('#boxExpectations').value).filter(x=>x.ok).forEach(x=>o[x.name]=x.amount);return o}
-function rewardPremium(text){const premium=$('#premiumName').value.trim(),boxes=boxMap();let total=0;parseItems(text).filter(x=>x.ok).forEach(x=>{if(x.name===premium)total+=x.amount;else if(boxes[x.name]!=null)total+=x.amount*boxes[x.name]});return total}
-function rewardToken(text){const token=$('#tokenName').value.trim();return parseItems(text).filter(x=>x.ok&&x.name===token).reduce((s,x)=>s+x.amount,0)}
-function packActionOptions(pack,remaining){
-let max=Math.max(0,Math.min(num(pack.limit),remaining==null?num(pack.limit):remaining));
-if(max<=4)return Array.from({length:max+1},(_,i)=>i);
-let s=new Set([0,1,2,3,max-1,max]);
-return [...s].filter(x=>x>=0&&x<=max).sort((a,b)=>a-b)
-}
-function enumeratePurchases(state,day,packs,idx,current,out,cap){if(out.length>cap)return;if(idx>=packs.length){out.push(current);return}let p=packs[idx],remain=p.daily?num(p.limit):Math.max(0,num(p.limit)-(state.activityUsed[p.id]||0));for(const q of packActionOptions(p,remain)){let next={counts:{...current.counts,[p.id]:q},tokens:current.tokens+rewardToken(p.contents)*q,premium:current.premium+rewardPremium(p.contents)*q,emerald:current.emerald+(p.costType==='翡翠石'?num(p.price)*q:0),gems:current.gems+(p.costType==='寶石'?num(p.price)*q:0),ads:current.ads+(p.costType==='廣告'?q:0)};enumeratePurchases(state,day,packs,idx+1,next,out,cap)}}
-function dailyOutcome(acquiredTokens,useTokens,directPremium){const pToken=num($('#pointsPerToken').value),pPremium=num($('#pointsPerPremium').value),pLap=num($('#pointsPerLap').value),avg=num($('#averageRoll').value),cost=Math.max(1,num($('#tokenCost').value));let plays=useTokens/cost,laps=plays*avg/30,boardPremium=(boardExpectedMap()[$('#premiumName').value.trim()]||0)*plays;let premium=directPremium+boardPremium,points=acquiredTokens*pToken+laps*pLap+premium*pPremium,claimed=[],tiers=[...db.progress].filter(x=>x.on).sort((a,b)=>a.threshold-b.threshold);for(const t of tiers){if(points+1e-9>=num(t.threshold)){let gain=rewardPremium(t.rewards);premium+=gain;points+=gain*pPremium;claimed.push({tier:t.tier,threshold:t.threshold,gain,rewards:t.rewards})}}return{premium,points,laps,boardPremium,claimed}}
-function useCandidates(stock,acquired,directPremium){let max=Math.min(Math.floor(stock),Math.max(0,num($('#maxUsePerDay').value))),cost=Math.max(1,num($('#tokenCost').value)),avg=num($('#averageRoll').value),perUse=(avg/30)*num($('#pointsPerLap').value)+(boardExpectedMap()[$('#premiumName').value.trim()]||0)*num($('#pointsPerPremium').value)/cost,base=acquired*num($('#pointsPerToken').value)+directPremium*num($('#pointsPerPremium').value),set=new Set([0,max]);db.progress.filter(x=>x.on).forEach(t=>{if(perUse>0){let need=Math.ceil((num(t.threshold)-base)/perUse);for(let d=-2;d<=2;d++){let v=Math.max(0,Math.min(max,need+d));v=Math.floor(v/cost)*cost;set.add(v)}}});if($('#searchMode').value==='fine'){let step=Math.max(cost,Math.ceil(max/30));for(let v=0;v<=max;v+=step)set.add(Math.floor(v/cost)*cost)}return [...set].filter(v=>v>=0&&v<=max).sort((a,b)=>a-b)}
-function costBetter(a,b){if(!b)return true;return a.emerald<b.emerald||a.emerald===b.emerald&&(a.gems<b.gems||a.gems===b.gems&&(a.ads<b.ads||a.ads===b.ads&&a.used<b.used))}
-function stateDominates(a,b){return a.day===b.day&&a.activityKey===b.activityKey&&a.stock>=b.stock-1e-9&&a.premium>=b.premium-1e-9&&a.emerald<=b.emerald&&a.gems<=b.gems&&a.ads<=b.ads}
-function prune(states,limit){states.sort((a,b)=>a.emerald-b.emerald||a.gems-b.gems||a.ads-b.ads||b.premium-a.premium||b.stock-a.stock);let kept=[];for(const s of states){let dominated=false;for(let i=0;i<kept.length;i++){if(stateDominates(kept[i],s)){dominated=true;break}}if(!dominated)kept.push(s);if(kept.length>=limit)break}return kept}
-function buildActivityKey(used){return Object.keys(used).sort().map(k=>k+':'+used[k]).join('|')}
-let planningCancelled=false;
-const yieldUI=()=>new Promise(r=>setTimeout(r,0));
-async function solvePlanAsync(){
- const days=Math.max(1,Math.min(7,num($('#planDays').value))),target=num($('#targetPremium').value),
- packs=db.packs.filter(x=>x.on),dailyFree=num($('#dailyTaskToken').value),mode=$('#searchMode').value,
- beam=mode==='fine'?1500:600,comboCap=mode==='fine'?3500:1200;
- let states=[{day:0,stock:0,premium:0,emerald:0,gems:0,ads:0,used:0,activityUsed:{},activityKey:'',plan:[]}],best=null;
- for(let day=1;day<=days;day++){
-   let next=[];
-   for(let si=0;si<states.length;si++){
-     if(planningCancelled)throw new Error('已取消分析');
-     const st=states[si],combos=[];
-     enumeratePurchases(st,day,packs,0,{counts:{},tokens:0,premium:0,emerald:0,gems:0,ads:0},combos,comboCap);
-     for(const c of combos){
-       let acquired=dailyFree+c.tokens,stock=st.stock+acquired,directPremium=c.premium,act={...st.activityUsed};
-       packs.filter(p=>!p.daily).forEach(p=>{let q=c.counts[p.id]||0;if(q)act[p.id]=(act[p.id]||0)+q});
-       for(const use of useCandidates(stock,acquired,directPremium)){
-         let out=dailyOutcome(acquired,use,directPremium),ns={day,stock:stock-use,premium:st.premium+out.premium,
-         emerald:st.emerald+c.emerald,gems:st.gems+c.gems,ads:st.ads+c.ads,used:st.used+use,
-         activityUsed:act,activityKey:buildActivityKey(act),
-         plan:st.plan.concat([{day,free:dailyFree,purchases:c.counts,acquired,use,stockEnd:stock-use,out}])};
-         next.push(ns);
-         if(ns.premium+1e-9>=target&&costBetter(ns,best))best=ns;
-       }
-     }
-     if(next.length>beam*8)next=prune(next,beam*3);
-     if(si%8===0){
-       $('#searchProgress').textContent=`第 ${day}/${days} 天：處理 ${si+1}/${states.length} 個候選，暫存 ${next.length} 個狀態`;
-       await yieldUI();
-     }
-   }
-   states=prune(next,beam);
-   $('#searchProgress').textContent=`第 ${day}/${days} 天完成，保留 ${states.length} 個有效狀態`;
-   await yieldUI();
- }
- return{best,states,target,days}
-}
-async function startPlan(){
- planningCancelled=false;
- $('#loader').classList.add('on');$('#planResult').innerHTML='';$('#searchProgress').textContent='準備分析…';
- try{renderPlan(await solvePlanAsync())}
- catch(e){console.error(e);$('#planResult').innerHTML=`<div class="card warn">${esc(e.message)}</div>`}
- finally{$('#loader').classList.remove('on')}
-}
-function cancelPlan(){planningCancelled=true}
-function fmt(v){return num(v).toLocaleString(undefined,{maximumFractionDigits:3})}
-function renderPlan(result){let b=result.best;if(!b){let max=[...result.states].sort((a,z)=>z.premium-a.premium)[0];$('#planResult').innerHTML=`<div class="card"><h2 class="warn">在目前設定與限購內無法達標</h2><p>目標：${fmt(result.target)}；最多預期可取得：<b>${fmt(max?.premium||0)}</b>。</p><p>達到上限需要：翡翠石 ${fmt(max?.emerald||0)}、寶石 ${fmt(max?.gems||0)}、廣告 ${fmt(max?.ads||0)} 次。</p></div>`;return}
-let html=`<div class="card"><h2 class="ok">✓ 找到達標且最省的攻略</h2><div class="stats"><div class="stat">預期高級幣<b>${fmt(b.premium)}</b></div><div class="stat">翡翠石需求<b>${fmt(b.emerald)}</b></div><div class="stat">寶石需求<b>${fmt(b.gems)}</b></div><div class="stat">廣告次數<b>${fmt(b.ads)}</b></div></div><p class="costline">成本優先序：先把翡翠石壓到最低，再把寶石壓到最低。</p><p class="small">本結果使用期望值計算，棋盤落點、骰點與隨機箱實際結果可能上下浮動。</p></div>`;
-for(const d of b.plan){let buys=[];db.packs.forEach(p=>{let q=d.purchases[p.id]||0;if(q)buys.push(`${esc(p.name)} × ${q}（${esc(p.costType)} ${fmt(num(p.price)*q)}）`)});let claim=d.out.claimed.length?d.out.claimed.map(x=>`第 ${x.tier} 階（+${fmt(x.gain)} 預期高級幣）`).join('、'):'無';html+=`<div class="card dayCard"><h3>第 ${d.day} 天</h3><div class="step">完成每日任務：取得 ${fmt(d.free)} 個 ${esc($('#tokenName').value)}</div><div class="step">購買：${buys.length?buys.join('；'):'不買任何禮包'}</div><div class="step">當日共取得玩法代幣：${fmt(d.acquired)}</div><div class="step">當日使用玩法代幣：<b>${fmt(d.use)}</b>；結束後囤有 ${fmt(d.stockEnd)}</div><div class="step">預期完成圈數：${fmt(d.out.laps)}；棋盤預期高級幣：${fmt(d.out.boardPremium)}</div><div class="step">達成進度：${claim}</div><div class="step">當日預期新增高級幣：<b>${fmt(d.out.premium)}</b></div></div>`}
-let concentrated=b.plan.some((d,i)=>d.stockEnd>0&&i<b.plan.length-1)&&b.plan[b.plan.length-1].use>0;html+=`<div class="card"><h2>攻略判讀</h2><p>${concentrated?'系統判斷「先買並囤積、後段集中使用」更省，表示完成圈數或高階進度的影響較大。':'系統判斷每日使用較划算，表示取得玩法代幣本身給的積分，或每日低階進度獎勵的效益較高。'}</p><p>最後仍剩 ${fmt(b.stock)} 個玩法代幣；這是因為再使用也無法降低購買成本。</p></div>`;$('#planResult').innerHTML=html}
+"use strict";
 
-let playState={day:1,stock:0,position:0,points:0,premium:0,laps:0,lastRoll:0,dailyClaimed:false,claimed:[],inventory:{},log:['實玩已準備完成。']};
-function playLog(msg){playState.log.unshift(msg);playState.log=playState.log.slice(0,50)}
-function addInv(name,amount){if(!name||!amount)return;playState.inventory[name]=(playState.inventory[name]||0)+amount}
-function updatePlayUI(){
- $('#playDay').value=playState.day;$('#playStock').value=fmt(playState.stock);$('#playPoints').value=fmt(playState.points);
- $('#playPremium').value=fmt(playState.premium);$('#playPosition').value=`第 ${playState.position+1} 格`;
- $('#playLaps').value=fmt(playState.laps);$('#playLastRoll').value=playState.lastRoll?`${playState.lastRoll} 點`:'尚未擲骰';
- $('#playClaimed').innerHTML=playState.claimed.length?`今日已領取：${playState.claimed.map(x=>`第 ${x.tier} 階（${esc(x.rewards)}）`).join('、')}`:'今日尚未領取進度獎勵。';
- const inv=Object.entries(playState.inventory).filter(([,v])=>Math.abs(v)>1e-9);
- $('#playInventory').innerHTML=inv.length?inv.map(([k,v])=>`<span class="pill">${esc(k)} ${fmt(v)}</span>`).join(' '):'目前沒有其他棋盤資源。';
- $('#playLog').innerHTML=playState.log.map(x=>`<div>${esc(x)}</div>`).join('');
- renderBoard()
+const DEFAULT_CONFIG = {
+  event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
+  board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true},
+  simulator:{allowInsufficientCost:true},
+  items:[
+    {id:"dice",name:"骰子",unit:"個",icon:"🎲"},
+    {id:"dragonFruitJuice",name:"火龍果汁",unit:"個",icon:"🐉"},
+    {id:"kiwiJuice",name:"奇異果汁",unit:"個",icon:"🥝"},
+    {id:"emerald",name:"翡翠石",unit:"個",icon:"💚"},
+    {id:"gem",name:"寶石",unit:"個",icon:"💎"},
+    {id:"meteorIron",name:"天外隕鐵",unit:"個",icon:"🪨"},
+    {id:"goldHorseshoe",name:"金蹄鐵",unit:"個",icon:"🧲"},
+    {id:"divineHammer",name:"神威錘",unit:"個",icon:"🔨"},
+    {id:"alchemyReagent",name:"高級煉金試劑",unit:"個",icon:"🧪"},
+    {id:"stamina",name:"體力",unit:"點",icon:"⚡"},
+    {id:"fortuneBuilding",name:"招財建築",unit:"個",icon:"🏯"},
+    {id:"premiumExchangeBox",name:"高級兌換幣隨機箱",unit:"個",icon:"🎁"},
+    {id:"adView",name:"廣告觀看次數",unit:"次",icon:"📺"}
+  ],
+  currencies:{
+    gameTokenId:"dice",premiumExchangeId:"dragonFruitJuice",
+    normalExchangeId:"kiwiJuice",paidCurrencyId:"emerald"
+  },
+  cellTypes:[
+    {id:"material",name:"材料格",distributionWeight:1,rewards:[
+      {itemId:"gem",amount:20,probability:20},{itemId:"gem",amount:30,probability:20},
+      {itemId:"gem",amount:40,probability:20},{itemId:"meteorIron",amount:5,probability:10},
+      {itemId:"goldHorseshoe",amount:5,probability:10},{itemId:"divineHammer",amount:5,probability:10},
+      {itemId:"alchemyReagent",amount:1,probability:10}
+    ]},
+    {id:"randomKiwi",name:"隨機奇異果汁格",distributionWeight:1,rewards:[
+      {itemId:"kiwiJuice",amount:2,probability:20},{itemId:"kiwiJuice",amount:3,probability:20},
+      {itemId:"kiwiJuice",amount:4,probability:20},{itemId:"gem",amount:20,probability:30},
+      {itemId:"gem",amount:40,probability:10}
+    ]},
+    {id:"smallKiwi",name:"少量奇異果汁格",distributionWeight:1,rewards:[
+      {itemId:"kiwiJuice",amount:1,probability:30},{itemId:"kiwiJuice",amount:2,probability:40},
+      {itemId:"kiwiJuice",amount:3,probability:15},{itemId:"kiwiJuice",amount:4,probability:10},
+      {itemId:"kiwiJuice",amount:5,probability:5}
+    ]},
+    {id:"largeKiwi",name:"大量奇異果汁格",distributionWeight:1,rewards:[
+      {itemId:"kiwiJuice",amount:1,probability:30},{itemId:"kiwiJuice",amount:2,probability:40},
+      {itemId:"kiwiJuice",amount:4,probability:15},{itemId:"kiwiJuice",amount:6,probability:10},
+      {itemId:"kiwiJuice",amount:8,probability:5}
+    ]}
+  ],
+  dailyMission:{maxGameTokens:30},
+  fund:{
+    freeRewards:[{itemId:"dice",amount:30}],
+    premiumCost:{itemId:"emerald",amount:1000},
+    premiumRewards:[{itemId:"dice",amount:140}]
+  },
+  scoreRules:{
+    pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
+    pointsPerLap:10
+  },
+  progressStages:[
+    {stage:1,requiredScore:90,rewards:[{itemId:"premiumExchangeBox",amount:1},{itemId:"stamina",amount:10},{itemId:"gem",amount:50}]},
+    {stage:2,requiredScore:300,rewards:[{itemId:"premiumExchangeBox",amount:1},{itemId:"meteorIron",amount:20},{itemId:"gem",amount:100}]},
+    {stage:3,requiredScore:525,rewards:[{itemId:"premiumExchangeBox",amount:3},{itemId:"fortuneBuilding",amount:1},{itemId:"gem",amount:200}]},
+    {stage:4,requiredScore:1245,rewards:[{itemId:"premiumExchangeBox",amount:16},{itemId:"fortuneBuilding",amount:1},{itemId:"gem",amount:300}]},
+    {stage:5,requiredScore:2055,rewards:[{itemId:"premiumExchangeBox",amount:20},{itemId:"fortuneBuilding",amount:1},{itemId:"gem",amount:500}]}
+  ],
+  randomBoxes:[
+    {id:"premiumBox",name:"高級兌換幣隨機箱",boxItemId:"premiumExchangeBox",rewardItemId:"dragonFruitJuice",outcomes:[
+      {amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}
+    ]}
+  ],
+  packageGroups:[
+    {id:"dicePackages",name:"骰子禮包",dailyReset:true,packages:[
+      {id:"adDice",name:"廣告骰子禮包",cost:{itemId:"adView",amount:1},rewards:[{itemId:"dice",amount:2}],limit:1},
+      {id:"gemDice",name:"寶石骰子禮包",cost:{itemId:"gem",amount:1000},rewards:[{itemId:"dice",amount:10}],limit:7},
+      {id:"dicePack1",name:"骰子禮包1",cost:{itemId:"emerald",amount:500},rewards:[{itemId:"dice",amount:30},{itemId:"gem",amount:600}],limit:1},
+      {id:"dicePack2",name:"骰子禮包2",cost:{itemId:"emerald",amount:1000},rewards:[{itemId:"dice",amount:45},{itemId:"gem",amount:1200}],limit:1},
+      {id:"dicePack3",name:"骰子禮包3",cost:{itemId:"emerald",amount:3000},rewards:[{itemId:"dice",amount:90},{itemId:"gem",amount:3600}],limit:1},
+      {id:"dicePack4",name:"骰子禮包4",cost:{itemId:"emerald",amount:5000},rewards:[{itemId:"dice",amount:150},{itemId:"gem",amount:6000}],limit:1},
+      {id:"dicePack5",name:"骰子禮包5",cost:{itemId:"emerald",amount:10000},rewards:[{itemId:"dice",amount:270},{itemId:"gem",amount:12000}],limit:1}
+    ]},
+    {id:"premiumPackages",name:"高級兌換幣禮包",dailyReset:true,packages:[
+      {id:"dragonPack1",name:"火龍果汁禮包1",cost:{itemId:"emerald",amount:1000},rewards:[{itemId:"dragonFruitJuice",amount:2},{itemId:"gem",amount:1200}],limit:2},
+      {id:"dragonPack2",name:"火龍果汁禮包2",cost:{itemId:"emerald",amount:2000},rewards:[{itemId:"dragonFruitJuice",amount:4},{itemId:"gem",amount:2400}],limit:2},
+      {id:"dragonPack3",name:"火龍果汁禮包3",cost:{itemId:"emerald",amount:5000},rewards:[{itemId:"dragonFruitJuice",amount:10},{itemId:"gem",amount:3000}],limit:2},
+      {id:"dragonPack4",name:"火龍果汁禮包4",cost:{itemId:"emerald",amount:10000},rewards:[{itemId:"dragonFruitJuice",amount:20},{itemId:"gem",amount:12000}],limit:2}
+    ]}
+  ]
+};
+
+const STORAGE_STATE="monopolySimulatorStateV3";
+const STORAGE_CONFIG="monopolySimulatorConfigV3";
+const STORAGE_BASELINE="monopolySimulatorBaselineV3";
+const $=id=>document.getElementById(id);
+const clone=value=>JSON.parse(JSON.stringify(value));
+const fmt=value=>Number(value||0).toLocaleString("zh-TW",{maximumFractionDigits:2});
+
+let config=loadStoredConfig();
+let state=createState();
+let settingsDraft=null;
+let activeSettingsTab="basic";
+let rolling=false;
+let stopAuto=false;
+let selectedRollCount=1;
+let undoStack=[];
+let redoStack=[];
+let simulationBaseline=loadStoredBaseline();
+let batchResults=[];
+
+function loadStoredConfig(){
+  try{
+    const saved=localStorage.getItem(STORAGE_CONFIG);
+    return saved?JSON.parse(saved):clone(DEFAULT_CONFIG);
+  }catch{return clone(DEFAULT_CONFIG)}
 }
-function gainActualPremium(amount,source){
- amount=num(amount);if(!amount)return;
- playState.premium+=amount;playState.points+=amount*num($('#pointsPerPremium').value);
- playLog(`${source}：取得 ${fmt(amount)} ${$('#premiumName').value}`)
+function loadStoredBaseline(){
+  try{
+    const saved=localStorage.getItem(STORAGE_BASELINE);
+    return saved?JSON.parse(saved):null
+  }catch{return null}
 }
-function checkActualProgress(){
- let changed=true;
- while(changed){
-   changed=false;
-   const tiers=[...db.progress].filter(x=>x.on&&!playState.claimed.some(c=>c.id===x.id)).sort((a,b)=>a.threshold-b.threshold);
-   for(const t of tiers){
-     if(playState.points+1e-9>=num(t.threshold)){
-       const p=rewardPremium(t.rewards);
-       playState.claimed.push({id:t.id,tier:t.tier,rewards:t.rewards});
-       if(p)gainActualPremium(p,`領取第 ${t.tier} 階進度`);
-       parseItems(t.rewards).filter(x=>x.ok&&x.name!==$('#premiumName').value&&!parseBoxMap()[x.name]).forEach(x=>addInv(x.name,x.amount));
-       playLog(`達成第 ${t.tier} 階進度（門檻 ${fmt(t.threshold)}）`);
-       changed=true;break
-     }
-   }
- }
+function createDayState(){return{score:0,missionClaimed:false,claimedStages:[],packagePurchases:{}}}
+function createState(){
+  return{
+    currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
+    board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
+    fundFreeClaimed:false,fundPremiumClaimed:false,log:[]
+  };
 }
-function gainPlayTokens(amount,source){
- amount=Math.max(0,num(amount));if(!amount)return;
- playState.stock+=amount;playState.points+=amount*num($('#pointsPerToken').value);
- playLog(`${source}：取得 ${fmt(amount)} ${$('#tokenName').value}，進度 +${fmt(amount*num($('#pointsPerToken').value))}`);
- checkActualProgress();updatePlayUI()
+function dayState(targetState=state){return targetState.days[targetState.currentDay]}
+function recordHistory(label){
+  undoStack.push({label,state:clone(state),config:clone(config)});
+  if(undoStack.length>120)undoStack.shift();
+  redoStack=[];
+  renderHistoryButtons()
 }
-function claimDailyPlay(){
- if(playState.dailyClaimed){alert('今天已領取每日任務代幣。');return}
- playState.dailyClaimed=true;gainPlayTokens($('#dailyTaskToken').value,'每日任務')
+function renderHistoryButtons(){
+  $("undoBtn").disabled=!undoStack.length||rolling;
+  $("redoBtn").disabled=!redoStack.length||rolling;
+  $("undoBtn").title=undoStack.length?`復原：${undoStack.at(-1).label}`:"沒有可復原操作";
+  $("redoBtn").title=redoStack.length?`重做：${redoStack.at(-1).label}`:"沒有可重做操作"
 }
-function addPlayTokens(){gainPlayTokens($('#playAddToken').value,'手動加入');$('#playAddToken').value=0}
-function rollActual(){
- const cost=Math.max(1,num($('#tokenCost').value));
- if(playState.stock<cost){alert(`玩法代幣不足，需要 ${cost} 個。`);return}
- playState.stock-=cost;
- const roll=Math.floor(Math.random()*6)+1;playState.lastRoll=roll;
- for(let s=0;s<roll;s++){
-   playState.position++;
-   if(playState.position>=30){
-     playState.position=0;playState.laps++;
-     playState.points+=num($('#pointsPerLap').value);
-     playLog(`完成第 ${playState.laps} 圈，進度 +${fmt($('#pointsPerLap').value)}`)
-   }
- }
- const tile=db.tiles[playState.position];
- playLog(`擲出 ${roll} 點，停在第 ${playState.position+1} 格：${tile.name||'空格'} ${fmt(tile.amount)}`);
- if(tile.name&&num(tile.amount)){
-   if(tile.name===$('#premiumName').value)gainActualPremium(tile.amount,'棋盤落點');
-   else addInv(tile.name,num(tile.amount))
- }
- checkActualProgress();updatePlayUI()
+function undoAction(){
+  if(rolling||!undoStack.length)return;
+  const previous=undoStack.pop();
+  redoStack.push({label:previous.label,state:clone(state),config:clone(config)});
+  config=clone(previous.config);state=clone(previous.state);
+  syncStateToConfig(false);render();toast(`已復原：${previous.label}`)
 }
-function nextPlayDay(){
- if(playState.day>=Math.max(1,num($('#eventDays').value))){alert('已是活動最後一天。');return}
- playState.day++;playState.points=0;playState.dailyClaimed=false;playState.claimed=[];
- playLog(`進入第 ${playState.day} 天，每日進度已重置。`);updatePlayUI()
+function redoAction(){
+  if(rolling||!redoStack.length)return;
+  const next=redoStack.pop();
+  undoStack.push({label:next.label,state:clone(state),config:clone(config)});
+  config=clone(next.config);state=clone(next.state);
+  syncStateToConfig(false);render();toast(`已重做：${next.label}`)
 }
-function resetPlay(){
- if(!confirm('確定重設實際遊玩紀錄？'))return;
- playState={day:1,stock:0,position:0,points:0,premium:0,laps:0,lastRoll:0,dailyClaimed:false,claimed:[],inventory:{},log:['實玩已重設。']};
- updatePlayUI()
+function item(id){return config.items.find(x=>x.id===id)||{id,name:id,unit:"",icon:"❔"}}
+function itemText(id,amount){const x=item(id);return `${x.icon||""}${x.name} ×${fmt(amount)}`}
+function rewardsText(list){return (list||[]).map(x=>itemText(x.itemId,x.amount)).join("、")}
+function scorePerItem(id){
+  return Number(config.scoreRules.pointsPerItemObtained.find(x=>x.itemId===id)?.points||0)
+}
+function escapeHtml(value){
+  return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;")
+}
+function uid(prefix){return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`}
+function toast(message){
+  $("toast").textContent=message;$("toast").classList.add("show");
+  clearTimeout(toast.timer);toast.timer=setTimeout(()=>$("toast").classList.remove("show"),2300)
+}
+function log(message){
+  const label=config.event.dayLabels[state.currentDay]||`第${state.currentDay+1}天`;
+  const time=new Date().toLocaleTimeString("zh-TW",{hour12:false});
+  state.log.unshift(`[${label} ${time}] ${message}`);state.log=state.log.slice(0,400)
+}
+function weightedPick(list){
+  const total=list.reduce((s,x)=>s+Number(x.probability||0),0);
+  let roll=Math.random()*total;
+  for(const x of list){roll-=Number(x.probability||0);if(roll<0)return x}
+  return list[list.length-1]
+}
+function shuffle(list){
+  for(let i=list.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[list[i],list[j]]=[list[j],list[i]]}
+  return list
+}
+function addScore(points,reason){
+  const value=Number(points||0);dayState().score+=value;
+  if(value&&reason)log(`${reason}，積分 +${fmt(value)}`)
+}
+function addItem(id,amount,reason,scoreEligible=true){
+  const value=Number(amount||0);
+  state.resources[id]=Number(state.resources[id]||0)+value;
+  if(scoreEligible){
+    const points=scorePerItem(id)*value;
+    if(points)addScore(points,`獲得 ${itemText(id,value)}`)
+  }
+  if(reason)log(`${reason}：獲得 ${itemText(id,value)}`)
+}
+function canSpend(cost){
+  if(config.simulator.allowInsufficientCost)return true;
+  return Number(state.resources[cost.itemId]||0)>=Number(cost.amount||0)
+}
+function spend(cost,reason){
+  if(!canSpend(cost))return false;
+  const amount=Number(cost.amount||0);
+  state.spent[cost.itemId]=Number(state.spent[cost.itemId]||0)+amount;
+  if(!config.simulator.allowInsufficientCost)state.resources[cost.itemId]=Number(state.resources[cost.itemId]||0)-amount;
+  if(reason)log(`${reason}：支出 ${itemText(cost.itemId,amount)}`);
+  return true
+}
+function generateBoard(){
+  const count=Number(config.board.cellCount);
+  const start=Number(config.board.startIndex);
+  const usable=count-1;
+  const types=config.cellTypes.filter(x=>Number(x.distributionWeight)>0);
+  const totalWeight=types.reduce((s,x)=>s+Number(x.distributionWeight),0);
+  const exact=types.map(type=>({type,value:usable*Number(type.distributionWeight)/totalWeight}));
+  const counts=exact.map(x=>Math.floor(x.value));
+  let remain=usable-counts.reduce((a,b)=>a+b,0);
+  const order=exact.map((x,i)=>({i,f:x.value-Math.floor(x.value),r:Math.random()}))
+    .sort((a,b)=>b.f-a.f||a.r-b.r);
+  for(let i=0;i<remain;i++)counts[order[i%order.length].i]++;
+  const pool=[];
+  counts.forEach((n,i)=>{for(let k=0;k<n;k++)pool.push(types[i])});
+  shuffle(pool);
+  state.board=new Array(count);
+  state.board[start]={kind:"start",typeId:"start",reward:null};
+  let p=0;
+  for(let i=0;i<count;i++){
+    if(i===start)continue;
+    const type=pool[p++];
+    const reward=clone(weightedPick(type.rewards));
+    state.board[i]={kind:"reward",typeId:type.id,reward}
+  }
+  state.boardVersion++;
+}
+function validateProbability(list,label){
+  if(!Array.isArray(list)||!list.length)throw new Error(`${label}至少要有一項`);
+  const sum=list.reduce((s,x)=>s+Number(x.probability||0),0);
+  if(Math.abs(sum-100)>.0001)throw new Error(`${label}機率合計是 ${fmt(sum)}%，必須為 100%`)
+}
+function validateConfig(c){
+  if(!Number.isInteger(Number(c.board.cellCount))||Number(c.board.cellCount)<8)throw new Error("大富翁格數至少 8 格");
+  if(Number(c.board.startIndex)<0||Number(c.board.startIndex)>=Number(c.board.cellCount))throw new Error("起點格編號超出範圍");
+  if(!Array.isArray(c.items)||!c.items.length)throw new Error("物品清單不可為空");
+  const ids=c.items.map(x=>x.id);
+  if(new Set(ids).size!==ids.length)throw new Error("物品 ID 不可重複");
+  if(!Array.isArray(c.cellTypes)||!c.cellTypes.length)throw new Error("至少需要一種格子類型");
+  c.cellTypes.forEach(x=>validateProbability(x.rewards,x.name));
+  c.randomBoxes.forEach(x=>validateProbability(x.outcomes,x.name));
+  if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
+  return true
+}
+function syncStateToConfig(forceBoard=true){
+  const needed=Number(config.event.totalDays);
+  while(state.days.length<needed)state.days.push(createDayState());
+  state.days=state.days.slice(0,needed);
+  state.currentDay=Math.min(state.currentDay,needed-1);
+  state.position=((Number(state.position)||0)%Number(config.board.cellCount)+Number(config.board.cellCount))%Number(config.board.cellCount);
+  if(Number(config.board.startIndex)>=Number(config.board.cellCount))config.board.startIndex=0;
+  if(forceBoard||!Array.isArray(state.board)||state.board.length!==Number(config.board.cellCount))generateBoard()
+}
+function getGridDimensions(n){
+  const target=window.innerWidth<680?.72:1.43;
+  let best=null;
+  for(let cols=4;cols<=24;cols++){
+    for(let rows=4;rows<=24;rows++){
+      const perimeter=2*(cols+rows)-4;
+      if(perimeter<n)continue;
+      const excess=perimeter-n;
+      const score=excess*30+Math.abs(cols/rows-target)*10+(cols*rows)*.001;
+      if(!best||score<best.score)best={cols,rows,perimeter,score}
+    }
+  }
+  return best
+}
+function perimeterPath(cols,rows){
+  const coords=[];
+  const startCol=Math.floor((cols+1)/2);
+  for(let c=startCol;c>=1;c--)coords.push([c,rows]);
+  for(let r=rows-1;r>=1;r--)coords.push([1,r]);
+  for(let c=2;c<=cols;c++)coords.push([c,1]);
+  for(let r=2;r<=rows;r++)coords.push([cols,r]);
+  for(let c=cols-1;c>startCol;c--)coords.push([c,rows]);
+  return coords
+}
+function renderBoard(){
+  const board=$("board");
+  const dims=getGridDimensions(Number(config.board.cellCount));
+  const fullPath=perimeterPath(dims.cols,dims.rows);
+  const positions=[];
+  const used=new Set();
+  for(let i=0;i<Number(config.board.cellCount);i++){
+    let idx=Math.floor(i*fullPath.length/Number(config.board.cellCount));
+    while(used.has(idx))idx=(idx+1)%fullPath.length;
+    used.add(idx);positions.push(fullPath[idx])
+  }
+  board.style.gridTemplateColumns=`repeat(${dims.cols},1fr)`;
+  board.style.gridTemplateRows=`repeat(${dims.rows},1fr)`;
+  board.classList.toggle("mobile-shape",window.innerWidth<680);
+  $("boardCenter").style.gridColumn=`2 / ${dims.cols}`;
+  $("boardCenter").style.gridRow=`2 / ${dims.rows}`;
+
+  board.querySelectorAll(".tile").forEach(x=>x.remove());
+  const start=Number(config.board.startIndex);
+  for(let pathPos=0;pathPos<Number(config.board.cellCount);pathPos++){
+    const index=(start+pathPos)%Number(config.board.cellCount);
+    const cell=state.board[index];
+    const [col,row]=positions[pathPos];
+    const div=document.createElement("div");
+    const type=config.cellTypes.find(x=>x.id===cell?.typeId);
+    const typeClass=cell?.kind==="start"?"start":(type?.id||"material");
+    div.className=`tile ${typeClass}`;
+    div.style.gridColumn=col;div.style.gridRow=row;
+    if(cell?.kind==="start"){
+      div.title="起點";
+      div.innerHTML=`<span class="tile-index">${index}</span><span class="tile-icon">🏁</span><span class="tile-amount">起點</span>`;
+    }else{
+      const reward=cell?.reward||{itemId:"",amount:0};
+      const it=item(reward.itemId);
+      div.title=`${type?.name||""}：${it.name} ×${reward.amount}`;
+      div.innerHTML=`<span class="tile-index">${index}</span><span class="tile-icon">${escapeHtml(it.icon||"🎁")}</span><span class="tile-amount">×${fmt(reward.amount)}</span>`;
+    }
+    if(index===state.position)div.insertAdjacentHTML("beforeend",`<span class="player">🐹</span>`);
+    board.appendChild(div)
+  }
+  $("boardMeta").textContent=`${config.board.cellCount} 格｜${config.board.diceSides} 面骰｜第 ${state.boardVersion} 張地圖`;
+  $("centerScore").textContent=`${config.event.dayLabels[state.currentDay]} ${fmt(dayState().score)} 分`;
+  $("diceFace").textContent=item(config.currencies.gameTokenId).icon||"🎲"
+}
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+async function rollOnce({silent=false,fast=false}={}){
+  if(rolling&&!silent)return null;
+  const token=config.currencies.gameTokenId;
+  if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
+  state.resources[token]-=1;
+  const roll=Math.floor(Math.random()*Number(config.board.diceSides))+1;
+  rolling=true;$("rollBtn").disabled=true;
+  $("diceFace").textContent=String(roll);
+  const skip=$("skipAnimation").checked||fast;
+  for(let step=0;step<roll;step++){
+    state.position=(state.position+1)%Number(config.board.cellCount);
+    if(state.position===Number(config.board.startIndex)){
+      state.laps++;
+      addScore(Number(config.scoreRules.pointsPerLap),"完成 1 圈");
+      if(config.board.refreshOnLap)generateBoard()
+    }
+    if(!skip){renderBoard();await wait(135)}
+  }
+  let result="停在起點，沒有格子獎勵";
+  const cell=state.board[state.position];
+  if(cell?.kind==="reward"){
+    addItem(cell.reward.itemId,cell.reward.amount,config.cellTypes.find(x=>x.id===cell.typeId)?.name||"格子獎勵",true);
+    result=`${config.cellTypes.find(x=>x.id===cell.typeId)?.name||"獎勵格"} → ${itemText(cell.reward.itemId,cell.reward.amount)}`
+  }else log("停在起點");
+  $("rollMessage").textContent=`擲出 ${roll}，停在第 ${state.position} 格。${result}`;
+  rolling=false;$("rollBtn").disabled=false;
+  if(!silent)render();
+  return{roll,result}
 }
 
-function settings(){let ids=['eventName','eventDays','tokenName','dailyTaskToken','premiumName','gemName','emeraldName','tokenCost','pointsPerToken','pointsPerPremium','pointsPerLap','averageRoll','boxExpectations','targetPremium','planDays','maxUsePerDay','searchMode'],o={};ids.forEach(id=>o[id]=$('#'+id).value);return o}
-function applySettings(o){Object.entries(o||{}).forEach(([k,v])=>{let e=$('#'+k);if(e)e.value=v})}
-function saveAll(){localStorage.setItem('activityPlannerV4',JSON.stringify({version:4,settings:settings(),db}));alert('已儲存。')}
-function exportJSON(){let b=new Blob([JSON.stringify({version:4,settings:settings(),db},null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=($('#eventName').value||'活動')+'_攻略設定_v4.json';a.click();URL.revokeObjectURL(a.href)}
-$('#file').onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader;r.onload=()=>{try{let o=JSON.parse(r.result);db=o.db||db;if(!db.tiles||db.tiles.length!==30)db.tiles=defaultTiles();applySettings(o.settings);renderLists();selectTile(0)}catch(err){alert('格式錯誤，無法匯入。')}};r.readAsText(f);e.target.value=''};
-function loadExample(){applySettings({eventName:'夏日環遊',eventDays:7,tokenName:'骰子',dailyTaskToken:11,premiumName:'火龍果汁',gemName:'寶石',emeraldName:'翡翠石',tokenCost:1,pointsPerToken:2,pointsPerPremium:0,pointsPerLap:10,averageRoll:3.5,boxExpectations:'火龍果汁隨機箱:1.051',targetPremium:40,planDays:7,maxUsePerDay:999,searchMode:'normal'});db={tiles:defaultTiles(),packs:[{id:uid(),name:'廣告骰子禮包',costType:'廣告',price:0,limit:1,daily:true,contents:'骰子:2',on:true},{id:uid(),name:'寶石骰子禮包',costType:'寶石',price:1000,limit:7,daily:true,contents:'骰子:10',on:true},{id:uid(),name:'骰子禮包 I',costType:'翡翠石',price:500,limit:1,daily:true,contents:'骰子:30',on:true},{id:uid(),name:'火龍果汁禮包 I',costType:'翡翠石',price:1000,limit:2,daily:true,contents:'火龍果汁:2',on:true},{id:uid(),name:'火龍果汁禮包 II',costType:'翡翠石',price:2000,limit:2,daily:true,contents:'火龍果汁:4',on:true}],progress:[90,180,300,450,650].map((v,i)=>({id:uid(),tier:i+1,threshold:v,rewards:`火龍果汁隨機箱:${[1,1,3,16,25][i]}`,on:true}))};renderLists();selectTile(0)}
-function resetAll(){if(confirm('確定全部重設？')){localStorage.removeItem('activityPlannerV4');location.reload()}}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.p).classList.add('on');if(b.dataset.p==='boardPanel')renderBoard()});
-$('#eventName').addEventListener('change',renderBoard);
-try{let o=JSON.parse(localStorage.getItem('activityPlannerV4'));if(o){db=o.db||db;if(!db.tiles||db.tiles.length!==30)db.tiles=defaultTiles();applySettings(o.settings);renderLists();selectTile(0)}else loadExample()}catch(e){loadExample()} updatePlayUI();
-</script></body></html>
+async function rollMultiple(count){
+  if(rolling)return;
+  const token=config.currencies.gameTokenId;
+  const available=Math.floor(Number(state.resources[token]||0));
+  const actual=Math.min(Math.max(1,Number(count)||1),available);
+  if(actual<1)return toast(`${item(token).name}不足`);
+  recordHistory(`擲骰 ×${actual}`);
+  let last=null;
+  const startLaps=state.laps;
+  for(let i=0;i<actual;i++){
+    last=await rollOnce({silent:true,fast:actual>1});
+    if(i%10===9)await wait(0)
+  }
+  $("rollMessage").textContent=actual===1
+    ?`擲出 ${last.roll}，停在第 ${state.position} 格。${last.result}`
+    :`連續擲骰 ×${actual} 完成，最後停在第 ${state.position} 格，本次完成 ${state.laps-startLaps} 圈。`;
+  render()
+}
+async function autoRoll(){
+  if(rolling)return;
+  const token=config.currencies.gameTokenId;
+  if(Number(state.resources[token]||0)<1)return toast(`${item(token).name}不足`);
+  recordHistory("自動使用全部骰子");
+  stopAuto=false;$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;
+  const startCount=Math.floor(Number(state.resources[token]||0));
+  const startLaps=state.laps;
+  let used=0;
+  while(Number(state.resources[token]||0)>=1&&!stopAuto){
+    await rollOnce({silent:true,fast:true});used++;
+    if(used%20===0){render();await wait(0)}
+  }
+  $("rollMessage").textContent=`自動擲骰結束：使用 ${used} 個${item(token).name}，完成 ${state.laps-startLaps} 圈。`;
+  rolling=false;$("rollBtn").disabled=false;$("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;render()
+}
+function switchDay(index){
+  if(rolling)return toast("移動中，請稍候");
+  state.currentDay=Number(index);
+  $("dailyDiceInput").value=config.dailyMission.maxGameTokens;
+  render()
+}
+function claimDaily(){
+  if(dayState().missionClaimed)return toast("這一天已領取每日任務");
+  const amount=Number($("dailyDiceInput").value||0);
+  if(amount<0||amount>Number(config.dailyMission.maxGameTokens))return toast(`可領取 0～${config.dailyMission.maxGameTokens} 個`);
+  recordHistory(`領取${config.event.dayLabels[state.currentDay]}每日任務`);
+  dayState().missionClaimed=true;
+  addItem(config.currencies.gameTokenId,amount,"每日任務",true);render()
+}
+function claimFund(kind){
+  if(kind==="free"){
+    if(state.fundFreeClaimed)return;
+    recordHistory("領取免費基金");
+    state.fundFreeClaimed=true;config.fund.freeRewards.forEach(x=>addItem(x.itemId,x.amount,"免費基金",true))
+  }else{
+    if(state.fundPremiumClaimed)return;
+    if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
+    recordHistory("購買進階基金");
+    spend(config.fund.premiumCost,"購買進階基金");
+    state.fundPremiumClaimed=true;config.fund.premiumRewards.forEach(x=>addItem(x.itemId,x.amount,"進階基金",true))
+  }
+  render()
+}
+function claimStage(stageNo){
+  const stage=config.progressStages.find(x=>Number(x.stage)===Number(stageNo));
+  if(!stage||dayState().claimedStages.includes(stage.stage)||dayState().score<Number(stage.requiredScore))return;
+  recordHistory(`領取第 ${stage.stage} 階獎勵`);
+  dayState().claimedStages.push(stage.stage);
+  stage.rewards.forEach(x=>addItem(x.itemId,x.amount,`第 ${stage.stage} 階獎勵`,true));render()
+}
+function buyPackage(groupId,packageId){
+  const group=config.packageGroups.find(x=>x.id===groupId);
+  const pack=group?.packages.find(x=>x.id===packageId);if(!pack)return;
+  const key=`${groupId}:${packageId}`,bought=Number(dayState().packagePurchases[key]||0);
+  if(bought>=Number(pack.limit))return toast("已達這一天的購買上限");
+  if(!canSpend(pack.cost))return toast(`${item(pack.cost.itemId).name}不足`);
+  recordHistory(`購買 ${pack.name}`);
+  spend(pack.cost,`購買 ${pack.name}`);
+  dayState().packagePurchases[key]=bought+1;
+  pack.rewards.forEach(x=>addItem(x.itemId,x.amount,pack.name,true));render()
+}
+function refundPackage(groupId,packageId){
+  let group=config.packageGroups.find(x=>x.id===groupId);
+  let pack=group?.packages.find(x=>x.id===packageId);if(!pack)return;
+  const key=`${groupId}:${packageId}`;
+  let bought=Number(dayState().packagePurchases[key]||0);
+  if(bought<1)return toast("這一天沒有可退回的購買");
+
+  const rewardAlreadyUsed=pack.rewards.some(x=>Number(state.resources[x.itemId]||0)<Number(x.amount||0));
+  const baselineBought=simulationBaseline
+    ?Number(simulationBaseline.state.days[simulationBaseline.state.currentDay]?.packagePurchases?.[key]||0):0;
+
+  if(rewardAlreadyUsed&&simulationBaseline&&baselineBought>0){
+    if(!confirm(`「${pack.name}」的獎勵已經用掉。\n\n要先回到模擬基準，再退回 1 次購買嗎？\n這樣可直接用少買 1 次的環境重新全砸骰子。`))return;
+    recordHistory(`回到基準並退回 ${pack.name} 1 次`);
+    config=clone(simulationBaseline.config);state=clone(simulationBaseline.state);
+    syncStateToConfig(false);
+    group=config.packageGroups.find(x=>x.id===groupId);
+    pack=group?.packages.find(x=>x.id===packageId);if(!pack)return;
+    bought=Number(dayState().packagePurchases[key]||0)
+  }else{
+    recordHistory(`退回 ${pack.name} 1 次`)
+  }
+
+  dayState().packagePurchases[key]=Math.max(0,bought-1);
+  state.spent[pack.cost.itemId]=Math.max(0,Number(state.spent[pack.cost.itemId]||0)-Number(pack.cost.amount||0));
+  if(!config.simulator.allowInsufficientCost){
+    state.resources[pack.cost.itemId]=Number(state.resources[pack.cost.itemId]||0)+Number(pack.cost.amount||0)
+  }
+  let negative=false;
+  pack.rewards.forEach(x=>{
+    state.resources[x.itemId]=Number(state.resources[x.itemId]||0)-Number(x.amount||0);
+    if(state.resources[x.itemId]<0)negative=true;
+    dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(x.itemId)*Number(x.amount||0))
+  });
+  log(`退回 ${pack.name} 1 次，扣回 ${rewardsText(pack.rewards)}`);
+  render();
+  toast(negative?"已退回；部分獎勵已被使用，因此資源出現負數。":"已退回 1 次購買，可重新模擬")
+}
+function openBoxes(all){
+  const box=config.randomBoxes.find(x=>x.id===$("boxSelect").value)||config.randomBoxes[0];
+  if(!box)return toast("尚未設定隨機箱");
+  const owned=Math.floor(Number(state.resources[box.boxItemId]||0));
+  const count=all?owned:Math.min(1,owned);
+  if(count<1)return toast(`沒有${item(box.boxItemId).name}`);
+  recordHistory(`開啟 ${count} 個${box.name}`);
+  state.resources[box.boxItemId]-=count;
+  let total=0;const detail={};
+  for(let i=0;i<count;i++){const result=weightedPick(box.outcomes);total+=Number(result.amount);detail[result.amount]=(detail[result.amount]||0)+1}
+  addItem(box.rewardItemId,total,`開啟 ${count} 個${box.name}`,true);
+  log(`開箱分布：${Object.entries(detail).map(([a,n])=>`${a}個×${n}次`).join("、")}`);render()
+}
+
+function cfgItem(cfg,id){return cfg.items.find(x=>x.id===id)||{id,name:id,unit:"",icon:"❔"}}
+function cfgScorePerItem(cfg,id){
+  return Number(cfg.scoreRules.pointsPerItemObtained.find(x=>x.itemId===id)?.points||0)
+}
+function simGenerateBoard(sim,cfg){
+  const count=Number(cfg.board.cellCount),start=Number(cfg.board.startIndex),usable=count-1;
+  const types=cfg.cellTypes.filter(x=>Number(x.distributionWeight)>0);
+  const totalWeight=types.reduce((s,x)=>s+Number(x.distributionWeight),0);
+  const exact=types.map(type=>({type,value:usable*Number(type.distributionWeight)/totalWeight}));
+  const counts=exact.map(x=>Math.floor(x.value));
+  let remain=usable-counts.reduce((a,b)=>a+b,0);
+  const order=exact.map((x,i)=>({i,f:x.value-Math.floor(x.value),r:Math.random()}))
+    .sort((a,b)=>b.f-a.f||a.r-b.r);
+  for(let i=0;i<remain;i++)counts[order[i%order.length].i]++;
+  const pool=[];
+  counts.forEach((n,i)=>{for(let k=0;k<n;k++)pool.push(types[i])});
+  shuffle(pool);
+  sim.board=new Array(count);sim.board[start]={kind:"start",typeId:"start",reward:null};
+  let p=0;
+  for(let i=0;i<count;i++){
+    if(i===start)continue;
+    const type=pool[p++],reward=clone(weightedPick(type.rewards));
+    sim.board[i]={kind:"reward",typeId:type.id,reward}
+  }
+  sim.boardVersion=Number(sim.boardVersion||0)+1
+}
+function simAddItem(sim,cfg,id,amount){
+  const value=Number(amount||0);
+  sim.resources[id]=Number(sim.resources[id]||0)+value;
+  sim.days[sim.currentDay].score=Number(sim.days[sim.currentDay].score||0)+cfgScorePerItem(cfg,id)*value
+}
+function simulateAllDice(baseState,cfg){
+  const sim=clone(baseState);
+  if(!Array.isArray(sim.board)||sim.board.length!==Number(cfg.board.cellCount))simGenerateBoard(sim,cfg);
+  const token=cfg.currencies.gameTokenId;
+  const startDice=Math.floor(Number(sim.resources[token]||0));
+  const startScore=Number(sim.days[sim.currentDay].score||0);
+  const startLaps=Number(sim.laps||0);
+  const startResources=clone(sim.resources);
+  let used=0;
+  while(Number(sim.resources[token]||0)>=1){
+    sim.resources[token]-=1;used++;
+    const roll=Math.floor(Math.random()*Number(cfg.board.diceSides))+1;
+    for(let step=0;step<roll;step++){
+      sim.position=(Number(sim.position)+1)%Number(cfg.board.cellCount);
+      if(sim.position===Number(cfg.board.startIndex)){
+        sim.laps=Number(sim.laps||0)+1;
+        sim.days[sim.currentDay].score=Number(sim.days[sim.currentDay].score||0)+Number(cfg.scoreRules.pointsPerLap||0);
+        if(cfg.board.refreshOnLap)simGenerateBoard(sim,cfg)
+      }
+    }
+    const cell=sim.board[sim.position];
+    if(cell?.kind==="reward")simAddItem(sim,cfg,cell.reward.itemId,cell.reward.amount)
+  }
+  const itemGains={};
+  cfg.items.forEach(x=>itemGains[x.id]=Number(sim.resources[x.id]||0)-Number(startResources[x.id]||0));
+  return{
+    finalState:sim,usedDice:used,finalScore:Number(sim.days[sim.currentDay].score||0),
+    scoreGain:Number(sim.days[sim.currentDay].score||0)-startScore,
+    lapsGain:Number(sim.laps||0)-startLaps,itemGains
+  }
+}
+function captureBaseline(){
+  if(rolling)return toast("擲骰進行中，請稍候");
+  simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};
+  localStorage.setItem(STORAGE_BASELINE,JSON.stringify(simulationBaseline));
+  batchResults=[];renderSimulation();toast("已建立模擬基準")
+}
+function restoreBaseline(){
+  if(!simulationBaseline||rolling)return;
+  recordHistory("恢復模擬基準");
+  config=clone(simulationBaseline.config);state=clone(simulationBaseline.state);
+  syncStateToConfig(false);render();toast("已恢復到模擬基準")
+}
+function clearBaseline(){
+  simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);renderSimulation();toast("已清除模擬基準")
+}
+function simulationMetricOptions(){
+  const cfg=simulationBaseline?.config||config;
+  const options=[
+    {key:"finalScore",label:"最終今日積分"},
+    {key:"scoreGain",label:"本次新增積分"},
+    {key:"lapsGain",label:"本次完成圈數"}
+  ];
+  cfg.items.forEach(x=>{
+    if(x.id!==cfg.currencies.gameTokenId)options.push({key:`item:${x.id}`,label:`${x.name}新增數量`})
+  });
+  return options
+}
+function metricValue(result,key){
+  if(key==="finalScore")return result.finalScore;
+  if(key==="scoreGain")return result.scoreGain;
+  if(key==="lapsGain")return result.lapsGain;
+  if(key.startsWith("item:"))return Number(result.itemGains[key.slice(5)]||0);
+  return 0
+}
+function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
+async function runBatchSimulation(){
+  if(!simulationBaseline)return toast("請先建立模擬基準");
+  if(rolling)return toast("目前正在擲骰");
+  const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||10))));
+  $("simulationCount").value=count;
+  const metricKey=$("targetMetric").value||"finalScore";
+  const target=Number($("targetValue").value||0);
+  const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
+  const token=cfg.currencies.gameTokenId;
+  if(Number(base.resources[token]||0)<1)return toast(`模擬基準沒有${cfgItem(cfg,token).name}`);
+  $("runSimulationBtn").disabled=true;
+  $("simulationProgress").style.width="0%";
+  $("simulationProgressText").textContent=`準備執行 ${count} 次…`;
+  batchResults=[];
+  for(let i=0;i<count;i++){
+    const result=simulateAllDice(base,cfg);
+    result.run=i+1;result.metricKey=metricKey;result.metricValue=metricValue(result,metricKey);
+    batchResults.push(result);
+    $("simulationProgress").style.width=`${(i+1)/count*100}%`;
+    $("simulationProgressText").textContent=`已完成 ${i+1} / ${count} 次`;
+    if(i%5===4)await wait(0)
+  }
+  const option=simulationMetricOptions().find(x=>x.key===metricKey);
+  batchResults.meta={metricKey,metricLabel:option?.label||metricKey,target,config:cfg};
+  $("runSimulationBtn").disabled=false;
+  renderSimulation();
+  toast(`批次模擬完成，共 ${count} 次`)
+}
+function renderSimulation(){
+  const has=!!simulationBaseline;
+  $("restoreBaselineBtn").disabled=!has;
+  $("clearBaselineBtn").disabled=!has;
+  if(has){
+    const b=simulationBaseline,day=b.config.event.dayLabels[b.state.currentDay]||`第${b.state.currentDay+1}天`;
+    const token=b.config.currencies.gameTokenId,dice=Number(b.state.resources[token]||0);
+    const date=new Date(b.createdAt).toLocaleString("zh-TW",{hour12:false});
+    $("baselineStatus").textContent=`建立於 ${date}｜${day}｜${cfgItem(b.config,token).name} ${fmt(dice)} 個｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}`
+  }else $("baselineStatus").textContent="尚未建立。完成七天領取與購買後，先建立基準。";
+  const currentMetric=$("targetMetric").value;
+  const options=simulationMetricOptions();
+  $("targetMetric").innerHTML=options.map(x=>`<option value="${escapeHtml(x.key)}">${escapeHtml(x.label)}</option>`).join("");
+  if(options.some(x=>x.key===currentMetric))$("targetMetric").value=currentMetric;
+  if(!batchResults.length){
+    $("simulationSummary").innerHTML="";
+    $("simulationResults").innerHTML=`<div class="empty">建立基準後，可執行 10 次、100 次或更多次全骰模擬。</div>`;
+    return
+  }
+  const meta=batchResults.meta||{metricKey:"finalScore",metricLabel:"最終今日積分",target:0,config:simulationBaseline?.config||config};
+  const metricValues=batchResults.map(x=>Number(x.metricValue));
+  const hits=metricValues.filter(x=>x>=Number(meta.target)).length;
+  const min=Math.min(...metricValues),max=Math.max(...metricValues);
+  $("simulationSummary").innerHTML=`
+    <div class="sim-stat"><div class="k">模擬次數</div><div class="v">${batchResults.length}</div></div>
+    <div class="sim-stat"><div class="k">${escapeHtml(meta.metricLabel)}平均</div><div class="v">${fmt(average(metricValues))}</div></div>
+    <div class="sim-stat"><div class="k">結果範圍</div><div class="v">${fmt(min)}～${fmt(max)}</div></div>
+    <div class="sim-stat"><div class="k">達到 ${fmt(meta.target)} 的機率</div><div class="v">${fmt(hits/batchResults.length*100)}%</div></div>`;
+  const cfg=meta.config;
+  const normal=cfg.currencies.normalExchangeId,premium=cfg.currencies.premiumExchangeId;
+  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr>
+    <th>次數</th><th>使用骰子</th><th>最終積分</th><th>新增積分</th><th>完成圈數</th>
+    <th>${escapeHtml(cfgItem(cfg,normal).name)}新增</th><th>${escapeHtml(cfgItem(cfg,premium).name)}新增</th>
+    <th>${escapeHtml(meta.metricLabel)}</th><th>達標</th>
+  </tr></thead><tbody>${batchResults.map(r=>`<tr>
+    <td>${r.run}</td><td>${fmt(r.usedDice)}</td><td>${fmt(r.finalScore)}</td><td>${fmt(r.scoreGain)}</td><td>${fmt(r.lapsGain)}</td>
+    <td>${fmt(r.itemGains[normal])}</td><td>${fmt(r.itemGains[premium])}</td><td>${fmt(r.metricValue)}</td>
+    <td>${r.metricValue>=Number(meta.target)?"✅":"—"}</td>
+  </tr>`).join("")}</tbody></table>`
+}
+
+function renderWeek(){
+  $("weekSwitch").innerHTML=config.event.dayLabels.slice(0,config.event.totalDays).map((label,i)=>
+    `<button class="day-btn ${i===state.currentDay?"active":""}" data-day="${i}">${escapeHtml(label)}</button>`
+  ).join("")
+}
+function renderStats(){
+  const ids=[config.currencies.gameTokenId,config.currencies.normalExchangeId,config.currencies.premiumExchangeId];
+  const values=[
+    [config.event.dayLabels[state.currentDay],`第 ${state.currentDay+1}/${config.event.totalDays} 天`],
+    [item(ids[0]).name,`${item(ids[0]).icon} ${fmt(state.resources[ids[0]])}`],
+    ["今日積分",fmt(dayState().score)],["完成圈數",fmt(state.laps)],
+    [item(ids[1]).name,`${item(ids[1]).icon} ${fmt(state.resources[ids[1]])}`],
+    [item(ids[2]).name,`${item(ids[2]).icon} ${fmt(state.resources[ids[2]])}`]
+  ];
+  $("stats").innerHTML=values.map(([a,b])=>`<div class="stat"><div class="stat-label">${escapeHtml(a)}</div><div class="stat-value">${escapeHtml(b)}</div></div>`).join("")
+}
+function renderDaily(){
+  $("dailyTitle").textContent=`${config.event.dayLabels[state.currentDay]}進度`;
+  $("dailyDiceInput").max=config.dailyMission.maxGameTokens;
+  $("claimDailyBtn").disabled=dayState().missionClaimed;
+  $("claimDailyBtn").textContent=dayState().missionClaimed?"本日已領取":"領取每日骰子";
+  const max=Math.max(1,...config.progressStages.map(x=>Number(x.requiredScore)));
+  $("progressFill").style.width=`${Math.min(100,dayState().score/max*100)}%`;
+  const next=config.progressStages.find(x=>dayState().score<Number(x.requiredScore));
+  $("progressText").textContent=next?`目前 ${fmt(dayState().score)} 分，距離第 ${next.stage} 階還差 ${fmt(next.requiredScore-dayState().score)} 分。`:`目前 ${fmt(dayState().score)} 分，已達成全部階段。`;
+  $("fundList").innerHTML=`
+    <div class="row-card"><div class="row-top"><div><strong>免費基金</strong><div class="row-desc">${escapeHtml(rewardsText(config.fund.freeRewards))}</div></div><button class="btn small" data-fund="free" ${state.fundFreeClaimed?"disabled":""}>${state.fundFreeClaimed?"已領取":"領取"}</button></div></div>
+    <div class="row-card"><div class="row-top"><div><strong>進階基金</strong><div class="row-desc">支出 ${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}<br>獲得 ${escapeHtml(rewardsText(config.fund.premiumRewards))}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumClaimed?"disabled":""}>${state.fundPremiumClaimed?"已購買":"購買"}</button></div></div>`;
+  $("stageList").innerHTML=config.progressStages.map(stage=>{
+    const claimed=dayState().claimedStages.includes(stage.stage),unlocked=dayState().score>=Number(stage.requiredScore);
+    return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div>`
+  }).join("")
+}
+function renderPackages(){
+  $("packageGroups").innerHTML=config.packageGroups.map(group=>`
+    <div class="editor-card"><div class="editor-head"><h3>${escapeHtml(group.name)}</h3><span class="badge">${group.dailyReset?"每日重置":"活動共用"}</span></div>
+    <div class="list">${group.packages.map(pack=>{
+      const key=`${group.id}:${pack.id}`,bought=Number(dayState().packagePurchases[key]||0),left=Math.max(0,Number(pack.limit)-bought);
+      return `<div class="row-card"><div class="row-top"><div><strong>${escapeHtml(pack.name)}</strong> <span class="badge ${left?"":"warn"}">${bought}/${pack.limit}</span><div class="row-desc">支出：${escapeHtml(itemText(pack.cost.itemId,pack.cost.amount))}<br>獲得：${escapeHtml(rewardsText(pack.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-group="${group.id}" data-refund-package="${pack.id}" ${bought?"":"disabled"}>退回 1 次</button><button class="btn pink small" data-buy-group="${group.id}" data-buy-package="${pack.id}" ${left?"":"disabled"}>購買</button></div></div></div>`
+    }).join("")}</div></div>`).join("")
+}
+function renderResources(){
+  const entries=config.items.filter(x=>Number(state.resources[x.id]||0)!==0);
+  const html=entries.length?entries.map(x=>`<div class="resource-row"><span>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</span><strong>${fmt(state.resources[x.id])} ${escapeHtml(x.unit)}</strong></div>`).join(""):`<div class="empty">尚未獲得資源</div>`;
+  $("inventoryList").innerHTML=html;$("quickResources").innerHTML=html;
+  const spent=config.items.filter(x=>Number(state.spent[x.id]||0)!==0);
+  $("spentList").innerHTML=spent.length?spent.map(x=>`<div class="resource-row"><span>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</span><strong>${fmt(state.spent[x.id])} ${escapeHtml(x.unit)}</strong></div>`).join(""):`<div class="empty">尚無支出</div>`;
+  const current=$("boxSelect").value;
+  $("boxSelect").innerHTML=config.randomBoxes.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}（持有 ${fmt(state.resources[x.boxItemId])}）</option>`).join("");
+  if(config.randomBoxes.some(x=>x.id===current))$("boxSelect").value=current
+}
+function renderDistribution(){
+  const counts={};
+  state.board.forEach(x=>counts[x.typeId]=(counts[x.typeId]||0)+1);
+  $("distribution").innerHTML=Object.entries(counts).map(([id,n])=>{
+    const name=id==="start"?"起點":config.cellTypes.find(x=>x.id===id)?.name||id;
+    return `<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${n} 格</strong></div>`
+  }).join("")
+}
+function renderScoreRules(){
+  const rows=config.scoreRules.pointsPerItemObtained.map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`);
+  rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
+  $("scoreRules").innerHTML=rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
+}
+function renderLog(){
+  $("logList").innerHTML=state.log.length?state.log.map(x=>`<div>${escapeHtml(x)}</div>`).join(""):`<div>尚無紀錄</div>`
+}
+function render(){
+  $("eventName").textContent=config.event.name+"玩法模擬器";
+  renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderHistoryButtons()
+}
+function save(){
+  localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
+  localStorage.setItem(STORAGE_STATE,JSON.stringify(state));
+  if(simulationBaseline)localStorage.setItem(STORAGE_BASELINE,JSON.stringify(simulationBaseline));
+  toast("已儲存活動設定、進度與模擬基準")
+}
+function load(){
+  try{
+    const c=localStorage.getItem(STORAGE_CONFIG),s=localStorage.getItem(STORAGE_STATE);
+    if(!s)return toast("沒有已儲存的進度");
+    if(c){const parsed=JSON.parse(c);validateConfig(parsed);config=parsed}
+    state=JSON.parse(s);simulationBaseline=loadStoredBaseline();batchResults=[];
+    undoStack=[];redoStack=[];syncStateToConfig(false);render();toast("已讀取")
+  }catch(e){toast(`讀取失敗：${e.message}`)}
+}
+function reset(){
+  if(!confirm("確定要重置全部模擬進度嗎？活動設定與模擬基準會保留。"))return;
+  recordHistory("重置全部模擬進度");
+  state=createState();generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
+}
+function itemOptions(selected){
+  return settingsDraft.items.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===selected?"selected":""}>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</option>`).join("")
+}
+function pathInput(path,value,type="text",extra=""){
+  return `<input class="input" type="${type}" data-path="${path}" value="${escapeHtml(value)}" ${extra}>`
+}
+function rewardRows(list,basePath,kind="reward"){
+  if(!list.length)return `<div class="empty">尚無項目</div>`;
+  return list.map((r,i)=>`<div class="editor-row ${kind==="package"?"package-reward":""}">
+    <select data-path="${basePath}.${i}.itemId">${itemOptions(r.itemId)}</select>
+    ${pathInput(`${basePath}.${i}.amount`,r.amount,"number",'step="any"')}
+    ${kind==="probability"?pathInput(`${basePath}.${i}.probability`,r.probability,"number",'step="0.1" min="0"'):""}
+    <button class="btn red small" data-settings-action="removeReward" data-base="${basePath}" data-index="${i}">刪除</button>
+  </div>`).join("")
+}
+function renderSettings(){
+  const c=settingsDraft;
+  const sections={};
+  const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
+  sections.basic=`<section class="setting-section active">
+    <h2>基本設定</h2>
+    <div class="setting-grid">
+      <div class="field"><label>活動名稱</label>${pathInput("event.name",c.event.name)}</div>
+      <div class="field"><label>活動天數</label>${pathInput("event.totalDays",c.event.totalDays,"number",'min="1" max="30"')}</div>
+      <div class="field"><label>大富翁格數</label>${pathInput("board.cellCount",c.board.cellCount,"number",'min="8" max="100"')}</div>
+      <div class="field"><label>骰子面數</label>${pathInput("board.diceSides",c.board.diceSides,"number",'min="2" max="100"')}</div>
+      <div class="field"><label>起點格編號（從 0 開始）</label>${pathInput("board.startIndex",c.board.startIndex,"number",'min="0"')}</div>
+      <div class="field"><label>每日任務最多骰子</label>${pathInput("dailyMission.maxGameTokens",c.dailyMission.maxGameTokens,"number",'min="0"')}</div>
+      <div class="field"><label>每完成一圈積分</label>${pathInput("scoreRules.pointsPerLap",c.scoreRules.pointsPerLap,"number",'step="any"')}</div>
+      <div class="field"><label>地圖設定</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
+      <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
+    </div>
+    <h3>每日名稱</h3>
+    <div class="setting-grid">${labels.map((x,i)=>`<div class="field"><label>第 ${i+1} 天</label>${pathInput(`event.dayLabels.${i}`,x)}</div>`).join("")}</div>
+    <h3>貨幣指定</h3>
+    <div class="setting-grid">
+      ${[["gameTokenId","遊戲代幣"],["premiumExchangeId","高級兌換幣"],["normalExchangeId","普通兌換幣"],["paidCurrencyId","課金代幣"]].map(([key,label])=>`<div class="field"><label>${label}</label><select data-path="currencies.${key}">${itemOptions(c.currencies[key])}</select></div>`).join("")}
+    </div>
+    <h3>獲得物品的計分規則</h3>
+    <div class="editor-card"><div class="editor-table">
+      ${c.scoreRules.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="scoreRules.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`scoreRules.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeScoreRule" data-index="${i}">刪除</button></div>`).join("")}
+    </div><button class="btn secondary small" data-settings-action="addScoreRule">＋加入計分物品</button></div>
+    <h3>活動基金</h3>
+    <div class="editor-card">
+      <strong>免費獎勵</strong><div class="editor-table">${rewardRows(c.fund.freeRewards,"fund.freeRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.freeRewards">＋加入獎勵</button>
+      <hr style="border:0;border-top:1px solid #dce5ed">
+      <strong>進階基金成本</strong><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div>
+      <strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(c.fund.premiumRewards,"fund.premiumRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.premiumRewards">＋加入獎勵</button>
+    </div>
+  </section>`;
+
+  sections.items=`<section class="setting-section active"><div class="editor-head"><div><h2>物品名稱清單</h2><div class="help">可修改顯示名稱、單位與圖示。ID 是系統辨識碼，建立後建議不要修改。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
+    ${c.items.map((x,i)=>`<div class="editor-card"><div class="editor-row" style="grid-template-columns:80px minmax(130px,1fr) 110px minmax(130px,1fr) auto">
+      ${pathInput(`items.${i}.icon`,x.icon)}${pathInput(`items.${i}.name`,x.name)}${pathInput(`items.${i}.unit`,x.unit)}${pathInput(`items.${i}.id`,x.id,"text","readonly")}
+      <button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button>
+    </div></div>`).join("")}</section>`;
+
+  sections.cells=`<section class="setting-section active"><div class="editor-head"><div><h2>格子與獎勵機率</h2><div class="help">每一種格子的機率合計必須為 100%。權重相同時會平均分配。</div></div><button class="btn green small" data-settings-action="addCellType">＋新增格子類型</button></div>
+    ${c.cellTypes.map((type,i)=>{
+      const total=type.rewards.reduce((s,x)=>s+Number(x.probability||0),0);
+      return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(type.name)}</h3><div><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span> <button class="btn red small" data-settings-action="removeCellType" data-index="${i}">刪除類型</button></div></div>
+      <div class="setting-grid"><div class="field"><label>格子名稱</label>${pathInput(`cellTypes.${i}.name`,type.name)}</div><div class="field"><label>平均分配權重</label>${pathInput(`cellTypes.${i}.distributionWeight`,type.distributionWeight,"number",'step="any" min="0"')}</div></div>
+      <div class="editor-table">${rewardRows(type.rewards,`cellTypes.${i}.rewards`,"probability")}</div>
+      <button class="btn secondary small" data-settings-action="addReward" data-base="cellTypes.${i}.rewards" data-probability="1">＋加入獎勵機率</button></div>`
+    }).join("")}
+    <h2>高級兌換幣隨機箱</h2>
+    ${c.randomBoxes.map((box,i)=>{
+      const total=box.outcomes.reduce((s,x)=>s+Number(x.probability||0),0);
+      return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span></div>
+        <div class="setting-grid">
+          <div class="field"><label>箱子名稱</label>${pathInput(`randomBoxes.${i}.name`,box.name)}</div>
+          <div class="field"><label>消耗的箱子物品</label><select data-path="randomBoxes.${i}.boxItemId">${itemOptions(box.boxItemId)}</select></div>
+          <div class="field"><label>開箱獲得物品</label><select data-path="randomBoxes.${i}.rewardItemId">${itemOptions(box.rewardItemId)}</select></div>
+        </div>
+        <div class="editor-table">${box.outcomes.map((x,j)=>`<div class="editor-row package-reward">${pathInput(`randomBoxes.${i}.outcomes.${j}.amount`,x.amount,"number",'step="any"')}${pathInput(`randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0"')}<button class="btn red small" data-settings-action="removeBoxOutcome" data-box="${i}" data-index="${j}">刪除</button></div>`).join("")}</div>
+        <button class="btn secondary small" data-settings-action="addBoxOutcome" data-box="${i}">＋加入開箱結果</button>
+      </div>`
+    }).join("")}
+  </section>`;
+
+  sections.stages=`<section class="setting-section active"><div class="editor-head"><div><h2>每日進度獎勵</h2><div class="help">可增加或刪除階段，不限制只能五階。</div></div><button class="btn green small" data-settings-action="addStage">＋新增階段</button></div>
+    ${c.progressStages.map((stage,i)=>`<div class="editor-card"><div class="editor-head"><h3>第 ${stage.stage} 階</h3><button class="btn red small" data-settings-action="removeStage" data-index="${i}">刪除階段</button></div>
+      <div class="setting-grid"><div class="field"><label>階段編號</label>${pathInput(`progressStages.${i}.stage`,stage.stage,"number",'min="1"')}</div><div class="field"><label>所需積分</label>${pathInput(`progressStages.${i}.requiredScore`,stage.requiredScore,"number",'min="0"')}</div></div>
+      <div class="editor-table">${rewardRows(stage.rewards,`progressStages.${i}.rewards`,"package")}</div>
+      <button class="btn secondary small" data-settings-action="addReward" data-base="progressStages.${i}.rewards">＋加入獎勵</button>
+    </div>`).join("")}</section>`;
+
+  sections.packages=`<section class="setting-section active"><div class="editor-head"><div><h2>每日禮包清單</h2><div class="help">每個群組可新增禮包，設定成本、獎勵及每日上限。</div></div><button class="btn green small" data-settings-action="addPackageGroup">＋新增禮包群組</button></div>
+    ${c.packageGroups.map((group,g)=>`<div class="editor-card"><div class="editor-head"><div>${pathInput(`packageGroups.${g}.name`,group.name)}</div><div><button class="btn green small" data-settings-action="addPackage" data-group="${g}">＋新增禮包</button> <button class="btn red small" data-settings-action="removePackageGroup" data-group="${g}">刪除群組</button></div></div>
+      ${group.packages.map((pack,p)=>`<div class="row-card" style="margin-bottom:8px"><div class="editor-head"><strong>${escapeHtml(pack.name)}</strong><button class="btn red small" data-settings-action="removePackage" data-group="${g}" data-index="${p}">刪除</button></div>
+        <div class="setting-grid">
+          <div class="field"><label>禮包名稱</label>${pathInput(`packageGroups.${g}.packages.${p}.name`,pack.name)}</div>
+          <div class="field"><label>每日上限</label>${pathInput(`packageGroups.${g}.packages.${p}.limit`,pack.limit,"number",'min="0"')}</div>
+          <div class="field"><label>成本物品</label><select data-path="packageGroups.${g}.packages.${p}.cost.itemId">${itemOptions(pack.cost.itemId)}</select></div>
+          <div class="field"><label>成本數量</label>${pathInput(`packageGroups.${g}.packages.${p}.cost.amount`,pack.cost.amount,"number",'step="any"')}</div>
+        </div>
+        <strong>禮包獎勵</strong><div class="editor-table">${rewardRows(pack.rewards,`packageGroups.${g}.packages.${p}.rewards`,"package")}</div>
+        <button class="btn secondary small" data-settings-action="addReward" data-base="packageGroups.${g}.packages.${p}.rewards">＋加入獎勵</button>
+      </div>`).join("")}
+    </div>`).join("")}</section>`;
+
+  sections.backup=`<section class="setting-section active"><h2>備份與還原</h2>
+    <div class="editor-card"><h3>活動設定備份</h3><p class="help">匯出的檔案可在其他電腦匯入，不需要閱讀內容。</p>
+      <div class="form-row"><button class="btn" data-settings-action="exportConfig">匯出活動設定</button><button class="btn secondary" data-settings-action="importConfig">匯入活動設定</button></div>
+    </div>
+    <div class="editor-card"><h3>恢復本版預設設定</h3><p class="help">只會把設定清單改回預設值，按下「套用設定」後才生效。</p><button class="btn red" data-settings-action="restoreDefault">恢復預設設定</button></div>
+  </section>`;
+
+  $("settingsContent").innerHTML=sections[activeSettingsTab]||sections.basic;
+  $("settingsNav").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x.dataset.settingTab===activeSettingsTab))
+}
+function getByPath(obj,path){return path.split(".").reduce((v,k)=>v?.[k],obj)}
+function setByPath(obj,path,value){
+  const keys=path.split(".");let target=obj;
+  for(let i=0;i<keys.length-1;i++)target=target[keys[i]];
+  target[keys.at(-1)]=value
+}
+function openSettings(){settingsDraft=clone(config);activeSettingsTab="basic";renderSettings();$("settingsModal").classList.add("open")}
+function closeSettings(){$("settingsModal").classList.remove("open");settingsDraft=null}
+function settingsAction(btn){
+  const a=btn.dataset.settingsAction;
+  if(a==="addItem")settingsDraft.items.push({id:uid("item"),name:"新物品",unit:"個",icon:"🎁"});
+  if(a==="removeItem"){
+    const id=settingsDraft.items[Number(btn.dataset.index)]?.id;
+    const used=JSON.stringify(settingsDraft).split(`"${id}"`).length-1;
+    if(used>1)return toast("此物品仍被其他設定使用，請先更換引用");
+    settingsDraft.items.splice(Number(btn.dataset.index),1)
+  }
+  if(a==="addCellType")settingsDraft.cellTypes.push({id:uid("cell"),name:"新格子",distributionWeight:1,rewards:[{itemId:settingsDraft.items[0].id,amount:1,probability:100}]});
+  if(a==="removeCellType")settingsDraft.cellTypes.splice(Number(btn.dataset.index),1);
+  if(a==="addReward"){
+    const list=getByPath(settingsDraft,btn.dataset.base);
+    list.push({itemId:settingsDraft.items[0].id,amount:1,...(btn.dataset.probability?{probability:0}:{})})
+  }
+  if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
+  if(a==="addScoreRule")settingsDraft.scoreRules.pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0});
+  if(a==="removeScoreRule")settingsDraft.scoreRules.pointsPerItemObtained.splice(Number(btn.dataset.index),1);
+  if(a==="addStage"){
+    const next=Math.max(0,...settingsDraft.progressStages.map(x=>Number(x.stage)))+1;
+    settingsDraft.progressStages.push({stage:next,requiredScore:0,rewards:[]})
+  }
+  if(a==="removeStage")settingsDraft.progressStages.splice(Number(btn.dataset.index),1);
+  if(a==="addBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.push({amount:1,probability:0});
+  if(a==="removeBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.splice(Number(btn.dataset.index),1);
+  if(a==="addPackageGroup")settingsDraft.packageGroups.push({id:uid("group"),name:"新禮包群組",dailyReset:true,packages:[]});
+  if(a==="removePackageGroup")settingsDraft.packageGroups.splice(Number(btn.dataset.group),1);
+  if(a==="addPackage"){
+    settingsDraft.packageGroups[Number(btn.dataset.group)].packages.push({
+      id:uid("pack"),name:"新禮包",cost:{itemId:settingsDraft.items[0].id,amount:0},rewards:[],limit:1
+    })
+  }
+  if(a==="removePackage")settingsDraft.packageGroups[Number(btn.dataset.group)].packages.splice(Number(btn.dataset.index),1);
+  if(a==="restoreDefault"){settingsDraft=clone(DEFAULT_CONFIG);toast("已載入預設設定，尚未套用")}
+  if(a==="exportConfig"){
+    const blob=new Blob([JSON.stringify(settingsDraft,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`${settingsDraft.event.name||"活動"}_設定.json`;link.click();URL.revokeObjectURL(url);return
+  }
+  if(a==="importConfig"){$("importConfigInput").click();return}
+  renderSettings()
+}
+function applySettings(){
+  try{
+    settingsDraft.event.totalDays=Number(settingsDraft.event.totalDays);
+    settingsDraft.event.dayLabels=Array.from({length:settingsDraft.event.totalDays},(_,i)=>settingsDraft.event.dayLabels[i]||`第${i+1}天`);
+    validateConfig(settingsDraft);
+    config=clone(settingsDraft);syncStateToConfig(true);
+    undoStack=[];redoStack=[];batchResults=[];
+    localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
+    closeSettings();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("活動設定已套用")
+  }catch(e){toast(`設定錯誤：${e.message}`)}
+}
+
+document.addEventListener("click",e=>{
+  const day=e.target.closest("[data-day]");if(day)switchDay(day.dataset.day);
+  const tab=e.target.closest("[data-tab]");if(tab){
+    document.querySelectorAll(".tab-btn").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(x=>x.classList.remove("active"));
+    tab.classList.add("active");$(`tab-${tab.dataset.tab}`).classList.add("active")
+  }
+  const fund=e.target.closest("[data-fund]");if(fund)claimFund(fund.dataset.fund);
+  const stage=e.target.closest("[data-stage]");if(stage)claimStage(stage.dataset.stage);
+  const buy=e.target.closest("[data-buy-package]");if(buy)buyPackage(buy.dataset.buyGroup,buy.dataset.buyPackage);
+  const refund=e.target.closest("[data-refund-package]");if(refund)refundPackage(refund.dataset.refundGroup,refund.dataset.refundPackage);
+  const multiplier=e.target.closest("[data-roll-count]");if(multiplier){
+    selectedRollCount=Number(multiplier.dataset.rollCount);
+    document.querySelectorAll("[data-roll-count]").forEach(x=>x.classList.toggle("active",x===multiplier))
+  }
+  const settingTab=e.target.closest("[data-setting-tab]");if(settingTab){activeSettingsTab=settingTab.dataset.settingTab;renderSettings()}
+  const action=e.target.closest("[data-settings-action]");if(action)settingsAction(action)
+});
+$("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
+$("autoRollBtn").addEventListener("click",autoRoll);
+$("stopAutoBtn").addEventListener("click",()=>{stopAuto=true});
+$("refreshBoardBtn").addEventListener("click",()=>{recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()});
+$("claimDailyBtn").addEventListener("click",claimDaily);
+$("openOneBoxBtn").addEventListener("click",()=>openBoxes(false));
+$("openAllBoxesBtn").addEventListener("click",()=>openBoxes(true));
+$("clearLogBtn").addEventListener("click",()=>{recordHistory("清除模擬紀錄");state.log=[];render()});
+$("undoBtn").addEventListener("click",undoAction);
+$("redoBtn").addEventListener("click",redoAction);
+$("captureBaselineBtn").addEventListener("click",captureBaseline);
+$("restoreBaselineBtn").addEventListener("click",restoreBaseline);
+$("clearBaselineBtn").addEventListener("click",clearBaseline);
+$("runSimulationBtn").addEventListener("click",runBatchSimulation);
+$("saveBtn").addEventListener("click",save);$("loadBtn").addEventListener("click",load);$("resetBtn").addEventListener("click",reset);
+$("settingsBtn").addEventListener("click",openSettings);$("closeSettingsBtn").addEventListener("click",closeSettings);
+$("cancelSettingsBtn").addEventListener("click",closeSettings);$("applySettingsBtn").addEventListener("click",applySettings);
+$("settingsContent").addEventListener("change",e=>{
+  const el=e.target;if(!el.dataset.path||!settingsDraft)return;
+  let value=el.type==="checkbox"?el.checked:(el.type==="number"?Number(el.value):el.value);
+  setByPath(settingsDraft,el.dataset.path,value);
+  if(el.dataset.path==="event.totalDays")renderSettings()
+});
+$("importConfigInput").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{const parsed=JSON.parse(await file.text());validateConfig(parsed);settingsDraft=parsed;renderSettings();toast("設定檔已載入，按套用後生效")}
+  catch(err){toast(`匯入失敗：${err.message}`)}
+  e.target.value=""
+});
+window.addEventListener("resize",()=>{clearTimeout(window.__boardResize);window.__boardResize=setTimeout(renderBoard,120)});
+
+try{validateConfig(config)}catch{config=clone(DEFAULT_CONFIG)}
+state=createState();generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
+</script>
+</body>
+</html>
