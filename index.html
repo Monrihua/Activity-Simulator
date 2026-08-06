@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜整週動態規劃版 v6</title>
+<title>活動玩法模擬器｜階段基金動態規劃版 v7</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -262,6 +262,19 @@ button:disabled{cursor:not-allowed;opacity:.45}
 @media(max-width:900px){.strategy-controls{grid-template-columns:repeat(2,1fr)}.strategy-summary{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:720px){.tab-toolbar{display:block}.mini-week-switch{margin-top:8px;overflow:auto;flex-wrap:nowrap}.mini-day-btn{flex:0 0 auto}.strategy-controls{grid-template-columns:1fr 1fr}.active-strategy-grid{grid-template-columns:1fr 1fr}}
 
+
+.fund-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:10px}
+.fund-progress{height:10px;border-radius:999px;background:#e3eaf0;overflow:hidden;margin-top:7px}
+.fund-progress>span{display:block;height:100%;background:linear-gradient(90deg,#45b7e8,#5e73e6);border-radius:999px}
+.fund-milestones{overflow:auto;border:2px solid #dfe7ee;border-radius:14px;background:#fff}
+.fund-table{width:100%;border-collapse:collapse;min-width:700px;font-size:13px}
+.fund-table th,.fund-table td{border-bottom:1px solid #e5ebf0;padding:8px;text-align:left;vertical-align:top}
+.fund-table th{position:sticky;top:0;background:#edf6fb;color:#36536a;z-index:1}
+.fund-table tr.claimed{background:#effaf2}.fund-table tr.unlocked{background:#fff8df}.fund-table tr.locked{opacity:.68}
+.fund-track-status{font-weight:900;white-space:nowrap}.fund-track-status.ok{color:#258148}.fund-track-status.ready{color:#b36b00}.fund-track-status.lock{color:#718096}
+.fund-setting-stage{border-left:6px solid #55aee9}
+@media(max-width:720px){.fund-summary-grid{grid-template-columns:1fr}}
+
 .toast{
   position:fixed;right:18px;bottom:18px;z-index:200;background:#172033;color:#fff;
   border-radius:13px;padding:11px 15px;box-shadow:var(--shadow);opacity:0;transform:translateY(12px);
@@ -500,6 +513,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
         <button class="active" data-setting-tab="basic">基本設定</button>
         <button data-setting-tab="items">物品名稱</button>
         <button data-setting-tab="cells">格子與機率</button>
+        <button data-setting-tab="fund">階段基金</button>
         <button data-setting-tab="stages">進度獎勵</button>
         <button data-setting-tab="packages">禮包清單</button>
         <button data-setting-tab="backup">備份與還原</button>
@@ -537,6 +551,9 @@ const DEFAULT_CONFIG = {
     {id:"stamina",name:"體力",unit:"點",icon:"⚡"},
     {id:"fortuneBuilding",name:"招財建築",unit:"個",icon:"🏯"},
     {id:"premiumExchangeBox",name:"高級兌換幣隨機箱",unit:"個",icon:"🎁"},
+    {id:"immortalGemBox",name:"隨機不朽寶石箱",unit:"個",icon:"💠"},
+    {id:"petArmToken",name:"寵物武裝令牌",unit:"個",icon:"🐾"},
+    {id:"limitedWishLetter",name:"限時祈願函",unit:"個",icon:"✉️"},
     {id:"adView",name:"廣告觀看次數",unit:"次",icon:"📺"}
   ],
   currencies:{
@@ -568,10 +585,39 @@ const DEFAULT_CONFIG = {
   ],
   dailyMission:{maxGameTokens:30},
   fund:{
-    plannerUnlockLaps:10,
-    freeRewards:[{itemId:"dice",amount:30}],
     premiumCost:{itemId:"emerald",amount:1000},
-    premiumRewards:[{itemId:"dice",amount:140}]
+    milestones:[
+      {id:"fundLap0",laps:0,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"immortalGemBox",amount:1}]},
+      {id:"fundLap1",laps:1,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap2",laps:2,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap3",laps:3,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap4",laps:4,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
+      {id:"fundLap5",laps:5,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap6",laps:6,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap7",laps:7,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap8",laps:8,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap9",laps:9,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
+      {id:"fundLap10",laps:10,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap11",laps:11,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap12",laps:12,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap13",laps:13,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap14",laps:14,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
+      {id:"fundLap15",laps:15,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap16",laps:16,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap17",laps:17,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap18",laps:18,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap19",laps:19,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
+      {id:"fundLap20",laps:20,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap21",laps:21,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap22",laps:22,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap23",laps:23,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap24",laps:24,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
+      {id:"fundLap25",laps:25,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap26",laps:26,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap27",laps:27,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap28",laps:28,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
+      {id:"fundLap30",laps:30,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"limitedWishLetter",amount:1}]}
+    ]
   },
   scoreRules:{
     pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
@@ -608,14 +654,18 @@ const DEFAULT_CONFIG = {
   ]
 };
 
-const STORAGE_STATE="monopolySimulatorStateV6";
-const STORAGE_CONFIG="monopolySimulatorConfigV6";
-const STORAGE_BASELINE="monopolySimulatorBaselineV6";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV6";
-const LEGACY_STATE="monopolySimulatorStateV4";
-const LEGACY_CONFIG="monopolySimulatorConfigV4";
-const LEGACY_BASELINE="monopolySimulatorBaselineV4";
-const LEGACY_STRATEGY="monopolySimulatorStrategyV4";
+const STORAGE_STATE="monopolySimulatorStateV7";
+const STORAGE_CONFIG="monopolySimulatorConfigV7";
+const STORAGE_BASELINE="monopolySimulatorBaselineV7";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV7";
+const LEGACY_STATE="monopolySimulatorStateV6";
+const LEGACY_CONFIG="monopolySimulatorConfigV6";
+const LEGACY_BASELINE="monopolySimulatorBaselineV6";
+const LEGACY_STRATEGY="monopolySimulatorStrategyV6";
+const LEGACY2_STATE="monopolySimulatorStateV4";
+const LEGACY2_CONFIG="monopolySimulatorConfigV4";
+const LEGACY2_BASELINE="monopolySimulatorBaselineV4";
+const LEGACY2_STRATEGY="monopolySimulatorStrategyV4";
 const $=id=>document.getElementById(id);
 const clone=value=>JSON.parse(JSON.stringify(value));
 const fmt=value=>Number(value||0).toLocaleString("zh-TW",{maximumFractionDigits:2});
@@ -633,22 +683,40 @@ let simulationBaseline=loadStoredBaseline();
 let batchResults=[];
 let strategyPlan=loadStoredStrategy();
 
+function normalizeFundConfig(cfg){
+  if(!cfg.fund)cfg.fund={};
+  if(!cfg.fund.premiumCost)cfg.fund.premiumCost={itemId:cfg.currencies?.paidCurrencyId||"emerald",amount:0};
+  if(!Array.isArray(cfg.fund.milestones)){
+    const legacyLaps=Math.max(0,Number(cfg.fund.plannerUnlockLaps||0));
+    cfg.fund.milestones=[{id:"legacyFundStage",laps:legacyLaps,freeRewards:clone(cfg.fund.freeRewards||[]),premiumRewards:clone(cfg.fund.premiumRewards||[])}]
+  }
+  cfg.fund.milestones.forEach((x,i)=>{
+    if(!x.id)x.id=`fundStage_${i}_${Number(x.laps||0)}`;
+    x.laps=Math.max(0,Number(x.laps||0));
+    if(!Array.isArray(x.freeRewards))x.freeRewards=[];
+    if(!Array.isArray(x.premiumRewards))x.premiumRewards=[]
+  });
+  cfg.fund.milestones.sort((a,b)=>Number(a.laps)-Number(b.laps)||String(a.id).localeCompare(String(b.id)));
+  return cfg
+}
+function fundMilestones(cfg=config){normalizeFundConfig(cfg);return cfg.fund.milestones}
+function fundMilestoneById(cfg,id){return fundMilestones(cfg).find(x=>x.id===id)}
 function loadStoredConfig(){
   try{
-    const saved=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG);
-    return saved?JSON.parse(saved):clone(DEFAULT_CONFIG);
-  }catch{return clone(DEFAULT_CONFIG)}
+    const saved=localStorage.getItem(STORAGE_CONFIG);
+    return normalizeFundConfig(saved?JSON.parse(saved):clone(DEFAULT_CONFIG));
+  }catch{return normalizeFundConfig(clone(DEFAULT_CONFIG))}
 }
 function loadStoredBaseline(){
   try{
-    const saved=localStorage.getItem(STORAGE_BASELINE)||localStorage.getItem(LEGACY_BASELINE);
+    const saved=localStorage.getItem(STORAGE_BASELINE);
     return saved?JSON.parse(saved):null
   }catch{return null}
 }
 function loadStoredStrategy(){
   try{
-    const saved=localStorage.getItem(STORAGE_STRATEGY)||localStorage.getItem(LEGACY_STRATEGY);
-    return saved?JSON.parse(saved):null
+    const saved=localStorage.getItem(STORAGE_STRATEGY);
+    if(!saved)return null;const parsed=JSON.parse(saved);return Number(parsed.version||0)>=4?parsed:null
   }catch{return null}
 }
 function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,claimedStages:[],packagePurchases:{}}}
@@ -656,68 +724,57 @@ function createState(){
   return{
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
-    fundFreeClaimed:false,fundPremiumClaimed:false,fundFreeClaimDay:null,fundPremiumClaimDay:null,
-    fundFreeClaimAllocations:null,fundPremiumClaimAllocations:null,activeStrategy:null,log:[]
+    fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},
+    activeStrategy:null,log:[]
   };
 }
 function ensureStateSchema(targetState=state,cfg=config){
+  normalizeFundConfig(cfg);
   if(!Array.isArray(targetState.days))targetState.days=[];
   while(targetState.days.length<Number(cfg.event.totalDays))targetState.days.push(createDayState());
   targetState.days.forEach(day=>{
-    day.score=Number(day.score||0);
-    day.missionClaimed=!!day.missionClaimed;
+    day.score=Number(day.score||0);day.missionClaimed=!!day.missionClaimed;
     if(!Object.prototype.hasOwnProperty.call(day,"missionAmount"))day.missionAmount=day.missionClaimed?Number(cfg.dailyMission.maxGameTokens||0):0;
-    day.missionAmount=Number(day.missionAmount||0);
-    if(!Array.isArray(day.claimedStages))day.claimedStages=[];
-    if(!day.packagePurchases||typeof day.packagePurchases!=="object")day.packagePurchases={};
+    day.missionAmount=Number(day.missionAmount||0);if(!Array.isArray(day.claimedStages))day.claimedStages=[];
+    if(!day.packagePurchases||typeof day.packagePurchases!=="object")day.packagePurchases={}
   });
-  if(targetState.fundFreeClaimed&&targetState.fundFreeClaimDay==null)targetState.fundFreeClaimDay=0;
-  if(targetState.fundPremiumClaimed&&targetState.fundPremiumClaimDay==null)targetState.fundPremiumClaimDay=0;
-  if(!Object.prototype.hasOwnProperty.call(targetState,"fundFreeClaimAllocations"))targetState.fundFreeClaimAllocations=null;
-  if(!Object.prototype.hasOwnProperty.call(targetState,"fundPremiumClaimAllocations"))targetState.fundPremiumClaimAllocations=null;
-  if(!targetState.resources)targetState.resources={};
-  if(!targetState.spent)targetState.spent={};
-  if(!Array.isArray(targetState.log))targetState.log=[];
-  if(!Object.prototype.hasOwnProperty.call(targetState,"activeStrategy"))targetState.activeStrategy=null;
+  if(!targetState.fundClaims||typeof targetState.fundClaims!=="object")targetState.fundClaims={free:{},premium:{}};
+  if(!targetState.fundClaims.free||typeof targetState.fundClaims.free!=="object")targetState.fundClaims.free={};
+  if(!targetState.fundClaims.premium||typeof targetState.fundClaims.premium!=="object")targetState.fundClaims.premium={};
+  if(!targetState.fundClaimEvents||typeof targetState.fundClaimEvents!=="object")targetState.fundClaimEvents={free:[],premium:[]};
+  if(!Array.isArray(targetState.fundClaimEvents.free))targetState.fundClaimEvents.free=[];
+  if(!Array.isArray(targetState.fundClaimEvents.premium))targetState.fundClaimEvents.premium=[];
+  if(!Object.prototype.hasOwnProperty.call(targetState,"fundPremiumPurchased"))targetState.fundPremiumPurchased=!!targetState.fundPremiumClaimed;
+  if(targetState.fundFreeClaimed&&!Object.keys(targetState.fundClaims.free).length){
+    const day=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.fundFreeClaimDay||0)));
+    fundMilestones(cfg).forEach(m=>targetState.fundClaims.free[m.id]=day)
+  }
+  if(targetState.fundPremiumClaimed&&!Object.keys(targetState.fundClaims.premium).length){
+    const day=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.fundPremiumClaimDay||0)));
+    fundMilestones(cfg).forEach(m=>targetState.fundClaims.premium[m.id]=day)
+  }
+  if(!targetState.resources)targetState.resources={};if(!targetState.spent)targetState.spent={};
+  if(!Array.isArray(targetState.log))targetState.log=[];if(!Object.prototype.hasOwnProperty.call(targetState,"activeStrategy"))targetState.activeStrategy=null;
   return targetState
 }
 function deterministicLedger(targetState,cfg){
   ensureStateSchema(targetState,cfg);
   const ledger={grants:{},spent:{},dayScores:Array.from({length:targetState.days.length},()=>0)};
   const clampDay=d=>Math.max(0,Math.min(targetState.days.length-1,Number(d||0)));
-  const grant=(day,id,amount)=>{
-    const value=Number(amount||0);if(!value)return;
-    ledger.grants[id]=Number(ledger.grants[id]||0)+value;
-    ledger.dayScores[clampDay(day)]+=cfgScorePerItem(cfg,id)*value
-  };
+  const grant=(day,id,amount)=>{const value=Number(amount||0);if(!value)return;ledger.grants[id]=Number(ledger.grants[id]||0)+value;ledger.dayScores[clampDay(day)]+=cfgScorePerItem(cfg,id)*value};
   const cost=(id,amount)=>{ledger.spent[id]=Number(ledger.spent[id]||0)+Number(amount||0)};
   targetState.days.forEach((day,d)=>{
     if(day.missionClaimed)grant(d,cfg.currencies.gameTokenId,day.missionAmount);
-    (day.claimedStages||[]).forEach(stageNo=>{
-      const stage=cfg.progressStages.find(x=>Number(x.stage)===Number(stageNo));
-      (stage?.rewards||[]).forEach(r=>grant(d,r.itemId,r.amount))
-    });
-    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-      const n=Number(day.packagePurchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;
-      cost(pack.cost.itemId,Number(pack.cost.amount)*n);
-      pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))
-    }))
+    (day.claimedStages||[]).forEach(stageNo=>{const stage=cfg.progressStages.find(x=>Number(x.stage)===Number(stageNo));(stage?.rewards||[]).forEach(r=>grant(d,r.itemId,r.amount))});
+    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(day.packagePurchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;cost(pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))}))
   });
-  const tokenId=cfg.currencies.gameTokenId;
-  const grantFund=(kind,rewards,claimDay,allocations)=>{
-    let tokenHandled=false;
-    (rewards||[]).forEach(r=>{
-      if(r.itemId===tokenId&&Array.isArray(allocations)){
-        if(tokenHandled)return;tokenHandled=true;
-        const configuredTotal=(rewards||[]).filter(x=>x.itemId===tokenId).reduce((sum,x)=>sum+Number(x.amount||0),0);
-        const adjusted=allocations.map(Number),allocatedTotal=adjusted.reduce((sum,x)=>sum+Number(x||0),0);
-        adjusted[clampDay(claimDay)]=Number(adjusted[clampDay(claimDay)]||0)+(configuredTotal-allocatedTotal);
-        adjusted.forEach((amount,d)=>grant(d,tokenId,amount))
-      }else if(r.itemId!==tokenId)grant(claimDay,r.itemId,r.amount)
+  ["free","premium"].forEach(kind=>{
+    Object.entries(targetState.fundClaims[kind]||{}).forEach(([id,day])=>{
+      const milestone=fundMilestoneById(cfg,id);if(!milestone)return;
+      const rewards=kind==="free"?milestone.freeRewards:milestone.premiumRewards;(rewards||[]).forEach(r=>grant(day,r.itemId,r.amount))
     })
-  };
-  if(targetState.fundFreeClaimed)grantFund("free",cfg.fund.freeRewards,targetState.fundFreeClaimDay,targetState.fundFreeClaimAllocations);
-  if(targetState.fundPremiumClaimed){cost(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);grantFund("premium",cfg.fund.premiumRewards,targetState.fundPremiumClaimDay,targetState.fundPremiumClaimAllocations)}
+  });
+  if(targetState.fundPremiumPurchased)cost(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);
   return ledger
 }
 function reconcileAppliedConfiguration(targetState,oldCfg,newCfg){
@@ -855,15 +912,16 @@ function validateProbability(list,label){
   if(Math.abs(sum-100)>.0001)throw new Error(`${label}機率合計是 ${fmt(sum)}%，必須為 100%`)
 }
 function validateConfig(c){
+  normalizeFundConfig(c);
   if(!Number.isInteger(Number(c.board.cellCount))||Number(c.board.cellCount)<8)throw new Error("大富翁格數至少 8 格");
   if(Number(c.board.startIndex)<0||Number(c.board.startIndex)>=Number(c.board.cellCount))throw new Error("起點格編號超出範圍");
   if(!Array.isArray(c.items)||!c.items.length)throw new Error("物品清單不可為空");
-  const ids=c.items.map(x=>x.id);
-  if(new Set(ids).size!==ids.length)throw new Error("物品 ID 不可重複");
+  const ids=c.items.map(x=>x.id);if(new Set(ids).size!==ids.length)throw new Error("物品 ID 不可重複");
   if(!Array.isArray(c.cellTypes)||!c.cellTypes.length)throw new Error("至少需要一種格子類型");
-  c.cellTypes.forEach(x=>validateProbability(x.rewards,x.name));
-  c.randomBoxes.forEach(x=>validateProbability(x.outcomes,x.name));
+  c.cellTypes.forEach(x=>validateProbability(x.rewards,x.name));c.randomBoxes.forEach(x=>validateProbability(x.outcomes,x.name));
   if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
+  const fundIds=fundMilestones(c).map(x=>x.id);if(new Set(fundIds).size!==fundIds.length)throw new Error("基金階段 ID 不可重複");
+  fundMilestones(c).forEach((m,i)=>{if(Number(m.laps)<0)throw new Error(`第 ${i+1} 個基金階段圈數不可小於 0`);[...(m.freeRewards||[]),...(m.premiumRewards||[])].forEach(r=>{if(!ids.includes(r.itemId))throw new Error(`基金階段引用不存在的物品：${r.itemId}`)})});
   return true
 }
 function syncStateToConfig(forceBoard=true){
@@ -1026,19 +1084,21 @@ function claimDaily(){
   dayState().missionClaimed=true;dayState().missionAmount=amount;
   addItem(config.currencies.gameTokenId,amount,"每日任務",true);render()
 }
+function fundUnlockedUnclaimed(kind,targetState=state,cfg=config){
+  ensureStateSchema(targetState,cfg);const claimed=targetState.fundClaims[kind]||{};
+  return fundMilestones(cfg).filter(m=>Number(m.laps)<=Number(targetState.laps||0)&&!Object.prototype.hasOwnProperty.call(claimed,m.id))
+}
+function purchasePremiumFund(){
+  if(state.fundPremiumPurchased)return toast("進階基金已購買");
+  if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
+  recordHistory("購買進階基金");spend(config.fund.premiumCost,"購買進階基金");state.fundPremiumPurchased=true;render();toast("進階基金已解鎖，可領取目前圈數已開放的全部獎勵")
+}
 function claimFund(kind){
-  if(kind==="free"){
-    if(state.fundFreeClaimed)return;
-    recordHistory("領取免費基金");
-    state.fundFreeClaimed=true;state.fundFreeClaimDay=state.currentDay;state.fundFreeClaimAllocations=Array.from({length:config.event.totalDays},(_,d)=>d===state.currentDay?Number((config.fund.freeRewards||[]).filter(x=>x.itemId===config.currencies.gameTokenId).reduce((s,x)=>s+Number(x.amount||0),0)):0);config.fund.freeRewards.forEach(x=>addItem(x.itemId,x.amount,"免費基金",true))
-  }else{
-    if(state.fundPremiumClaimed)return;
-    if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
-    recordHistory("購買進階基金");
-    spend(config.fund.premiumCost,"購買進階基金");
-    state.fundPremiumClaimed=true;state.fundPremiumClaimDay=state.currentDay;state.fundPremiumClaimAllocations=Array.from({length:config.event.totalDays},(_,d)=>d===state.currentDay?Number((config.fund.premiumRewards||[]).filter(x=>x.itemId===config.currencies.gameTokenId).reduce((s,x)=>s+Number(x.amount||0),0)):0);config.fund.premiumRewards.forEach(x=>addItem(x.itemId,x.amount,"進階基金",true))
-  }
-  render()
+  if(kind==="premium"&&!state.fundPremiumPurchased)return purchasePremiumFund();
+  const unlocked=fundUnlockedUnclaimed(kind);if(!unlocked.length)return toast("目前沒有新解鎖的基金獎勵");
+  recordHistory(`領取${kind==="free"?"免費":"進階"}基金已解鎖獎勵`);
+  const ids=[];unlocked.forEach(m=>{ids.push(m.id);state.fundClaims[kind][m.id]=state.currentDay;const rewards=kind==="free"?m.freeRewards:m.premiumRewards;(rewards||[]).forEach(r=>addItem(r.itemId,r.amount,`${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true))});
+  state.fundClaimEvents[kind].push({day:state.currentDay,laps:Number(state.laps||0),milestoneIds:ids});render();toast(`已一次領取 ${unlocked.length} 個解鎖階段`)
 }
 function claimStage(stageNo){
   const stage=config.progressStages.find(x=>Number(x.stage)===Number(stageNo));
@@ -1296,9 +1356,9 @@ function strategyTargetItemId(cfg,kind){return kind==="premium"?cfg.currencies.p
 function strategyTargetName(cfg,kind){return cfgItem(cfg,strategyTargetItemId(cfg,kind)).name}
 function strategyEmptyPlan(cfg,targets){
   return{
-    version:3,optimizer:"independent-weekly-stage-dp",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
-    useFreeFund:true,usePremiumFund:false,fundOtherClaimDays:{free:0,premium:0},
-    days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{},rolls:0,expectedRolls:0,expectedLaps:0,fundFreeDice:0,fundPremiumDice:0})),
+    version:4,optimizer:"milestone-fund-weekly-stage-dp",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
+    useFreeFund:true,usePremiumFund:false,
+    days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{},rolls:0,expectedRolls:0,expectedLaps:0,fundFreeDice:0,fundPremiumDice:0,fundFreeMilestoneIds:[],fundPremiumMilestoneIds:[]})),
     estimate:null,validation:null,optimization:{freeAndGemSeeded:false,zeroEmeraldRate:0,paidPruned:0,notes:[]}
   }
 }
@@ -1308,15 +1368,15 @@ function strategyNormalizePlan(plan,cfg=plan?.config||config){
   if(plan.targets.amount==null)plan.targets.amount=plan.targets.kind==="premium"?Number(plan.targets.premium||0):Number(plan.targets.normal||0);
   plan.targets.premium=plan.targets.kind==="premium"?Number(plan.targets.amount||0):0;
   plan.targets.normal=plan.targets.kind==="normal"?Number(plan.targets.amount||0):0;
-  if(plan.useFreeFund==null)plan.useFreeFund=plan.days?.some(x=>x.fundFree)!==false;
-  if(plan.usePremiumFund==null)plan.usePremiumFund=!!plan.days?.some(x=>x.fundPremium);
-  if(!plan.fundOtherClaimDays)plan.fundOtherClaimDays={free:0,premium:0};
+  if(plan.useFreeFund==null)plan.useFreeFund=true;
+  if(plan.usePremiumFund==null)plan.usePremiumFund=false;
   while(plan.days.length<Number(cfg.event.totalDays))plan.days.push({day:plan.days.length,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{}});
   plan.days=plan.days.slice(0,Number(cfg.event.totalDays));
   plan.days.forEach((d,i)=>{
     d.day=i;d.missionAmount=Number(d.missionAmount||0);if(!d.purchases)d.purchases={};
     d.rolls=Number(d.rolls||0);d.expectedRolls=Number(d.expectedRolls??d.rolls??0);d.expectedLaps=Number(d.expectedLaps||0);
-    d.fundFreeDice=Number(d.fundFreeDice||0);d.fundPremiumDice=Number(d.fundPremiumDice||0)
+    d.fundFreeDice=Number(d.fundFreeDice||0);d.fundPremiumDice=Number(d.fundPremiumDice||0);
+    if(!Array.isArray(d.fundFreeMilestoneIds))d.fundFreeMilestoneIds=[];if(!Array.isArray(d.fundPremiumMilestoneIds))d.fundPremiumMilestoneIds=[]
   });
   if(!plan.optimization)plan.optimization={notes:[]};if(!Array.isArray(plan.optimization.notes))plan.optimization.notes=[];
   return plan
@@ -1362,148 +1422,119 @@ function strategyResolveStage(score,cfg,kind){
   stages.forEach((s,i)=>{if(Number(score)+1e-9>=s.threshold)result={stage:s.stage,threshold:s.threshold,nextThreshold:stages[i+1]?.threshold??null,value:s.value,boxes:s.boxes,overflow:Number(score)-s.threshold,gap:stages[i+1]?Math.max(0,stages[i+1].threshold-Number(score)):0}});
   return result
 }
-function strategyFundRewards(cfg,which){return which==="free"?(cfg.fund.freeRewards||[]):(cfg.fund.premiumRewards||[])}
-function strategyFundTokenTotal(plan,cfg,which){
-  const enabled=which==="free"?plan.useFreeFund:plan.usePremiumFund;if(!enabled)return 0;
-  return strategyFundRewards(cfg,which).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((s,r)=>s+Number(r.amount||0),0)
+function strategyFundRewards(cfg,which){return fundMilestones(cfg).flatMap(m=>clone(which==="free"?(m.freeRewards||[]):(m.premiumRewards||[])))}
+function strategyFundUnlockedCount(cfg,laps){const ms=fundMilestones(cfg);let n=0;while(n<ms.length&&Number(ms[n].laps)<=Number(laps)+1e-9)n++;return n}
+function strategyFundRange(cfg,which,start,end){
+  const ms=fundMilestones(cfg),rewards=[],ids=[];for(let i=Math.max(0,start);i<Math.min(end,ms.length);i++){ids.push(ms[i].id);rewards.push(...clone(which==="free"?(ms[i].freeRewards||[]):(ms[i].premiumRewards||[])))}return{rewards,ids}
 }
-function strategyFirstFundDay(plan,which){
-  const key=which==="free"?"fundFreeDice":"fundPremiumDice";
-  const d=plan.days.findIndex(x=>Number(x[key]||0)>0);return d>=0?d:0
+function strategyRewardYield(rewards,cfg,kind){
+  const targetId=strategyTargetItemId(cfg,kind);let value=0,boxes=0;
+  (rewards||[]).forEach(r=>{if(r.itemId===targetId)value+=Number(r.amount||0);cfg.randomBoxes.filter(b=>b.boxItemId===r.itemId&&b.rewardItemId===targetId).forEach(b=>{boxes+=Number(r.amount||0);value+=Number(r.amount||0)*strategyBoxMean(b)})});return{value,boxes}
 }
-function strategyFixedInfo(plan,cfg,includeFundOther=true){
-  strategyNormalizePlan(plan,cfg);
-  const premium=cfg.currencies.premiumExchangeId,normal=cfg.currencies.normalExchangeId,token=cfg.currencies.gameTokenId;
+function strategyRewardSummary(rewards,cfg,kind){
+  const grants={};let score=0,dice=0,directPremium=0,directNormal=0;
+  (rewards||[]).forEach(r=>{const v=Number(r.amount||0);grants[r.itemId]=Number(grants[r.itemId]||0)+v;score+=cfgScorePerItem(cfg,r.itemId)*v;if(r.itemId===cfg.currencies.gameTokenId)dice+=v;if(r.itemId===cfg.currencies.premiumExchangeId)directPremium+=v;if(r.itemId===cfg.currencies.normalExchangeId)directNormal+=v});
+  const yieldInfo=strategyRewardYield(rewards,cfg,kind);return{grants,score,dice,directPremium,directNormal,targetValue:yieldInfo.value,boxes:yieldInfo.boxes}
+}
+function strategyMergeSummary(target,source){
+  Object.entries(source.grants||{}).forEach(([id,v])=>target.grants[id]=Number(target.grants[id]||0)+Number(v||0));["score","dice","directPremium","directNormal","targetValue","boxes"].forEach(k=>target[k]=Number(target[k]||0)+Number(source[k]||0));return target
+}
+function strategyEmptySummary(){return{grants:{},score:0,dice:0,directPremium:0,directNormal:0,targetValue:0,boxes:0}}
+function strategyFixedInfo(plan,cfg,includeFund=true){
+  strategyNormalizePlan(plan,cfg);const premium=cfg.currencies.premiumExchangeId,normal=cfg.currencies.normalExchangeId,token=cfg.currencies.gameTokenId;
   const days=plan.days.map(()=>({grants:{},costs:{},score:0,dice:0,directPremium:0,directNormal:0}));
   const grant=(d,id,amount)=>{const v=Number(amount||0);if(!v)return;days[d].grants[id]=Number(days[d].grants[id]||0)+v;days[d].score+=cfgScorePerItem(cfg,id)*v};
   const cost=(d,id,amount)=>{days[d].costs[id]=Number(days[d].costs[id]||0)+Number(amount||0)};
   plan.days.forEach((pd,d)=>{
     if(Number(pd.missionAmount)>0)grant(d,token,pd.missionAmount);
-    grant(d,token,pd.fundFreeDice);grant(d,token,pd.fundPremiumDice);
-    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-      const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;
-      cost(d,pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))
-    }))
-  });
-  if(plan.useFreeFund&&includeFundOther){
-    const d=Math.max(0,Math.min(plan.days.length-1,Number(plan.fundOtherClaimDays?.free??strategyFirstFundDay(plan,"free"))));
-    strategyFundRewards(cfg,"free").filter(r=>r.itemId!==token).forEach(r=>grant(d,r.itemId,r.amount))
-  }
-  if(plan.usePremiumFund){
-    const d=Math.max(0,Math.min(plan.days.length-1,Number(plan.fundOtherClaimDays?.premium??strategyFirstFundDay(plan,"premium"))));
-    cost(d,cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);if(includeFundOther)strategyFundRewards(cfg,"premium").filter(r=>r.itemId!==token).forEach(r=>grant(d,r.itemId,r.amount))
-  }
-  days.forEach(x=>{x.dice=Number(x.grants[token]||0);x.directPremium=Number(x.grants[premium]||0);x.directNormal=Number(x.grants[normal]||0)});
-  const totals={grants:{},costs:{},dice:0,directPremium:0,directNormal:0};
-  days.forEach(x=>{Object.entries(x.grants).forEach(([id,v])=>totals.grants[id]=Number(totals.grants[id]||0)+v);Object.entries(x.costs).forEach(([id,v])=>totals.costs[id]=Number(totals.costs[id]||0)+v);totals.dice+=x.dice;totals.directPremium+=x.directPremium;totals.directNormal+=x.directNormal});
-  return{days,totals}
-}
-function strategyFundCandidateAmounts(remaining,baseScore,carry,baseDice,cfg,rollStats){
-  const fr=Math.max(0,Math.floor(Number(remaining||0))),values=new Set([0,fr]);
-  const tokenScore=cfgScorePerItem(cfg,cfg.currencies.gameTokenId),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=Number(rollStats.dicePerLap||Infinity);
-  if(tokenScore<=0||lapPoints<=0||!Number.isFinite(dpl))return[...values].sort((a,b)=>a-b);
-  [0,...cfg.progressStages.map(x=>Number(x.requiredScore||0))].forEach(threshold=>{
-    const l0=Math.max(0,Math.ceil((threshold-baseScore)/lapPoints-1e-10));
-    const lmin=Math.max(0,Math.ceil((threshold-baseScore-tokenScore*fr)/lapPoints-1e-10));
-    for(let laps=lmin;laps<=l0;laps++){
-      const fScore=Math.max(0,Math.ceil((threshold-baseScore-laps*lapPoints)/tokenScore-1e-10));
-      const fDice=Math.max(0,Math.ceil(laps*dpl-carry-baseDice-1e-10));
-      const f=Math.max(fScore,fDice);if(f<=fr)values.add(f)
+    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;cost(d,pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))}));
+    if(includeFund){
+      (pd.fundFreeMilestoneIds||[]).forEach(id=>{const m=fundMilestoneById(cfg,id);(m?.freeRewards||[]).forEach(r=>grant(d,r.itemId,r.amount))});
+      (pd.fundPremiumMilestoneIds||[]).forEach(id=>{const m=fundMilestoneById(cfg,id);(m?.premiumRewards||[]).forEach(r=>grant(d,r.itemId,r.amount))})
     }
   });
-  return[...values].sort((a,b)=>a-b)
+  if(plan.usePremiumFund)cost(0,cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);
+  days.forEach(x=>{x.dice=Number(x.grants[token]||0);x.directPremium=Number(x.grants[premium]||0);x.directNormal=Number(x.grants[normal]||0)});
+  const totals={grants:{},costs:{},dice:0,directPremium:0,directNormal:0};days.forEach(x=>{Object.entries(x.grants).forEach(([id,v])=>totals.grants[id]=Number(totals.grants[id]||0)+v);Object.entries(x.costs).forEach(([id,v])=>totals.costs[id]=Number(totals.costs[id]||0)+v);totals.dice+=x.dice;totals.directPremium+=x.directPremium;totals.directNormal+=x.directNormal});return{days,totals}
+}
+function strategyFundTransition(entry,baseDice,lapsAdded,claimFree,claimPremium,cfg,kind,dpl){
+  let available=Number(entry.carry||0)+Number(baseDice||0),cursor=Number(entry.totalLaps||0),freeIdx=Number(entry.freeClaimed||0),premiumIdx=Number(entry.premiumClaimed||0);
+  const target=cursor+Number(lapsAdded||0),summary=strategyEmptySummary(),freeIds=[],premiumIds=[];
+  const claimAt=laps=>{
+    const unlocked=strategyFundUnlockedCount(cfg,laps);
+    if(claimFree&&unlocked>freeIdx){const range=strategyFundRange(cfg,"free",freeIdx,unlocked),part=strategyRewardSummary(range.rewards,cfg,kind);strategyMergeSummary(summary,part);available+=part.dice;freeIds.push(...range.ids);freeIdx=unlocked}
+    if(claimPremium&&unlocked>premiumIdx){const range=strategyFundRange(cfg,"premium",premiumIdx,unlocked),part=strategyRewardSummary(range.rewards,cfg,kind);strategyMergeSummary(summary,part);available+=part.dice;premiumIds.push(...range.ids);premiumIdx=unlocked}
+  };
+  claimAt(cursor);
+  const thresholds=[...new Set(fundMilestones(cfg).map(m=>Number(m.laps)).filter(x=>x>cursor+1e-9&&x<=target+1e-9))].sort((a,b)=>a-b);
+  for(const threshold of thresholds){const cost=(threshold-cursor)*dpl;if(cost>available+1e-8)return null;available-=cost;cursor=threshold;claimAt(cursor)}
+  const cost=(target-cursor)*dpl;if(cost>available+1e-8)return null;available-=cost;
+  return{carry:Number(Math.max(0,available).toFixed(6)),freeClaimed:freeIdx,premiumClaimed:premiumIdx,summary,freeIds,premiumIds,rolls:Number(lapsAdded||0)*dpl}
+}
+function strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,allowPremium){
+  const remainingFree=strategyFundRange(cfg,"free",Number(entry.freeClaimed||0),fundMilestones(cfg).length).rewards;
+  const remainingPremium=allowPremium?strategyFundRange(cfg,"premium",Number(entry.premiumClaimed||0),fundMilestones(cfg).length).rewards:[];
+  const upper=Math.max(0,Math.min(500,Math.floor((Number(entry.carry||0)+Number(baseDice||0)+strategyRewardSummary([...remainingFree,...remainingPremium],cfg,kind).dice)/Math.max(dpl,1e-9))+2));
+  let max=0;for(let k=0;k<=upper;k++){const t=strategyFundTransition(entry,baseDice,k,true,allowPremium,cfg,kind,dpl);if(!t)break;max=k}return max
 }
 function strategyEntryBetter(a,b,includeCarry=false){
-  if(!b)return true;
-  if(Math.abs(a.targetValue-b.targetValue)>1e-9)return a.targetValue>b.targetValue;
-  if(a.activeDays!==b.activeDays)return a.activeDays<b.activeDays;
-  if(Math.abs(a.overflow-b.overflow)>1e-9)return a.overflow<b.overflow;
-  if(a.fundWithoutPlay!==b.fundWithoutPlay)return a.fundWithoutPlay<b.fundWithoutPlay;
-  if(Math.abs(a.earlyPenalty-b.earlyPenalty)>1e-9)return a.earlyPenalty<b.earlyPenalty;
-  if(includeCarry&&Math.abs(a.carry-b.carry)>1e-9)return a.carry>b.carry;
-  return false
+  if(!b)return true;if(Math.abs(a.targetValue-b.targetValue)>1e-9)return a.targetValue>b.targetValue;if(a.activeDays!==b.activeDays)return a.activeDays<b.activeDays;if(Math.abs(a.overflow-b.overflow)>1e-9)return a.overflow<b.overflow;if(Math.abs(a.earlyPenalty-b.earlyPenalty)>1e-9)return a.earlyPenalty<b.earlyPenalty;if(includeCarry&&Math.abs(a.carry-b.carry)>1e-9)return a.carry>b.carry;return false
 }
-function strategyPruneStates(states,beamWidth=3600,unlockLaps=0){
-  const buckets=new Map();states.forEach(s=>{const key=`${s.fundRemaining}|${Number(s.totalLaps||0)>=unlockLaps?1:0}`;if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(s)});
-  const kept=[];
-  buckets.forEach(arr=>{
-    arr.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);
-    kept.push(...arr.slice(0,18))
-  });
-  kept.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);
-  return kept.slice(0,beamWidth)
+function strategyPruneStates(states,beamWidth=280){
+  const exact=new Map();states.forEach(s=>{const key=`${s.carry.toFixed(3)}|${s.totalLaps}|${s.freeClaimed}|${s.premiumClaimed}`;if(strategyEntryBetter(s,exact.get(key),true))exact.set(key,s)});
+  const buckets=new Map();[...exact.values()].forEach(s=>{const key=`${s.freeClaimed}|${s.premiumClaimed}|${Math.floor(Number(s.totalLaps||0)/5)}`;if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(s)});
+  const kept=[];buckets.forEach(arr=>{arr.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);kept.push(...arr.slice(0,7))});kept.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);return kept.slice(0,beamWidth)
 }
-function strategySetFundAllocations(plan,cfg,totalAlloc){
-  let free=strategyFundTokenTotal(plan,cfg,"free"),premium=strategyFundTokenTotal(plan,cfg,"premium");
+function strategySetFundSchedule(plan,cfg,choices){
   plan.days.forEach((d,i)=>{
-    let amount=Math.max(0,Math.round(Number(totalAlloc[i]||0)));const freeTake=Math.min(amount,free);d.fundFreeDice=freeTake;free-=freeTake;amount-=freeTake;
-    const premiumTake=Math.min(amount,premium);d.fundPremiumDice=premiumTake;premium-=premiumTake
-  });
-  plan.fundOtherClaimDays.free=strategyFirstFundDay(plan,"free");plan.fundOtherClaimDays.premium=strategyFirstFundDay(plan,"premium")
+    const c=choices[i]||{},freeIds=c.freeIds||[],premiumIds=c.premiumIds||[];d.fundFreeMilestoneIds=[...freeIds];d.fundPremiumMilestoneIds=[...premiumIds];
+    d.fundFreeDice=freeIds.reduce((s,id)=>s+(fundMilestoneById(cfg,id)?.freeRewards||[]).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((a,r)=>a+Number(r.amount||0),0),0);
+    d.fundPremiumDice=premiumIds.reduce((s,id)=>s+(fundMilestoneById(cfg,id)?.premiumRewards||[]).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((a,r)=>a+Number(r.amount||0),0),0)
+  })
 }
 function strategyOptimizeSchedule(plan,cfg){
-  strategyNormalizePlan(plan,cfg);plan.days.forEach(d=>{d.fundFreeDice=0;d.fundPremiumDice=0;d.rolls=0;d.expectedRolls=0;d.expectedLaps=0});
-  const kind=strategyTargetKind(plan),rollStats=strategyExpectedRollStats(cfg),tokenScore=cfgScorePerItem(cfg,cfg.currencies.gameTokenId),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=rollStats.dicePerLap,unlockLaps=Math.max(0,Number(cfg.fund?.plannerUnlockLaps??10));
-  const base=strategyFixedInfo(plan,cfg,false),fundTotal=strategyFundTokenTotal(plan,cfg,"free")+strategyFundTokenTotal(plan,cfg,"premium");
-  let states=[{carry:0,fundRemaining:fundTotal,totalLaps:0,targetValue:0,activeDays:0,overflow:0,fundWithoutPlay:0,earlyPenalty:0,choices:[]}];
-  const last=plan.days.length-1;
+  strategyNormalizePlan(plan,cfg);plan.days.forEach(d=>{d.fundFreeMilestoneIds=[];d.fundPremiumMilestoneIds=[];d.fundFreeDice=0;d.fundPremiumDice=0;d.rolls=0;d.expectedRolls=0;d.expectedLaps=0});
+  const kind=strategyTargetKind(plan),rollStats=strategyExpectedRollStats(cfg),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=Number(rollStats.dicePerLap||Infinity),perRollTarget=kind==="premium"?Number(rollStats.premiumPerRoll||0):Number(rollStats.normalPerRoll||0);
+  const base=strategyFixedInfo(plan,cfg,false),last=plan.days.length-1;
+  let states=[{carry:0,totalLaps:0,freeClaimed:0,premiumClaimed:0,targetValue:0,activeDays:0,overflow:0,earlyPenalty:0,choices:[]}];
   for(let d=0;d<last;d++){
-    const map=new Map(),baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0);
+    const map=[],baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),baseDirect=strategyRewardYield(baseRewards,cfg,kind).value;
     states.forEach(entry=>{
-      const minimumUnlockLaps=Math.max(0,unlockLaps-Number(entry.totalLaps||0)),baseAvailable=entry.carry+baseDice;
-      const fundValues=strategyFundCandidateAmounts(entry.fundRemaining,baseScore,entry.carry,baseDice,cfg,rollStats);
-      fundValues.forEach(fund=>{
-        if(fund>0&&minimumUnlockLaps*dpl>baseAvailable+1e-8)return;
-        const available=baseAvailable+fund,fixedScore=baseScore+tokenScore*fund,options=new Map();
-        const thresholds=[0,...cfg.progressStages.map(x=>Number(x.requiredScore||0))];
-        thresholds.forEach(threshold=>{
-          let laps=0;if(threshold>fixedScore){if(lapPoints<=0)return;laps=Math.max(0,Math.ceil((threshold-fixedScore)/lapPoints-1e-10))}
-          if(fund>0)laps=Math.max(laps,minimumUnlockLaps);
-          const diceCost=laps*dpl;if(diceCost>available+1e-8)return;
-          const score=fixedScore+laps*lapPoints,resolved=strategyResolveStage(score,cfg,kind),old=options.get(resolved.stage);
-          const candidate={laps,diceCost,score,resolved};
-          if(!old||candidate.diceCost<old.diceCost-1e-8||(Math.abs(candidate.diceCost-old.diceCost)<1e-8&&candidate.resolved.overflow<old.resolved.overflow))options.set(resolved.stage,candidate)
-        });
-        options.forEach(opt=>{
-          const next={carry:Number((available-opt.diceCost).toFixed(6)),fundRemaining:entry.fundRemaining-fund,totalLaps:Number(entry.totalLaps||0)+opt.laps,targetValue:entry.targetValue+opt.resolved.value,activeDays:entry.activeDays+(opt.laps>0?1:0),overflow:entry.overflow+opt.resolved.overflow,fundWithoutPlay:entry.fundWithoutPlay+(fund>0&&opt.laps===0?1:0),earlyPenalty:entry.earlyPenalty+(opt.diceCost+fund)*(last-d),choices:[...entry.choices,{fund,laps:opt.laps,expectedRolls:opt.diceCost,score:opt.score,resolved:opt.resolved}]};
-          const key=`${next.carry.toFixed(4)}|${next.fundRemaining}|${next.totalLaps}|${next.targetValue.toFixed(6)}|${next.activeDays}`,old=map.get(key);
-          if(strategyEntryBetter(next,old,true))map.set(key,next)
-        })
-      })
-    });
-    states=strategyPruneStates([...map.values()],3600,unlockLaps)
+      const maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,plan.usePremiumFund);
+      for(let k=0;k<=maxK;k++){
+        const unlockedAtEnd=strategyFundUnlockedCount(cfg,Number(entry.totalLaps||0)+k),freePossible=unlockedAtEnd>Number(entry.freeClaimed||0),premPossible=plan.usePremiumFund&&unlockedAtEnd>Number(entry.premiumClaimed||0);
+        const freeOptions=freePossible?[false,true]:[false],premiumOptions=premPossible?[false,true]:[false];
+        for(const claimFree of freeOptions)for(const claimPremium of premiumOptions){
+          const t=strategyFundTransition(entry,baseDice,k,claimFree,claimPremium,cfg,kind,dpl);if(!t)continue;
+          const score=baseScore+Number(t.summary.score||0)+k*lapPoints,resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+Number(t.rolls||0)*perRollTarget+resolved.value;
+          const next={carry:t.carry,totalLaps:Number(entry.totalLaps||0)+k,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(k>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0)+Number(t.rolls||0)*(last-d),choices:[...entry.choices,{laps:k,expectedRolls:t.rolls,score,resolved,...t}]};map.push(next)
+        }
+      }
+    });states=strategyPruneStates(map,280)
   }
-  let best=null;
-  states.forEach(entry=>{
-    const d=last,baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseAvailable=entry.carry+baseDice,minimumUnlockLaps=Math.max(0,unlockLaps-Number(entry.totalLaps||0));
-    const fund=minimumUnlockLaps*dpl<=baseAvailable+1e-8?entry.fundRemaining:0,available=baseAvailable+fund,fixedScore=baseScore+tokenScore*fund;
-    const laps=Number.isFinite(dpl)&&dpl>0?Math.floor((available+1e-8)/dpl):0,score=fixedScore+laps*lapPoints,resolved=strategyResolveStage(score,cfg,kind);
-    const final={carry:0,fundRemaining:entry.fundRemaining-fund,totalLaps:Number(entry.totalLaps||0)+laps,targetValue:entry.targetValue+resolved.value,activeDays:entry.activeDays+(laps>0?1:0),overflow:entry.overflow+resolved.overflow,fundWithoutPlay:entry.fundWithoutPlay+(fund>0&&laps===0?1:0),earlyPenalty:entry.earlyPenalty,choices:[...entry.choices,{fund,laps,expectedRolls:available,score,resolved,leftoverDice:Math.max(0,available-laps*dpl)}]};
-    if(strategyEntryBetter(final,best,true))best=final
+  let best=null;states.forEach(entry=>{
+    const d=last,baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),baseDirect=strategyRewardYield(baseRewards,cfg,kind).value,maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,plan.usePremiumFund);
+    const t=strategyFundTransition(entry,baseDice,maxK,true,plan.usePremiumFund,cfg,kind,dpl);if(!t)return;
+    const allRolls=Number(t.rolls||0)+Number(t.carry||0),score=baseScore+Number(t.summary.score||0)+maxK*lapPoints,resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+allRolls*perRollTarget+resolved.value;
+    const final={carry:0,totalLaps:Number(entry.totalLaps||0)+maxK,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(allRolls>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0),choices:[...entry.choices,{laps:maxK,expectedRolls:allRolls,score,resolved,...t,expectedRolls:allRolls,leftoverDice:0}]};if(strategyEntryBetter(final,best,true))best=final
   });
-  if(!best)throw new Error("找不到可行的整週分配");
-  strategySetFundAllocations(plan,cfg,best.choices.map(x=>x.fund));
+  if(!best)throw new Error("找不到可行的整週分配");strategySetFundSchedule(plan,cfg,best.choices);
   plan.days.forEach((d,i)=>{d.expectedLaps=Number(best.choices[i]?.laps||0);d.expectedRolls=Number(best.choices[i]?.expectedRolls||0)});
-  const fixed=strategyFixedInfo(plan,cfg);let integerCarry=0,usedInteger=0;
-  plan.days.forEach((d,i)=>{
-    integerCarry+=Math.max(0,Math.round(Number(fixed.days[i].dice||0)));
-    let rolls;if(i===last)rolls=integerCarry;else rolls=Math.min(integerCarry,Math.max(0,Math.round(d.expectedRolls)));
-    d.rolls=rolls;integerCarry-=rolls;usedInteger+=rolls
-  });
+  const fixed=strategyFixedInfo(plan,cfg,true);let integerCarry=0,usedInteger=0;
+  plan.days.forEach((d,i)=>{integerCarry+=Math.max(0,Math.round(Number(fixed.days[i].dice||0)));let rolls=i===last?integerCarry:Math.min(integerCarry,Math.max(0,Math.round(d.expectedRolls)));d.rolls=rolls;integerCarry-=rolls;usedInteger+=rolls});
   const dayEstimates=[];let cumNormal=0,cumPremium=0,expectedBoxes=0;
   plan.days.forEach((pd,d)=>{
-    const choice=best.choices[d],score=Number(choice.score||0),premiumStage=strategyResolveStage(score,cfg,"premium"),normalStage=strategyResolveStage(score,cfg,"normal");
-    const dayNormal=Number(fixed.days[d].directNormal||0)+Number(pd.rolls||0)*rollStats.normalPerRoll+normalStage.value;
-    const dayPremium=Number(fixed.days[d].directPremium||0)+premiumStage.value;cumNormal+=dayNormal;cumPremium+=dayPremium;expectedBoxes+=premiumStage.boxes;
-    dayEstimates.push({fixedScore:Number(fixed.days[d].score||0),expectedScore:score,stage:choice.resolved.stage,boxes:premiumStage.boxes,targetStageValue:choice.resolved.value,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:Number(fixed.days[d].dice||0),expectedLaps:Number(choice.laps||0),expectedRolls:Number(choice.expectedRolls||0),actualRolls:Number(pd.rolls||0),overflow:Number(choice.resolved.overflow||0),gap:Number(choice.resolved.gap||0),fundFreeDice:Number(pd.fundFreeDice||0),fundPremiumDice:Number(pd.fundPremiumDice||0)})
+    const choice=best.choices[d],score=Number(choice.score||0),premiumStage=strategyResolveStage(score,cfg,"premium"),normalStage=strategyResolveStage(score,cfg,"normal"),rolls=Number(pd.rolls||0);
+    const fixedRewards=Object.entries(fixed.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),fixedNormalYield=strategyRewardYield(fixedRewards,cfg,"normal"),fixedPremiumYield=strategyRewardYield(fixedRewards,cfg,"premium");
+    const dayNormal=fixedNormalYield.value+rolls*Number(rollStats.normalPerRoll||0)+normalStage.value,dayPremium=fixedPremiumYield.value+rolls*Number(rollStats.premiumPerRoll||0)+premiumStage.value;cumNormal+=dayNormal;cumPremium+=dayPremium;expectedBoxes+=premiumStage.boxes+fixedPremiumYield.boxes;
+    dayEstimates.push({fixedScore:Number(fixed.days[d].score||0),expectedScore:score,stage:choice.resolved.stage,boxes:premiumStage.boxes,targetStageValue:choice.resolved.value,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:Number(fixed.days[d].dice||0),expectedLaps:Number(choice.laps||0),expectedRolls:Number(choice.expectedRolls||0),actualRolls:rolls,overflow:Number(choice.resolved.overflow||0),gap:Number(choice.resolved.gap||0),fundFreeDice:Number(pd.fundFreeDice||0),fundPremiumDice:Number(pd.fundPremiumDice||0),fundFreeMilestoneIds:[...(pd.fundFreeMilestoneIds||[])],fundPremiumMilestoneIds:[...(pd.fundPremiumMilestoneIds||[])]})
   });
-  const expectedNormal=cumNormal,expectedPremium=cumPremium,targetExpected=kind==="premium"?expectedPremium:expectedNormal;
-  return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice,expectedNormal,expectedPremium,expectedBoxes,targetExpected,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,fundWithoutPlay:best.fundWithoutPlay,leftoverExpectedDice:Number(best.choices.at(-1)?.leftoverDice||0),completedLaps:best.choices.reduce((s,x)=>s+Number(x.laps||0),0),integerRolls:usedInteger,unclaimedFundDice:Number(best.fundRemaining||0),fundUnlockLaps:unlockLaps}}
+  return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice,expectedNormal:cumNormal,expectedPremium:cumPremium,expectedBoxes,targetExpected:kind==="premium"?cumPremium:cumNormal,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,completedLaps:Number(best.totalLaps||0),integerRolls:usedInteger,freeFundClaimed:best.freeClaimed,premiumFundClaimed:best.premiumClaimed,totalFundStages:fundMilestones(cfg).length}}
 }
 function strategyAllocateRolls(plan,cfg){return strategyOptimizeSchedule(plan,cfg)}
 function strategyBuildCandidates(plan,cfg){
   const candidates=[],paid=cfg.currencies.paidCurrencyId;
-  if(!plan.usePremiumFund&&cfg.fund.premiumCost.itemId===paid&&Number(cfg.fund.premiumCost.amount||0)>0)candidates.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),rewards:clone(cfg.fund.premiumRewards||[]),name:"進階基金"});
+  if(!plan.usePremiumFund&&cfg.fund.premiumCost.itemId===paid&&Number(cfg.fund.premiumCost.amount||0)>0)candidates.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),rewards:strategyFundRewards(cfg,"premium"),name:"進階基金"});
   cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
     if(pack.cost.itemId!==paid||Number(pack.cost.amount||0)<=0)return;
     for(let d=0;d<plan.days.length;d++){
@@ -1523,7 +1554,7 @@ function strategySeedFreeAndGem(plan,cfg){
     if(!(strategyIsAutoFreePackage(pack,cfg)||strategyIsGemPackage(pack,cfg)))return;
     for(let d=0;d<plan.days.length;d++)strategyAddPurchase(plan,d,group.id,pack.id,pack.limit)
   }));
-  plan.useFreeFund=true;plan.optimization.freeAndGemSeeded=true;plan.optimization.notes.push("每日任務、廣告與寶石禮包已拿滿");plan.optimization.notes.push(`免費基金骰子在累計 ${Number(cfg.fund?.plannerUnlockLaps??10)} 圈後，由整週演算法分配到最有價值的日期`)
+  plan.useFreeFund=true;plan.optimization.freeAndGemSeeded=true;plan.optimization.notes.push("每日任務、廣告與寶石禮包已拿滿");plan.optimization.notes.push("基金改依累計圈數逐階解鎖；演算法會比較領取時機，且每次領取當下所有已解鎖未領階段")
 }
 function strategyPaidCandidates(plan,cfg){return strategyBuildCandidates(plan,cfg)}
 function strategyPaidUnitsInPlan(plan,cfg){
@@ -1535,26 +1566,21 @@ function strategyPaidUnitsInPlan(plan,cfg){
 }
 function strategyPlanPaidCost(plan,cfg){return Number(strategyFixedInfo(plan,cfg).totals.costs[cfg.currencies.paidCurrencyId]||0)}
 function strategyCandidateApproxGain(unit,cfg,kind,baseEstimate){
-  const targetId=strategyTargetItemId(cfg,kind),token=cfg.currencies.gameTokenId,stats=strategyExpectedRollStats(cfg);let direct=0,dice=0;
-  (unit.rewards||[]).forEach(r=>{if(r.itemId===targetId)direct+=Number(r.amount||0);if(r.itemId===token)dice+=Number(r.amount||0)});
+  const token=cfg.currencies.gameTokenId,stats=strategyExpectedRollStats(cfg);let dice=0;
+  (unit.rewards||[]).forEach(r=>{if(r.itemId===token)dice+=Number(r.amount||0)});
+  const direct=strategyRewardYield(unit.rewards||[],cfg,kind).value;
   if(kind==="normal")return direct+dice*stats.normalPerRoll;
   const stages=strategyCumulativeStages(cfg,"premium");let bestPerLap=0,prevValue=0,prevThreshold=0;
   stages.forEach(s=>{const laps=Math.max(1,Math.ceil((s.threshold-prevThreshold)/Math.max(1,Number(cfg.scoreRules.pointsPerLap||0))));bestPerLap=Math.max(bestPerLap,(s.value-prevValue)/laps);prevValue=s.value;prevThreshold=s.threshold});
   return direct+(dice/Math.max(1e-9,stats.dicePerLap))*bestPerLap+Math.max(0,dice*cfgScorePerItem(cfg,token)/Math.max(1,Number(cfg.scoreRules.pointsPerLap||0)))*bestPerLap
 }
 function strategyPickPaidCandidate(plan,candidates,cfg){
-  if(!candidates.length)return null;const kind=strategyTargetKind(plan),base=plan.estimate||strategyAllocateRolls(plan,cfg),baseTarget=Number(base.targetExpected||0);
-  const shortlist=[...candidates].map(unit=>({unit,approx:strategyCandidateApproxGain(unit,cfg,kind,base),cost:Number(unit.cost.amount||0)})).filter(x=>x.approx>0).sort((a,b)=>(a.cost/Math.max(a.approx,1e-9))-(b.cost/Math.max(b.approx,1e-9))||a.cost-b.cost).slice(0,18);
-  let best=null;
-  shortlist.forEach(x=>{
-    const trial=clone(plan);strategyAddUnit(trial,x.unit);const est=strategyAllocateRolls(trial,cfg),gain=Math.max(0,Number(est.targetExpected||0)-baseTarget);if(gain<=1e-9)return;
-    const candidate={unit:x.unit,ratio:Number(x.unit.cost.amount||0)/gain,cost:Number(x.unit.cost.amount||0),gain,estimate:est};
-    if(!best||candidate.ratio<best.ratio-1e-9||(Math.abs(candidate.ratio-best.ratio)<1e-9&&candidate.cost<best.cost))best=candidate
-  });
-  return best?.unit||null
+  if(!candidates.length)return null;const kind=strategyTargetKind(plan),base=plan.estimate||strategyAllocateRolls(plan,cfg);
+  const ranked=[...candidates].map(unit=>({unit,approx:strategyCandidateApproxGain(unit,cfg,kind,base),cost:Number(unit.cost.amount||0)})).filter(x=>x.approx>0).sort((a,b)=>(a.cost/Math.max(a.approx,1e-9))-(b.cost/Math.max(b.approx,1e-9))||a.cost-b.cost||String(a.unit.id).localeCompare(String(b.unit.id)));
+  return ranked[0]?.unit||null
 }
 function strategyCreateSimState(cfg){
-  const sim={currentDay:0,position:Number(cfg.board.startIndex)||0,laps:0,resources:{},spent:{},board:[],boardVersion:0,days:Array.from({length:Number(cfg.event.totalDays)},()=>({score:0,claimedStages:[]}))};simGenerateBoard(sim,cfg);return sim
+  const sim={currentDay:0,position:Number(cfg.board.startIndex)||0,laps:0,resources:{},spent:{},board:[],boardVersion:0,days:Array.from({length:Number(cfg.event.totalDays)},()=>({score:0,claimedStages:[]})),fundClaims:{free:{},premium:{}}};simGenerateBoard(sim,cfg);return sim
 }
 function strategySimGrant(sim,cfg,id,amount){simAddItem(sim,cfg,id,amount)}
 function strategySimClaimStages(sim,cfg){
@@ -1565,25 +1591,26 @@ function strategySimClaimStages(sim,cfg){
 function strategySimOpenBoxes(sim,cfg){
   cfg.randomBoxes.forEach(box=>{const count=Math.floor(Number(sim.resources[box.boxItemId]||0));if(count<1)return;sim.resources[box.boxItemId]-=count;let total=0;for(let i=0;i<count;i++)total+=Number(weightedPick(box.outcomes).amount||0);strategySimGrant(sim,cfg,box.rewardItemId,total)})
 }
-function strategyGrantFundOther(sim,cfg,plan,which,day){
-  if(!(which==="free"?plan.useFreeFund:plan.usePremiumFund))return;
-  const claimDay=Number(plan.fundOtherClaimDays?.[which]||0);if(day!==claimDay)return;
-  strategyFundRewards(cfg,which).filter(r=>r.itemId!==cfg.currencies.gameTokenId).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))
+function strategySimClaimPlannedFund(sim,cfg,plan,day){
+  ["free","premium"].forEach(kind=>{
+    if(kind==="premium"&&!plan.usePremiumFund)return;
+    const dueIds=new Set(plan.days.slice(0,day+1).flatMap(pd=>kind==="free"?(pd.fundFreeMilestoneIds||[]):(pd.fundPremiumMilestoneIds||[])));
+    const ready=[...dueIds].filter(id=>!sim.fundClaims[kind][id]&&Number(fundMilestoneById(cfg,id)?.laps??Infinity)<=Number(sim.laps)+1e-9);if(!ready.length)return;
+    fundMilestones(cfg).filter(m=>Number(m.laps)<=Number(sim.laps)+1e-9&&!sim.fundClaims[kind][m.id]).forEach(m=>{sim.fundClaims[kind][m.id]=true;(kind==="free"?m.freeRewards:m.premiumRewards).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))})
+  })
 }
 function simulateStrategyPlan(plan,cfg){
   strategyNormalizePlan(plan,cfg);const sim=strategyCreateSimState(cfg),token=cfg.currencies.gameTokenId;let usedDice=0;const dayResults=[];
   for(let d=0;d<plan.days.length;d++){
     const pd=plan.days[d];sim.currentDay=d;if(pd.missionAmount)strategySimGrant(sim,cfg,token,pd.missionAmount);
-    if(pd.fundFreeDice)strategySimGrant(sim,cfg,token,pd.fundFreeDice);if(pd.fundPremiumDice)strategySimGrant(sim,cfg,token,pd.fundPremiumDice);
-    strategyGrantFundOther(sim,cfg,plan,"free",d);strategyGrantFundOther(sim,cfg,plan,"premium",d);
     cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);for(let i=0;i<n;i++)pack.rewards.forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))}));
-    strategySimClaimStages(sim,cfg);const planned=Math.floor(Number(pd.rolls||0));let dayUsed=0;
+    strategySimClaimPlannedFund(sim,cfg,plan,d);strategySimClaimStages(sim,cfg);const planned=Math.floor(Number(pd.rolls||0));let dayUsed=0;
     while(dayUsed<planned&&Number(sim.resources[token]||0)>=1){
       sim.resources[token]-=1;usedDice++;dayUsed++;const roll=Math.floor(Math.random()*Number(cfg.board.diceSides))+1;
-      for(let step=0;step<roll;step++){sim.position=(Number(sim.position)+1)%Number(cfg.board.cellCount);if(sim.position===Number(cfg.board.startIndex)){sim.laps=Number(sim.laps||0)+1;sim.days[d].score=Number(sim.days[d].score||0)+Number(cfg.scoreRules.pointsPerLap||0);if(cfg.board.refreshOnLap)simGenerateBoard(sim,cfg)}}
-      const cell=sim.board[sim.position];if(cell?.kind==="reward")strategySimGrant(sim,cfg,cell.reward.itemId,cell.reward.amount)
+      for(let step=0;step<roll;step++){sim.position=(Number(sim.position)+1)%Number(cfg.board.cellCount);if(sim.position===Number(cfg.board.startIndex)){sim.laps=Number(sim.laps||0)+1;sim.days[d].score=Number(sim.days[d].score||0)+Number(cfg.scoreRules.pointsPerLap||0);if(cfg.board.refreshOnLap)simGenerateBoard(sim,cfg);strategySimClaimPlannedFund(sim,cfg,plan,d)}}
+      const cell=sim.board[sim.position];if(cell?.kind==="reward")strategySimGrant(sim,cfg,cell.reward.itemId,cell.reward.amount);strategySimClaimPlannedFund(sim,cfg,plan,d)
     }
-    strategySimClaimStages(sim,cfg);dayResults.push({score:Number(sim.days[d].score||0),stage:sim.days[d].claimedStages.length?Math.max(...sim.days[d].claimedStages):0,usedDice:dayUsed})
+    strategySimClaimPlannedFund(sim,cfg,plan,d);strategySimClaimStages(sim,cfg);dayResults.push({score:Number(sim.days[d].score||0),stage:sim.days[d].claimedStages.length?Math.max(...sim.days[d].claimedStages):0,usedDice:dayUsed})
   }
   strategySimOpenBoxes(sim,cfg);return{premium:Number(sim.resources[cfg.currencies.premiumExchangeId]||0),normal:Number(sim.resources[cfg.currencies.normalExchangeId]||0),usedDice,laps:Number(sim.laps||0),dayResults,resources:sim.resources}
 }
@@ -1617,14 +1644,7 @@ async function generateStrategy(){
       candidates=strategyPaidCandidates(plan,config);$("strategyProgress").style.width=`${35+Math.min(40,loops*1.4)}%`;$("strategyProgressText").textContent=`補強第 ${loops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜${strategyTargetName(config,kind)}期望 ${fmt(plan.estimate.targetExpected)}${mode==="probability"?`｜達標率約 ${fmt(validation.targetRate)}%`:""}`;if(loops%2===0)await wait(0)
     }
     $("strategyProgress").style.width="80%";$("strategyProgressText").textContent="反向檢查並移除不必要的翡翠石購買…";await wait(0);
-    let removed=0,changed=true,passes=0;
-    while(changed&&passes++<3){changed=false;const units=strategyPaidUnitsInPlan(plan,config).sort((a,b)=>Number(b.cost.amount||0)-Number(a.cost.amount||0));
-      for(const unit of units){const trial=clone(plan);strategyRemoveUnit(trial,unit);trial.estimate=strategyAllocateRolls(trial,config);let keepRemoved=false;
-        if(mode==="expected")keepRemoved=trial.estimate.targetExpected+1e-9>=amount;else{const check=strategyEvaluate(trial,config,Math.min(220,Math.max(100,Math.floor(samples*.3))));keepRemoved=check.targetRate+1e-9>=success}
-        if(keepRemoved){strategyRemoveUnit(plan,unit);plan.estimate=trial.estimate;removed++;changed=true}
-      }
-    }
-    plan.optimization.paidPruned=removed;if(removed)plan.optimization.notes.push(`已移除 ${removed} 筆非必要課金購買`)
+    const removed=0;plan.optimization.paidPruned=removed;plan.optimization.notes.push("課金來源依每單位翡翠石的預估目標收益逐筆加入，達標後立即停止")
   }else plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}方案已符合選定目標`);
   $("strategyProgress").style.width="91%";$("strategyProgressText").textContent=`使用 ${samples} 次隨機遊戲驗證選定目標…`;await wait(0);
   plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples);strategyPlan=plan;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
@@ -1634,21 +1654,13 @@ async function generateStrategy(){
 function strategyOperationRows(plan,cfg){
   const kind=strategyTargetKind(plan),targetName=strategyTargetName(cfg,kind),rows=[];
   rows.push({label:"📋 每日任務骰子",values:plan.days.map(x=>x.missionAmount||0)});
-  if(plan.useFreeFund&&plan.days.some(x=>Number(x.fundFreeDice||0)>0))rows.push({label:"免費基金骰子（最佳領取時機）",values:plan.days.map(x=>Number(x.fundFreeDice||0)||"—")});
-  if(plan.usePremiumFund&&plan.days.some(x=>Number(x.fundPremiumDice||0)>0))rows.push({label:"進階基金骰子（最佳領取時機）",values:plan.days.map(x=>Number(x.fundPremiumDice||0)||"—")});
+  const milestoneText=(ids,track)=>ids?.length?ids.map(id=>{const m=fundMilestoneById(cfg,id);return m?`${m.laps}圈`:`?`}).join("、"):"—";
+  if(plan.days.some(x=>(x.fundFreeMilestoneIds||[]).length))rows.push({label:"免費基金領取階段",values:plan.days.map(x=>milestoneText(x.fundFreeMilestoneIds,"free"))});
+  if(plan.usePremiumFund&&plan.days.some(x=>(x.fundPremiumMilestoneIds||[]).length))rows.push({label:"進階基金領取階段",values:plan.days.map(x=>milestoneText(x.fundPremiumMilestoneIds,"premium"))});
+  if(plan.days.some(x=>Number(x.fundFreeDice||0)>0))rows.push({label:"免費基金取得骰子",values:plan.days.map(x=>Number(x.fundFreeDice||0)||"—")});
+  if(plan.usePremiumFund&&plan.days.some(x=>Number(x.fundPremiumDice||0)>0))rows.push({label:"進階基金取得骰子",values:plan.days.map(x=>Number(x.fundPremiumDice||0)||"—")});
   cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const values=plan.days.map(d=>Number(d.purchases?.[`${group.id}:${pack.id}`]||0));if(values.some(Boolean))rows.push({label:pack.name,values:values.map(x=>x||"—")})}));
-  rows.push({section:"整週階段動態規劃"});
-  rows.push({label:"建議實際擲骰",values:plan.days.map(x=>x.rolls||0)});
-  rows.push({label:"期望完成圈數",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedLaps))});
-  rows.push({label:"取得骰子",values:plan.estimate.dayEstimates.map(x=>fmt(x.acquiredDice))});
-  rows.push({label:"固定積分（領骰／禮包）",values:plan.estimate.dayEstimates.map(x=>fmt(x.fixedScore))});
-  rows.push({label:"預期每日積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedScore))});
-  rows.push({label:"預期達成階段",values:plan.estimate.dayEstimates.map(x=>x.stage?`${x.stage} 階`:"—")});
-  rows.push({label:"預期獲得隨機箱",values:plan.estimate.dayEstimates.map(x=>x.boxes||0)});
-  rows.push({label:"階段後溢出積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.overflow))});
-  rows.push({label:"距離下一階",values:plan.estimate.dayEstimates.map(x=>x.gap?fmt(x.gap):"—")});
-  rows.push({label:`${targetName}累計期望`,values:plan.estimate.dayEstimates.map(x=>fmt(kind==="premium"?x.cumPremium:x.cumNormal))});
-  return rows
+  rows.push({section:"整週階段動態規劃"});rows.push({label:"建議實際擲骰",values:plan.days.map(x=>x.rolls||0)});rows.push({label:"期望完成圈數",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedLaps))});rows.push({label:"取得骰子",values:plan.estimate.dayEstimates.map(x=>fmt(x.acquiredDice))});rows.push({label:"固定積分（領骰／禮包／基金）",values:plan.estimate.dayEstimates.map(x=>fmt(x.fixedScore))});rows.push({label:"預期每日積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedScore))});rows.push({label:"預期達成階段",values:plan.estimate.dayEstimates.map(x=>x.stage?`${x.stage} 階`:"—")});rows.push({label:"預期獲得隨機箱",values:plan.estimate.dayEstimates.map(x=>x.boxes||0)});rows.push({label:"階段後溢出積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.overflow))});rows.push({label:"距離下一階",values:plan.estimate.dayEstimates.map(x=>x.gap?fmt(x.gap):"—")});rows.push({label:`${targetName}累計期望`,values:plan.estimate.dayEstimates.map(x=>fmt(kind==="premium"?x.cumPremium:x.cumNormal))});return rows
 }
 function strategyStageCpTable(cfg,kind){
   const stages=strategyCumulativeStages(cfg,kind),points=Math.max(1e-9,Number(cfg.scoreRules.pointsPerLap||0));let prevScore=0,prevValue=0;
@@ -1692,19 +1704,21 @@ function strategySpendInGame(cost,count=1){
 }
 function applyStrategyToGame(){
   if(!strategyPlan)return;strategyNormalizePlan(strategyPlan,strategyPlan.config||config);
-  if(strategySignature(config)!==strategyPlan.configSignature){if(!confirm("攻略使用不同的活動設定。是否一併套用攻略內的活動設定？"))return;validateConfig(strategyPlan.config);config=clone(strategyPlan.config)}
-  if(!confirm("套用攻略會把目前遊戲進度改成攻略的七日領取、基金時機與購買狀態。可使用「復原上一步」返回，確定套用嗎？"))return;
+  if(strategySignature(config)!==strategyPlan.configSignature){if(!confirm("攻略使用不同的活動設定。是否一併套用攻略內的活動設定？"))return;validateConfig(strategyPlan.config);config=normalizeFundConfig(clone(strategyPlan.config))}
+  if(!confirm("套用攻略會把目前遊戲進度改成攻略的七日領取、基金解鎖時機與購買狀態。可使用「復原上一步」返回，確定套用嗎？"))return;
   recordHistory("套用七日動態攻略");state=createState();ensureStateSchema(state,config);generateBoard();
-  strategyPlan.days.forEach((pd,d)=>{
-    const day=state.days[d];if(pd.missionAmount>0){day.missionClaimed=true;day.missionAmount=Number(pd.missionAmount);strategyGrantToGame(d,config.currencies.gameTokenId,pd.missionAmount)}
-    if(pd.fundFreeDice)strategyGrantToGame(d,config.currencies.gameTokenId,pd.fundFreeDice);if(pd.fundPremiumDice)strategyGrantToGame(d,config.currencies.gameTokenId,pd.fundPremiumDice);
-    config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;day.packagePurchases[`${group.id}:${pack.id}`]=n;strategySpendInGame(pack.cost,n);pack.rewards.forEach(r=>strategyGrantToGame(d,r.itemId,Number(r.amount)*n))}))
-  });
-  const token=config.currencies.gameTokenId;
-  if(strategyPlan.useFreeFund){state.fundFreeClaimed=true;state.fundFreeClaimDay=Number(strategyPlan.fundOtherClaimDays?.free||0);state.fundFreeClaimAllocations=strategyPlan.days.map(x=>Number(x.fundFreeDice||0));(config.fund.freeRewards||[]).filter(r=>r.itemId!==token).forEach(r=>strategyGrantToGame(state.fundFreeClaimDay,r.itemId,r.amount))}
-  if(strategyPlan.usePremiumFund){state.fundPremiumClaimed=true;state.fundPremiumClaimDay=Number(strategyPlan.fundOtherClaimDays?.premium||0);state.fundPremiumClaimAllocations=strategyPlan.days.map(x=>Number(x.fundPremiumDice||0));strategySpendInGame(config.fund.premiumCost);(config.fund.premiumRewards||[]).filter(r=>r.itemId!==token).forEach(r=>strategyGrantToGame(state.fundPremiumClaimDay,r.itemId,r.amount))}
-  state.activeStrategy={plan:clone(strategyPlan),rollsCompleted:Array.from({length:strategyPlan.days.length},()=>0),appliedAt:new Date().toISOString()};state.currentDay=0;
-  simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);log("已套用整週動態攻略：基金骰子與每日圈數已按階段 CP 配置");render();toast("攻略已套用，可逐日執行並驗證")
+  strategyPlan.days.forEach((pd,d)=>{const day=state.days[d];if(pd.missionAmount>0){day.missionClaimed=true;day.missionAmount=Number(pd.missionAmount);strategyGrantToGame(d,config.currencies.gameTokenId,pd.missionAmount)}config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;day.packagePurchases[`${group.id}:${pack.id}`]=n;strategySpendInGame(pack.cost,n);pack.rewards.forEach(r=>strategyGrantToGame(d,r.itemId,Number(r.amount)*n))}))});
+  if(strategyPlan.usePremiumFund){state.fundPremiumPurchased=true;strategySpendInGame(config.fund.premiumCost)}
+  state.activeStrategy={plan:clone(strategyPlan),rollsCompleted:Array.from({length:strategyPlan.days.length},()=>0),appliedAt:new Date().toISOString()};state.currentDay=0;simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);log("已套用整週動態攻略：基金獎勵會在攻略指定日期、達到對應圈數後一次領取當下全部解鎖階段");render();toast("攻略已套用，可逐日執行並驗證")
+}
+function claimStrategyFundWithoutHistory(){
+  const active=state.activeStrategy;if(!active)return;
+  ["free","premium"].forEach(kind=>{
+    if(kind==="premium"&&!state.fundPremiumPurchased)return;
+    const dueIds=new Set(active.plan.days.slice(0,state.currentDay+1).flatMap(pd=>kind==="free"?(pd.fundFreeMilestoneIds||[]):(pd.fundPremiumMilestoneIds||[])));
+    const ready=[...dueIds].filter(id=>!Object.prototype.hasOwnProperty.call(state.fundClaims[kind],id)&&Number(fundMilestoneById(config,id)?.laps??Infinity)<=Number(state.laps));if(!ready.length)return;
+    const allUnlocked=fundUnlockedUnclaimed(kind);allUnlocked.forEach(m=>{state.fundClaims[kind][m.id]=state.currentDay;(kind==="free"?m.freeRewards:m.premiumRewards).forEach(r=>addItem(r.itemId,r.amount,`攻略自動領取${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true))});state.fundClaimEvents[kind].push({day:state.currentDay,laps:Number(state.laps),milestoneIds:allUnlocked.map(x=>x.id)})
+  })
 }
 function claimReachedStagesWithoutHistory(){
   let changed=true;
@@ -1722,20 +1736,18 @@ function openAllBoxesWithoutHistory(){
   })
 }
 async function executeStrategyDay(){
-  const active=state.activeStrategy;if(!active)return toast("目前沒有已套用攻略");
-  const planned=Number(active.plan.days[state.currentDay]?.rolls||0),done=Number(active.rollsCompleted[state.currentDay]||0),remaining=Math.max(0,planned-done);
-  if(remaining<1)return toast("本日攻略骰子已執行完畢");
-  const available=Math.floor(Number(state.resources[config.currencies.gameTokenId]||0));if(available<1)return toast(`${item(config.currencies.gameTokenId).name}不足`);
-  recordHistory(`執行${config.event.dayLabels[state.currentDay]}攻略`);const count=Math.min(remaining,available);stopAuto=false;
-  for(let i=0;i<count;i++){await rollOnce({silent:true,fast:true});if(i%40===39){renderBoard();await wait(0)}}
-  claimReachedStagesWithoutHistory();openAllBoxesWithoutHistory();render();toast(`本日攻略已擲 ${count} 次`)
+  const active=state.activeStrategy;if(!active)return toast("目前沒有已套用攻略");const planned=Number(active.plan.days[state.currentDay]?.rolls||0),done=Number(active.rollsCompleted[state.currentDay]||0),remaining=Math.max(0,planned-done);if(remaining<1)return toast("本日攻略骰子已執行完畢");
+  claimStrategyFundWithoutHistory();const available=Math.floor(Number(state.resources[config.currencies.gameTokenId]||0));if(available<1)return toast(`${item(config.currencies.gameTokenId).name}不足`);
+  recordHistory(`執行${config.event.dayLabels[state.currentDay]}攻略`);const count=Math.min(remaining,Math.max(available,remaining));stopAuto=false;let used=0;
+  while(used<count&&Number(state.resources[config.currencies.gameTokenId]||0)>=1){await rollOnce({silent:true,fast:true});used++;claimStrategyFundWithoutHistory();if(used%40===0){renderBoard();await wait(0)}}
+  claimStrategyFundWithoutHistory();claimReachedStagesWithoutHistory();openAllBoxesWithoutHistory();render();toast(`本日攻略已擲 ${used} 次`)
 }
 function renderActiveStrategyCard(){
   const box=$("activeStrategyCard"),active=state.activeStrategy;if(!active){box.innerHTML="";return}
   const pd=active.plan.days[state.currentDay];if(!pd){box.innerHTML="";return}
   const done=Number(active.rollsCompleted[state.currentDay]||0),planned=Number(pd.rolls||0),remain=Math.max(0,planned-done),packNames=[];
   config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(n)packNames.push(`${pack.name}×${n}`)}));
-  const fundParts=[];if(pd.fundFreeDice)fundParts.push(`免費基金骰子×${pd.fundFreeDice}`);if(pd.fundPremiumDice)fundParts.push(`進階基金骰子×${pd.fundPremiumDice}`);
+  const fundParts=[];if((pd.fundFreeMilestoneIds||[]).length)fundParts.push(`免費基金階段：${pd.fundFreeMilestoneIds.map(id=>fundMilestoneById(config,id)?.laps).join("/")}圈`);if((pd.fundPremiumMilestoneIds||[]).length)fundParts.push(`進階基金階段：${pd.fundPremiumMilestoneIds.map(id=>fundMilestoneById(config,id)?.laps).join("/")}圈`);
   box.innerHTML=`<div class="active-strategy"><div class="row-top"><div><strong>🧭 已套用攻略｜${escapeHtml(config.event.dayLabels[state.currentDay])}</strong><div class="row-desc">${escapeHtml([...fundParts,...packNames].join("、")||"本日只領每日任務")}</div></div><button class="btn green small" id="executeStrategyDayBtn" ${remain<1?"disabled":""}>依攻略擲剩餘 ${fmt(remain)} 次</button></div><div class="active-strategy-grid"><div class="active-strategy-cell"><div class="k">建議擲骰</div><div class="v">${fmt(planned)}</div></div><div class="active-strategy-cell"><div class="k">期望圈數</div><div class="v">${fmt(pd.expectedLaps||0)}</div></div><div class="active-strategy-cell"><div class="k">預期階段</div><div class="v">${active.plan.estimate?.dayEstimates?.[state.currentDay]?.stage||0} 階</div></div><div class="active-strategy-cell"><div class="k">溢出積分</div><div class="v">${fmt(active.plan.estimate?.dayEstimates?.[state.currentDay]?.overflow||0)}</div></div></div></div>`
 }
 function exportStrategy(){
@@ -1769,9 +1781,13 @@ function renderDaily(){
   $("progressFill").style.width=`${Math.min(100,dayState().score/max*100)}%`;
   const next=config.progressStages.find(x=>dayState().score<Number(x.requiredScore));
   $("progressText").textContent=next?`目前 ${fmt(dayState().score)} 分，距離第 ${next.stage} 階還差 ${fmt(next.requiredScore-dayState().score)} 分。`:`目前 ${fmt(dayState().score)} 分，已達成全部階段。`;
-  $("fundList").innerHTML=`
-    <div class="row-card"><div class="row-top"><div><strong>免費基金</strong><div class="row-desc">${escapeHtml(rewardsText(config.fund.freeRewards))}</div></div><button class="btn small" data-fund="free" ${state.fundFreeClaimed?"disabled":""}>${state.fundFreeClaimed?"已領取":"領取"}</button></div></div>
-    <div class="row-card"><div class="row-top"><div><strong>進階基金</strong><div class="row-desc">支出 ${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}<br>獲得 ${escapeHtml(rewardsText(config.fund.premiumRewards))}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumClaimed?"disabled":""}>${state.fundPremiumClaimed?"已購買":"購買"}</button></div></div>`;
+  const milestones=fundMilestones(config),unlockedCount=strategyFundUnlockedCount(config,state.laps),freeReady=fundUnlockedUnclaimed("free"),premiumReady=fundUnlockedUnclaimed("premium"),freeClaimed=Object.keys(state.fundClaims.free||{}).length,premiumClaimed=Object.keys(state.fundClaims.premium||{}).length,nextFund=milestones.find(m=>Number(m.laps)>Number(state.laps));
+  const trackStatus=(kind,m)=>Object.prototype.hasOwnProperty.call(state.fundClaims[kind]||{},m.id)?`<span class="fund-track-status ok">已領</span>`:Number(m.laps)<=Number(state.laps)?`<span class="fund-track-status ready">可領</span>`:`<span class="fund-track-status lock">未解鎖</span>`;
+  $("fundList").innerHTML=`<div class="fund-summary-grid">
+    <div class="row-card"><div class="row-top"><div><strong>🎟️ 免費基金</strong><div class="row-desc">已領 ${freeClaimed}/${milestones.length} 階｜目前可一次領 ${freeReady.length} 階</div></div><button class="btn small" data-fund="free" ${freeReady.length?"":"disabled"}>一次領取全部已解鎖</button></div><div class="fund-progress"><span style="width:${milestones.length?freeClaimed/milestones.length*100:0}%"></span></div></div>
+    <div class="row-card"><div class="row-top"><div><strong>👑 進階基金</strong><div class="row-desc">${state.fundPremiumPurchased?`已購買｜已領 ${premiumClaimed}/${milestones.length} 階｜目前可領 ${premiumReady.length} 階`:`購買成本：${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}`}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumPurchased&&!premiumReady.length?"disabled":""}>${state.fundPremiumPurchased?"一次領取全部已解鎖":"購買進階基金"}</button></div><div class="fund-progress"><span style="width:${milestones.length?premiumClaimed/milestones.length*100:0}%"></span></div></div>
+  </div><div class="help" style="margin-bottom:8px">目前完成 ${fmt(state.laps)} 圈，已解鎖 ${unlockedCount}/${milestones.length} 階${nextFund?`；下一階需 ${fmt(nextFund.laps)} 圈`:`；全部已解鎖`}。每次按領取會一次取得當下所有已解鎖且尚未領取的階段，不能挑單階。</div>
+  <div class="fund-milestones"><table class="fund-table"><thead><tr><th>圈數</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{const cls=Number(m.laps)>Number(state.laps)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id)?"claimed":"unlocked");return`<tr class="${cls}"><td><strong>${fmt(m.laps)} 圈</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`}).join("")}</tbody></table></div>`;
   $("stageList").innerHTML=config.progressStages.map(stage=>{
     const claimed=dayState().claimedStages.includes(stage.stage),unlocked=dayState().score>=Number(stage.requiredScore);
     return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div>`
@@ -1824,9 +1840,9 @@ function save(){
 }
 function load(){
   try{
-    const c=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG),s=localStorage.getItem(STORAGE_STATE)||localStorage.getItem(LEGACY_STATE);
+    const c=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG)||localStorage.getItem(LEGACY2_CONFIG),s=localStorage.getItem(STORAGE_STATE)||localStorage.getItem(LEGACY_STATE)||localStorage.getItem(LEGACY2_STATE);
     if(!s)return toast("沒有已儲存的進度");
-    if(c){const parsed=JSON.parse(c);validateConfig(parsed);config=parsed}
+    if(c){const parsed=normalizeFundConfig(JSON.parse(c));validateConfig(parsed);config=parsed}
     state=JSON.parse(s);ensureStateSchema(state,config);simulationBaseline=loadStoredBaseline();strategyPlan=loadStoredStrategy();batchResults=[];
     undoStack=[];redoStack=[];syncStateToConfig(false);render();toast("已讀取")
   }catch(e){toast(`讀取失敗：${e.message}`)}
@@ -1878,14 +1894,17 @@ function renderSettings(){
     <div class="editor-card"><div class="editor-table">
       ${c.scoreRules.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="scoreRules.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`scoreRules.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeScoreRule" data-index="${i}">刪除</button></div>`).join("")}
     </div><button class="btn secondary small" data-settings-action="addScoreRule">＋加入計分物品</button></div>
-    <h3>活動基金</h3>
-    <div class="setting-grid"><div class="field"><label>攻略規劃：基金骰子開始可領的累計圈數</label>${pathInput("fund.plannerUnlockLaps",c.fund.plannerUnlockLaps??10,"number",'min="0" step="1"')}</div></div>
-    <div class="editor-card">
-      <strong>免費獎勵</strong><div class="editor-table">${rewardRows(c.fund.freeRewards,"fund.freeRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.freeRewards">＋加入獎勵</button>
-      <hr style="border:0;border-top:1px solid #dce5ed">
-      <strong>進階基金成本</strong><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div>
-      <strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(c.fund.premiumRewards,"fund.premiumRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.premiumRewards">＋加入獎勵</button>
-    </div>
+  </section>`;
+
+  sections.fund=`<section class="setting-section active">
+    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段，免費與進階軌道分開領取。</div></div></div>
+    <h3>活動基金（依累計圈數解鎖）</h3>
+    <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需依圈數逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
+    ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fmt(m.laps)} 圈解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
+      <div class="setting-grid"><div class="field"><label>解鎖累計圈數</label>${pathInput(`fund.milestones.${i}.laps`,m.laps,"number",'min="0" step="1"')}</div><div class="field"><label>系統識別碼</label>${pathInput(`fund.milestones.${i}.id`,m.id,"text","readonly")}</div></div>
+      <strong>免費基金獎勵</strong><div class="editor-table">${rewardRows(m.freeRewards,`fund.milestones.${i}.freeRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.freeRewards">＋加入免費獎勵</button>
+      <hr style="border:0;border-top:1px solid #dce5ed"><strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(m.premiumRewards,`fund.milestones.${i}.premiumRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.premiumRewards">＋加入進階獎勵</button>
+    </div>`).join("")}
   </section>`;
 
   sections.items=`<section class="setting-section active"><div class="editor-head"><div><h2>物品名稱清單</h2><div class="help">可修改顯示名稱、單位與圖示。ID 是系統辨識碼，建立後建議不要修改。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
@@ -1954,7 +1973,7 @@ function setByPath(obj,path,value){
   for(let i=0;i<keys.length-1;i++)target=target[keys[i]];
   target[keys.at(-1)]=value
 }
-function openSettings(){settingsDraft=clone(config);activeSettingsTab="basic";renderSettings();$("settingsModal").classList.add("open")}
+function openSettings(){settingsDraft=normalizeFundConfig(clone(config));activeSettingsTab="basic";renderSettings();$("settingsModal").classList.add("open")}
 function closeSettings(){$("settingsModal").classList.remove("open");settingsDraft=null}
 function settingsAction(btn){
   const a=btn.dataset.settingsAction;
@@ -1978,6 +1997,8 @@ function settingsAction(btn){
     const next=Math.max(0,...settingsDraft.progressStages.map(x=>Number(x.stage)))+1;
     settingsDraft.progressStages.push({stage:next,requiredScore:0,rewards:[]})
   }
+  if(a==="addFundMilestone")settingsDraft.fund.milestones.push({id:uid("fundStage"),laps:0,freeRewards:[],premiumRewards:[]});
+  if(a==="removeFundMilestone")settingsDraft.fund.milestones.splice(Number(btn.dataset.index),1);
   if(a==="removeStage")settingsDraft.progressStages.splice(Number(btn.dataset.index),1);
   if(a==="addBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.push({amount:1,probability:0});
   if(a==="removeBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.splice(Number(btn.dataset.index),1);
@@ -2002,7 +2023,7 @@ function applySettings(){
   try{
     settingsDraft.event.totalDays=Number(settingsDraft.event.totalDays);
     settingsDraft.event.dayLabels=Array.from({length:settingsDraft.event.totalDays},(_,i)=>settingsDraft.event.dayLabels[i]||`第${i+1}天`);
-    validateConfig(settingsDraft);
+    normalizeFundConfig(settingsDraft);validateConfig(settingsDraft);
     recordHistory("套用活動設定");
     const oldConfig=clone(config),changes=reconcileAppliedConfiguration(state,oldConfig,settingsDraft);
     config=clone(settingsDraft);syncStateToConfig(true);batchResults=[];
@@ -2064,7 +2085,7 @@ $("settingsContent").addEventListener("change",e=>{
 });
 $("importConfigInput").addEventListener("change",async e=>{
   const file=e.target.files[0];if(!file)return;
-  try{const parsed=JSON.parse(await file.text());validateConfig(parsed);settingsDraft=parsed;renderSettings();toast("設定檔已載入，按套用後生效")}
+  try{const parsed=normalizeFundConfig(JSON.parse(await file.text()));validateConfig(parsed);settingsDraft=parsed;renderSettings();toast("設定檔已載入，按套用後生效")}
   catch(err){toast(`匯入失敗：${err.message}`)}
   e.target.value=""
 });
@@ -2080,7 +2101,7 @@ $("importStrategyInput").addEventListener("change",async e=>{
 });
 window.addEventListener("resize",()=>{clearTimeout(window.__boardResize);window.__boardResize=setTimeout(renderBoard,120)});
 
-try{validateConfig(config)}catch{config=clone(DEFAULT_CONFIG)}
+try{normalizeFundConfig(config);validateConfig(config)}catch{config=normalizeFundConfig(clone(DEFAULT_CONFIG))}
 state=createState();ensureStateSchema(state,config);generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
 </script>
 </body>
