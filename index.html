@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜大富翁省翡翠石攻略版 v5</title>
+<title>活動玩法模擬器｜整週動態規劃版 v6</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -393,14 +393,15 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <div><h3>🧭 七日目標攻略</h3><div class="help">依目前活動機率、基金、階段與禮包設定，規劃七天的領取、購買與擲骰分配。</div></div>
           </div>
           <div class="strategy-controls">
-            <div class="field"><label id="premiumTargetLabel">目標高級兌換幣</label><input class="input" type="number" id="strategyPremiumTarget" min="0" step="1" value="20"></div>
-            <div class="field"><label id="normalTargetLabel">目標普通兌換幣</label><input class="input" type="number" id="strategyNormalTarget" min="0" step="1" value="500"></div>
-            <div class="field"><label>最省方案判定方式</label><select class="input" id="strategyOptimizationMode"><option value="expected" selected>期望值達標（最省翡翠石）</option><option value="probability">指定達標率（保守方案）</option></select></div>
-            <div class="field"><label>保守方案的同時達標率</label><input class="input" type="number" id="strategySuccessTarget" min="1" max="99" step="1" value="80"></div>
+            <div class="field"><label>攻略目標（兩種需求獨立）</label><select class="input" id="strategyTargetKind"><option value="premium" selected>高級兌換幣：允許用翡翠石補足</option><option value="normal">普通兌換幣：固定零翡翠石</option></select></div>
+            <div class="field" id="premiumTargetField"><label id="premiumTargetLabel">高級兌換幣需求</label><input class="input" type="number" id="strategyPremiumTarget" min="0" step="1" value="17"></div>
+            <div class="field" id="normalTargetField"><label id="normalTargetLabel">普通兌換幣需求</label><input class="input" type="number" id="strategyNormalTarget" min="0" step="1" value="500"></div>
+            <div class="field"><label>選定目標的判定方式</label><select class="input" id="strategyOptimizationMode"><option value="expected" selected>期望值達標（最低成本）</option><option value="probability">指定達標率（保守方案）</option></select></div>
+            <div class="field"><label>選定目標的達標率</label><input class="input" type="number" id="strategySuccessTarget" min="1" max="99" step="1" value="80"></div>
             <div class="field"><label>最終驗證次數</label><input class="input" type="number" id="strategySamples" min="100" max="3000" step="100" value="500"></div>
-            <div class="field"><label>產生攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">分析並產生</button></div>
+            <div class="field"><label>產生攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">整週動態分析</button></div>
           </div>
-          <div class="help" style="margin-top:8px">省課金優先順序：每日免費任務與廣告 → 寶石禮包每日買滿 → 先檢查整週期望值。預設採「期望值達標」，與結算圖表的 17.867 類似；模擬達標率只作風險參考，不會為了提高機率自動追加課金。</div>
+          <div class="help" style="margin-top:8px"><strong>高級目標：</strong>只判斷高級兌換幣，先拿滿每日免費、廣告與寶石禮包，再用整週階段 CP 分配圈數；仍不足才考慮翡翠石。<br><strong>普通目標：</strong>只判斷普通兌換幣，翡翠石固定為 0，高級兌換幣完全不納入達標條件。基金骰子會由演算法拆分到最能補足階段門檻的日期。</div>
           <div class="sim-progress"><div id="strategyProgress"></div></div>
           <div class="help" id="strategyProgressText" style="margin-top:5px"></div>
           <div id="strategyWarning"></div>
@@ -567,6 +568,7 @@ const DEFAULT_CONFIG = {
   ],
   dailyMission:{maxGameTokens:30},
   fund:{
+    plannerUnlockLaps:10,
     freeRewards:[{itemId:"dice",amount:30}],
     premiumCost:{itemId:"emerald",amount:1000},
     premiumRewards:[{itemId:"dice",amount:140}]
@@ -606,13 +608,14 @@ const DEFAULT_CONFIG = {
   ]
 };
 
-const STORAGE_STATE="monopolySimulatorStateV4";
-const STORAGE_CONFIG="monopolySimulatorConfigV4";
-const STORAGE_BASELINE="monopolySimulatorBaselineV4";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV4";
-const LEGACY_STATE="monopolySimulatorStateV3";
-const LEGACY_CONFIG="monopolySimulatorConfigV3";
-const LEGACY_BASELINE="monopolySimulatorBaselineV3";
+const STORAGE_STATE="monopolySimulatorStateV6";
+const STORAGE_CONFIG="monopolySimulatorConfigV6";
+const STORAGE_BASELINE="monopolySimulatorBaselineV6";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV6";
+const LEGACY_STATE="monopolySimulatorStateV4";
+const LEGACY_CONFIG="monopolySimulatorConfigV4";
+const LEGACY_BASELINE="monopolySimulatorBaselineV4";
+const LEGACY_STRATEGY="monopolySimulatorStrategyV4";
 const $=id=>document.getElementById(id);
 const clone=value=>JSON.parse(JSON.stringify(value));
 const fmt=value=>Number(value||0).toLocaleString("zh-TW",{maximumFractionDigits:2});
@@ -644,7 +647,7 @@ function loadStoredBaseline(){
 }
 function loadStoredStrategy(){
   try{
-    const saved=localStorage.getItem(STORAGE_STRATEGY);
+    const saved=localStorage.getItem(STORAGE_STRATEGY)||localStorage.getItem(LEGACY_STRATEGY);
     return saved?JSON.parse(saved):null
   }catch{return null}
 }
@@ -654,7 +657,7 @@ function createState(){
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
     fundFreeClaimed:false,fundPremiumClaimed:false,fundFreeClaimDay:null,fundPremiumClaimDay:null,
-    activeStrategy:null,log:[]
+    fundFreeClaimAllocations:null,fundPremiumClaimAllocations:null,activeStrategy:null,log:[]
   };
 }
 function ensureStateSchema(targetState=state,cfg=config){
@@ -670,6 +673,8 @@ function ensureStateSchema(targetState=state,cfg=config){
   });
   if(targetState.fundFreeClaimed&&targetState.fundFreeClaimDay==null)targetState.fundFreeClaimDay=0;
   if(targetState.fundPremiumClaimed&&targetState.fundPremiumClaimDay==null)targetState.fundPremiumClaimDay=0;
+  if(!Object.prototype.hasOwnProperty.call(targetState,"fundFreeClaimAllocations"))targetState.fundFreeClaimAllocations=null;
+  if(!Object.prototype.hasOwnProperty.call(targetState,"fundPremiumClaimAllocations"))targetState.fundPremiumClaimAllocations=null;
   if(!targetState.resources)targetState.resources={};
   if(!targetState.spent)targetState.spent={};
   if(!Array.isArray(targetState.log))targetState.log=[];
@@ -698,11 +703,21 @@ function deterministicLedger(targetState,cfg){
       pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))
     }))
   });
-  if(targetState.fundFreeClaimed)(cfg.fund.freeRewards||[]).forEach(r=>grant(targetState.fundFreeClaimDay,r.itemId,r.amount));
-  if(targetState.fundPremiumClaimed){
-    cost(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);
-    (cfg.fund.premiumRewards||[]).forEach(r=>grant(targetState.fundPremiumClaimDay,r.itemId,r.amount))
-  }
+  const tokenId=cfg.currencies.gameTokenId;
+  const grantFund=(kind,rewards,claimDay,allocations)=>{
+    let tokenHandled=false;
+    (rewards||[]).forEach(r=>{
+      if(r.itemId===tokenId&&Array.isArray(allocations)){
+        if(tokenHandled)return;tokenHandled=true;
+        const configuredTotal=(rewards||[]).filter(x=>x.itemId===tokenId).reduce((sum,x)=>sum+Number(x.amount||0),0);
+        const adjusted=allocations.map(Number),allocatedTotal=adjusted.reduce((sum,x)=>sum+Number(x||0),0);
+        adjusted[clampDay(claimDay)]=Number(adjusted[clampDay(claimDay)]||0)+(configuredTotal-allocatedTotal);
+        adjusted.forEach((amount,d)=>grant(d,tokenId,amount))
+      }else if(r.itemId!==tokenId)grant(claimDay,r.itemId,r.amount)
+    })
+  };
+  if(targetState.fundFreeClaimed)grantFund("free",cfg.fund.freeRewards,targetState.fundFreeClaimDay,targetState.fundFreeClaimAllocations);
+  if(targetState.fundPremiumClaimed){cost(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);grantFund("premium",cfg.fund.premiumRewards,targetState.fundPremiumClaimDay,targetState.fundPremiumClaimAllocations)}
   return ledger
 }
 function reconcileAppliedConfiguration(targetState,oldCfg,newCfg){
@@ -1015,13 +1030,13 @@ function claimFund(kind){
   if(kind==="free"){
     if(state.fundFreeClaimed)return;
     recordHistory("領取免費基金");
-    state.fundFreeClaimed=true;state.fundFreeClaimDay=state.currentDay;config.fund.freeRewards.forEach(x=>addItem(x.itemId,x.amount,"免費基金",true))
+    state.fundFreeClaimed=true;state.fundFreeClaimDay=state.currentDay;state.fundFreeClaimAllocations=Array.from({length:config.event.totalDays},(_,d)=>d===state.currentDay?Number((config.fund.freeRewards||[]).filter(x=>x.itemId===config.currencies.gameTokenId).reduce((s,x)=>s+Number(x.amount||0),0)):0);config.fund.freeRewards.forEach(x=>addItem(x.itemId,x.amount,"免費基金",true))
   }else{
     if(state.fundPremiumClaimed)return;
     if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
     recordHistory("購買進階基金");
     spend(config.fund.premiumCost,"購買進階基金");
-    state.fundPremiumClaimed=true;state.fundPremiumClaimDay=state.currentDay;config.fund.premiumRewards.forEach(x=>addItem(x.itemId,x.amount,"進階基金",true))
+    state.fundPremiumClaimed=true;state.fundPremiumClaimDay=state.currentDay;state.fundPremiumClaimAllocations=Array.from({length:config.event.totalDays},(_,d)=>d===state.currentDay?Number((config.fund.premiumRewards||[]).filter(x=>x.itemId===config.currencies.gameTokenId).reduce((s,x)=>s+Number(x.amount||0),0)):0);config.fund.premiumRewards.forEach(x=>addItem(x.itemId,x.amount,"進階基金",true))
   }
   render()
 }
@@ -1272,12 +1287,39 @@ function strategyIsGemPackage(pack,cfg){
   const gemId=strategyGemItemId(cfg);
   return !!gemId&&pack.cost.itemId===gemId&&Number(pack.cost.amount||0)>0
 }
+function strategyTargetKind(plan){return plan.targets?.kind||(Number(plan.targets?.premium||0)>0?"premium":"normal")}
+function strategyTargetAmount(plan){
+  const kind=strategyTargetKind(plan);
+  return Number(plan.targets?.amount??(kind==="premium"?plan.targets?.premium:plan.targets?.normal)??0)
+}
+function strategyTargetItemId(cfg,kind){return kind==="premium"?cfg.currencies.premiumExchangeId:cfg.currencies.normalExchangeId}
+function strategyTargetName(cfg,kind){return cfgItem(cfg,strategyTargetItemId(cfg,kind)).name}
 function strategyEmptyPlan(cfg,targets){
   return{
-    version:2,optimizer:"emerald-first",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
-    days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),fundFree:day===0,fundPremium:false,purchases:{},rolls:0})),
+    version:3,optimizer:"independent-weekly-stage-dp",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
+    useFreeFund:true,usePremiumFund:false,fundOtherClaimDays:{free:0,premium:0},
+    days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{},rolls:0,expectedRolls:0,expectedLaps:0,fundFreeDice:0,fundPremiumDice:0})),
     estimate:null,validation:null,optimization:{freeAndGemSeeded:false,zeroEmeraldRate:0,paidPruned:0,notes:[]}
   }
+}
+function strategyNormalizePlan(plan,cfg=plan?.config||config){
+  if(!plan.targets)plan.targets={premium:0,normal:0,success:80,samples:500,mode:"expected"};
+  if(!plan.targets.kind)plan.targets.kind=Number(plan.targets.premium||0)>0?"premium":"normal";
+  if(plan.targets.amount==null)plan.targets.amount=plan.targets.kind==="premium"?Number(plan.targets.premium||0):Number(plan.targets.normal||0);
+  plan.targets.premium=plan.targets.kind==="premium"?Number(plan.targets.amount||0):0;
+  plan.targets.normal=plan.targets.kind==="normal"?Number(plan.targets.amount||0):0;
+  if(plan.useFreeFund==null)plan.useFreeFund=plan.days?.some(x=>x.fundFree)!==false;
+  if(plan.usePremiumFund==null)plan.usePremiumFund=!!plan.days?.some(x=>x.fundPremium);
+  if(!plan.fundOtherClaimDays)plan.fundOtherClaimDays={free:0,premium:0};
+  while(plan.days.length<Number(cfg.event.totalDays))plan.days.push({day:plan.days.length,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{}});
+  plan.days=plan.days.slice(0,Number(cfg.event.totalDays));
+  plan.days.forEach((d,i)=>{
+    d.day=i;d.missionAmount=Number(d.missionAmount||0);if(!d.purchases)d.purchases={};
+    d.rolls=Number(d.rolls||0);d.expectedRolls=Number(d.expectedRolls??d.rolls??0);d.expectedLaps=Number(d.expectedLaps||0);
+    d.fundFreeDice=Number(d.fundFreeDice||0);d.fundPremiumDice=Number(d.fundPremiumDice||0)
+  });
+  if(!plan.optimization)plan.optimization={notes:[]};if(!Array.isArray(plan.optimization.notes))plan.optimization.notes=[];
+  return plan
 }
 function strategyAddPurchase(plan,day,groupId,packId,count=1){
   const key=`${groupId}:${packId}`;
@@ -1286,362 +1328,360 @@ function strategyAddPurchase(plan,day,groupId,packId,count=1){
 function strategyExpectedRollStats(cfg){
   const totalWeight=cfg.cellTypes.reduce((s,x)=>s+Math.max(0,Number(x.distributionWeight||0)),0)||1;
   const landingFactor=(Number(cfg.board.cellCount)-1)/Number(cfg.board.cellCount);
-  const means={};
-  let rewardScore=0;
+  const means={};let rewardScore=0;
   cfg.cellTypes.forEach(type=>{
     const typeShare=landingFactor*Math.max(0,Number(type.distributionWeight||0))/totalWeight;
     type.rewards.forEach(r=>{
       const expected=typeShare*Number(r.amount||0)*Number(r.probability||0)/100;
-      means[r.itemId]=Number(means[r.itemId]||0)+expected;
-      rewardScore+=expected*cfgScorePerItem(cfg,r.itemId)
+      means[r.itemId]=Number(means[r.itemId]||0)+expected;rewardScore+=expected*cfgScorePerItem(cfg,r.itemId)
     })
   });
   const meanStep=(Number(cfg.board.diceSides)+1)/2;
-  const lapScore=meanStep/Number(cfg.board.cellCount)*Number(cfg.scoreRules.pointsPerLap||0);
-  return{itemMeans:means,normalPerRoll:Number(means[cfg.currencies.normalExchangeId]||0),scorePerRoll:lapScore+rewardScore,lapsPerRoll:meanStep/Number(cfg.board.cellCount)}
+  const dicePerLap=meanStep>0?Number(cfg.board.cellCount)/meanStep:Infinity;
+  const lapScorePerRoll=meanStep/Number(cfg.board.cellCount)*Number(cfg.scoreRules.pointsPerLap||0);
+  return{itemMeans:means,normalPerRoll:Number(means[cfg.currencies.normalExchangeId]||0),premiumPerRoll:Number(means[cfg.currencies.premiumExchangeId]||0),scorePerRoll:lapScorePerRoll+rewardScore,lapsPerRoll:meanStep/Number(cfg.board.cellCount),dicePerLap,meanStep}
 }
 function strategyBoxMean(box){return box.outcomes.reduce((s,x)=>s+Number(x.amount||0)*Number(x.probability||0)/100,0)}
-function strategyStagePremium(stage,cfg){
-  const premium=cfg.currencies.premiumExchangeId;
-  let value=0,boxes=0;
+function strategyStageYield(stage,cfg,kind){
+  const targetId=strategyTargetItemId(cfg,kind);let value=0,boxes=0;
   (stage.rewards||[]).forEach(r=>{
-    if(r.itemId===premium)value+=Number(r.amount||0);
-    cfg.randomBoxes.filter(b=>b.boxItemId===r.itemId&&b.rewardItemId===premium).forEach(b=>{
-      boxes+=Number(r.amount||0);value+=Number(r.amount||0)*strategyBoxMean(b)
-    })
+    if(r.itemId===targetId)value+=Number(r.amount||0);
+    cfg.randomBoxes.filter(b=>b.boxItemId===r.itemId&&b.rewardItemId===targetId).forEach(b=>{boxes+=Number(r.amount||0);value+=Number(r.amount||0)*strategyBoxMean(b)})
   });
   return{value,boxes}
 }
-function strategyFixedInfo(plan,cfg){
+function strategyCumulativeStages(cfg,kind){
+  let value=0,boxes=0;
+  return[...cfg.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)).map(stage=>{
+    const gain=strategyStageYield(stage,cfg,kind);value+=gain.value;boxes+=gain.boxes;
+    return{stage:Number(stage.stage),threshold:Number(stage.requiredScore),value,boxes,incrementValue:gain.value,incrementBoxes:gain.boxes}
+  })
+}
+function strategyResolveStage(score,cfg,kind){
+  const stages=strategyCumulativeStages(cfg,kind);let result={stage:0,threshold:0,nextThreshold:stages[0]?.threshold??null,value:0,boxes:0,overflow:Math.max(0,Number(score||0)),gap:stages[0]?Math.max(0,stages[0].threshold-Number(score||0)):0};
+  stages.forEach((s,i)=>{if(Number(score)+1e-9>=s.threshold)result={stage:s.stage,threshold:s.threshold,nextThreshold:stages[i+1]?.threshold??null,value:s.value,boxes:s.boxes,overflow:Number(score)-s.threshold,gap:stages[i+1]?Math.max(0,stages[i+1].threshold-Number(score)):0}});
+  return result
+}
+function strategyFundRewards(cfg,which){return which==="free"?(cfg.fund.freeRewards||[]):(cfg.fund.premiumRewards||[])}
+function strategyFundTokenTotal(plan,cfg,which){
+  const enabled=which==="free"?plan.useFreeFund:plan.usePremiumFund;if(!enabled)return 0;
+  return strategyFundRewards(cfg,which).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((s,r)=>s+Number(r.amount||0),0)
+}
+function strategyFirstFundDay(plan,which){
+  const key=which==="free"?"fundFreeDice":"fundPremiumDice";
+  const d=plan.days.findIndex(x=>Number(x[key]||0)>0);return d>=0?d:0
+}
+function strategyFixedInfo(plan,cfg,includeFundOther=true){
+  strategyNormalizePlan(plan,cfg);
   const premium=cfg.currencies.premiumExchangeId,normal=cfg.currencies.normalExchangeId,token=cfg.currencies.gameTokenId;
   const days=plan.days.map(()=>({grants:{},costs:{},score:0,dice:0,directPremium:0,directNormal:0}));
-  const grant=(d,id,amount)=>{const v=Number(amount||0);days[d].grants[id]=Number(days[d].grants[id]||0)+v;days[d].score+=cfgScorePerItem(cfg,id)*v};
+  const grant=(d,id,amount)=>{const v=Number(amount||0);if(!v)return;days[d].grants[id]=Number(days[d].grants[id]||0)+v;days[d].score+=cfgScorePerItem(cfg,id)*v};
   const cost=(d,id,amount)=>{days[d].costs[id]=Number(days[d].costs[id]||0)+Number(amount||0)};
   plan.days.forEach((pd,d)=>{
     if(Number(pd.missionAmount)>0)grant(d,token,pd.missionAmount);
-    if(pd.fundFree)(cfg.fund.freeRewards||[]).forEach(r=>grant(d,r.itemId,r.amount));
-    if(pd.fundPremium){cost(d,cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);(cfg.fund.premiumRewards||[]).forEach(r=>grant(d,r.itemId,r.amount))}
+    grant(d,token,pd.fundFreeDice);grant(d,token,pd.fundPremiumDice);
     cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
       const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;
       cost(d,pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))
-    }));
-    days[d].dice=Number(days[d].grants[token]||0);days[d].directPremium=Number(days[d].grants[premium]||0);days[d].directNormal=Number(days[d].grants[normal]||0)
+    }))
   });
+  if(plan.useFreeFund&&includeFundOther){
+    const d=Math.max(0,Math.min(plan.days.length-1,Number(plan.fundOtherClaimDays?.free??strategyFirstFundDay(plan,"free"))));
+    strategyFundRewards(cfg,"free").filter(r=>r.itemId!==token).forEach(r=>grant(d,r.itemId,r.amount))
+  }
+  if(plan.usePremiumFund){
+    const d=Math.max(0,Math.min(plan.days.length-1,Number(plan.fundOtherClaimDays?.premium??strategyFirstFundDay(plan,"premium"))));
+    cost(d,cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount);if(includeFundOther)strategyFundRewards(cfg,"premium").filter(r=>r.itemId!==token).forEach(r=>grant(d,r.itemId,r.amount))
+  }
+  days.forEach(x=>{x.dice=Number(x.grants[token]||0);x.directPremium=Number(x.grants[premium]||0);x.directNormal=Number(x.grants[normal]||0)});
   const totals={grants:{},costs:{},dice:0,directPremium:0,directNormal:0};
   days.forEach(x=>{Object.entries(x.grants).forEach(([id,v])=>totals.grants[id]=Number(totals.grants[id]||0)+v);Object.entries(x.costs).forEach(([id,v])=>totals.costs[id]=Number(totals.costs[id]||0)+v);totals.dice+=x.dice;totals.directPremium+=x.directPremium;totals.directNormal+=x.directNormal});
   return{days,totals}
 }
-function strategyAllocateRolls(plan,cfg){
-  const fixed=strategyFixedInfo(plan,cfg),rollStats=strategyExpectedRollStats(cfg),stages=[...cfg.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));
-  let states=new Map([[0,{value:0,boxes:0,choices:[]}]]);
-  for(let d=0;d<plan.days.length;d++){
-    const next=new Map(),fixedScore=fixed.days[d].score;
-    const options=[{stage:0,cost:0,value:0,boxes:0}];
-    let cumulativeValue=0,cumulativeBoxes=0;
-    stages.forEach(stage=>{
-      const gain=strategyStagePremium(stage,cfg);cumulativeValue+=gain.value;cumulativeBoxes+=gain.boxes;
-      const missing=Math.max(0,Number(stage.requiredScore)-fixedScore);
-      if(missing===0||rollStats.scorePerRoll>0)options.push({stage:Number(stage.stage),cost:missing===0?0:Math.ceil(missing/rollStats.scorePerRoll),value:cumulativeValue,boxes:cumulativeBoxes})
-    });
-    for(const [remaining,entry] of states){
-      const available=Number(remaining)+fixed.days[d].dice;
-      options.forEach(opt=>{
-        if(opt.cost>available)return;
-        const rem=available-opt.cost,key=rem,candidate={value:entry.value+opt.value,boxes:entry.boxes+opt.boxes,choices:[...entry.choices,opt]};
-        const old=next.get(key);
-        if(!old||candidate.value>old.value+1e-9||(Math.abs(candidate.value-old.value)<1e-9&&candidate.boxes>old.boxes))next.set(key,candidate)
-      })
+function strategyFundCandidateAmounts(remaining,baseScore,carry,baseDice,cfg,rollStats){
+  const fr=Math.max(0,Math.floor(Number(remaining||0))),values=new Set([0,fr]);
+  const tokenScore=cfgScorePerItem(cfg,cfg.currencies.gameTokenId),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=Number(rollStats.dicePerLap||Infinity);
+  if(tokenScore<=0||lapPoints<=0||!Number.isFinite(dpl))return[...values].sort((a,b)=>a-b);
+  [0,...cfg.progressStages.map(x=>Number(x.requiredScore||0))].forEach(threshold=>{
+    const l0=Math.max(0,Math.ceil((threshold-baseScore)/lapPoints-1e-10));
+    const lmin=Math.max(0,Math.ceil((threshold-baseScore-tokenScore*fr)/lapPoints-1e-10));
+    for(let laps=lmin;laps<=l0;laps++){
+      const fScore=Math.max(0,Math.ceil((threshold-baseScore-laps*lapPoints)/tokenScore-1e-10));
+      const fDice=Math.max(0,Math.ceil(laps*dpl-carry-baseDice-1e-10));
+      const f=Math.max(fScore,fDice);if(f<=fr)values.add(f)
     }
-    states=next
-  }
-  let best=null,bestRemaining=0;
-  for(const [remaining,entry] of states){if(!best||entry.value>best.value+1e-9||(Math.abs(entry.value-best.value)<1e-9&&remaining<bestRemaining)){best=entry;bestRemaining=remaining}}
-  const rolls=(best?.choices||plan.days.map(()=>({cost:0}))).map(x=>Number(x.cost||0));
-  if(rolls.length)rolls[rolls.length-1]+=Number(bestRemaining||0);
-  const dayEstimates=[];let expectedPremium=fixed.totals.directPremium,expectedBoxes=0,cumNormal=0,cumPremium=0;
-  plan.days.forEach((pd,d)=>{
-    pd.rolls=Number(rolls[d]||0);
-    const expectedScore=fixed.days[d].score+pd.rolls*rollStats.scorePerRoll;
-    const reached=stages.filter(x=>expectedScore>=Number(x.requiredScore));
-    let stagePremium=0,stageBoxes=0;reached.forEach(s=>{const g=strategyStagePremium(s,cfg);stagePremium+=g.value;stageBoxes+=g.boxes});
-    expectedPremium+=stagePremium;expectedBoxes+=stageBoxes;
-    const dayNormal=fixed.days[d].directNormal+pd.rolls*rollStats.normalPerRoll;
-    const dayPremium=fixed.days[d].directPremium+stagePremium;
-    cumNormal+=dayNormal;cumPremium+=dayPremium;
-    dayEstimates.push({fixedScore:fixed.days[d].score,expectedScore,stage:reached.length?reached.at(-1).stage:0,boxes:stageBoxes,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:fixed.days[d].dice})
   });
-  return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice,expectedNormal:fixed.totals.directNormal+fixed.totals.dice*rollStats.normalPerRoll,expectedPremium,expectedBoxes,costs:fixed.totals.costs}
+  return[...values].sort((a,b)=>a-b)
 }
+function strategyEntryBetter(a,b,includeCarry=false){
+  if(!b)return true;
+  if(Math.abs(a.targetValue-b.targetValue)>1e-9)return a.targetValue>b.targetValue;
+  if(a.activeDays!==b.activeDays)return a.activeDays<b.activeDays;
+  if(Math.abs(a.overflow-b.overflow)>1e-9)return a.overflow<b.overflow;
+  if(a.fundWithoutPlay!==b.fundWithoutPlay)return a.fundWithoutPlay<b.fundWithoutPlay;
+  if(Math.abs(a.earlyPenalty-b.earlyPenalty)>1e-9)return a.earlyPenalty<b.earlyPenalty;
+  if(includeCarry&&Math.abs(a.carry-b.carry)>1e-9)return a.carry>b.carry;
+  return false
+}
+function strategyPruneStates(states,beamWidth=3600,unlockLaps=0){
+  const buckets=new Map();states.forEach(s=>{const key=`${s.fundRemaining}|${Number(s.totalLaps||0)>=unlockLaps?1:0}`;if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(s)});
+  const kept=[];
+  buckets.forEach(arr=>{
+    arr.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);
+    kept.push(...arr.slice(0,18))
+  });
+  kept.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);
+  return kept.slice(0,beamWidth)
+}
+function strategySetFundAllocations(plan,cfg,totalAlloc){
+  let free=strategyFundTokenTotal(plan,cfg,"free"),premium=strategyFundTokenTotal(plan,cfg,"premium");
+  plan.days.forEach((d,i)=>{
+    let amount=Math.max(0,Math.round(Number(totalAlloc[i]||0)));const freeTake=Math.min(amount,free);d.fundFreeDice=freeTake;free-=freeTake;amount-=freeTake;
+    const premiumTake=Math.min(amount,premium);d.fundPremiumDice=premiumTake;premium-=premiumTake
+  });
+  plan.fundOtherClaimDays.free=strategyFirstFundDay(plan,"free");plan.fundOtherClaimDays.premium=strategyFirstFundDay(plan,"premium")
+}
+function strategyOptimizeSchedule(plan,cfg){
+  strategyNormalizePlan(plan,cfg);plan.days.forEach(d=>{d.fundFreeDice=0;d.fundPremiumDice=0;d.rolls=0;d.expectedRolls=0;d.expectedLaps=0});
+  const kind=strategyTargetKind(plan),rollStats=strategyExpectedRollStats(cfg),tokenScore=cfgScorePerItem(cfg,cfg.currencies.gameTokenId),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=rollStats.dicePerLap,unlockLaps=Math.max(0,Number(cfg.fund?.plannerUnlockLaps??10));
+  const base=strategyFixedInfo(plan,cfg,false),fundTotal=strategyFundTokenTotal(plan,cfg,"free")+strategyFundTokenTotal(plan,cfg,"premium");
+  let states=[{carry:0,fundRemaining:fundTotal,totalLaps:0,targetValue:0,activeDays:0,overflow:0,fundWithoutPlay:0,earlyPenalty:0,choices:[]}];
+  const last=plan.days.length-1;
+  for(let d=0;d<last;d++){
+    const map=new Map(),baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0);
+    states.forEach(entry=>{
+      const minimumUnlockLaps=Math.max(0,unlockLaps-Number(entry.totalLaps||0)),baseAvailable=entry.carry+baseDice;
+      const fundValues=strategyFundCandidateAmounts(entry.fundRemaining,baseScore,entry.carry,baseDice,cfg,rollStats);
+      fundValues.forEach(fund=>{
+        if(fund>0&&minimumUnlockLaps*dpl>baseAvailable+1e-8)return;
+        const available=baseAvailable+fund,fixedScore=baseScore+tokenScore*fund,options=new Map();
+        const thresholds=[0,...cfg.progressStages.map(x=>Number(x.requiredScore||0))];
+        thresholds.forEach(threshold=>{
+          let laps=0;if(threshold>fixedScore){if(lapPoints<=0)return;laps=Math.max(0,Math.ceil((threshold-fixedScore)/lapPoints-1e-10))}
+          if(fund>0)laps=Math.max(laps,minimumUnlockLaps);
+          const diceCost=laps*dpl;if(diceCost>available+1e-8)return;
+          const score=fixedScore+laps*lapPoints,resolved=strategyResolveStage(score,cfg,kind),old=options.get(resolved.stage);
+          const candidate={laps,diceCost,score,resolved};
+          if(!old||candidate.diceCost<old.diceCost-1e-8||(Math.abs(candidate.diceCost-old.diceCost)<1e-8&&candidate.resolved.overflow<old.resolved.overflow))options.set(resolved.stage,candidate)
+        });
+        options.forEach(opt=>{
+          const next={carry:Number((available-opt.diceCost).toFixed(6)),fundRemaining:entry.fundRemaining-fund,totalLaps:Number(entry.totalLaps||0)+opt.laps,targetValue:entry.targetValue+opt.resolved.value,activeDays:entry.activeDays+(opt.laps>0?1:0),overflow:entry.overflow+opt.resolved.overflow,fundWithoutPlay:entry.fundWithoutPlay+(fund>0&&opt.laps===0?1:0),earlyPenalty:entry.earlyPenalty+(opt.diceCost+fund)*(last-d),choices:[...entry.choices,{fund,laps:opt.laps,expectedRolls:opt.diceCost,score:opt.score,resolved:opt.resolved}]};
+          const key=`${next.carry.toFixed(4)}|${next.fundRemaining}|${next.totalLaps}|${next.targetValue.toFixed(6)}|${next.activeDays}`,old=map.get(key);
+          if(strategyEntryBetter(next,old,true))map.set(key,next)
+        })
+      })
+    });
+    states=strategyPruneStates([...map.values()],3600,unlockLaps)
+  }
+  let best=null;
+  states.forEach(entry=>{
+    const d=last,baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseAvailable=entry.carry+baseDice,minimumUnlockLaps=Math.max(0,unlockLaps-Number(entry.totalLaps||0));
+    const fund=minimumUnlockLaps*dpl<=baseAvailable+1e-8?entry.fundRemaining:0,available=baseAvailable+fund,fixedScore=baseScore+tokenScore*fund;
+    const laps=Number.isFinite(dpl)&&dpl>0?Math.floor((available+1e-8)/dpl):0,score=fixedScore+laps*lapPoints,resolved=strategyResolveStage(score,cfg,kind);
+    const final={carry:0,fundRemaining:entry.fundRemaining-fund,totalLaps:Number(entry.totalLaps||0)+laps,targetValue:entry.targetValue+resolved.value,activeDays:entry.activeDays+(laps>0?1:0),overflow:entry.overflow+resolved.overflow,fundWithoutPlay:entry.fundWithoutPlay+(fund>0&&laps===0?1:0),earlyPenalty:entry.earlyPenalty,choices:[...entry.choices,{fund,laps,expectedRolls:available,score,resolved,leftoverDice:Math.max(0,available-laps*dpl)}]};
+    if(strategyEntryBetter(final,best,true))best=final
+  });
+  if(!best)throw new Error("找不到可行的整週分配");
+  strategySetFundAllocations(plan,cfg,best.choices.map(x=>x.fund));
+  plan.days.forEach((d,i)=>{d.expectedLaps=Number(best.choices[i]?.laps||0);d.expectedRolls=Number(best.choices[i]?.expectedRolls||0)});
+  const fixed=strategyFixedInfo(plan,cfg);let integerCarry=0,usedInteger=0;
+  plan.days.forEach((d,i)=>{
+    integerCarry+=Math.max(0,Math.round(Number(fixed.days[i].dice||0)));
+    let rolls;if(i===last)rolls=integerCarry;else rolls=Math.min(integerCarry,Math.max(0,Math.round(d.expectedRolls)));
+    d.rolls=rolls;integerCarry-=rolls;usedInteger+=rolls
+  });
+  const dayEstimates=[];let cumNormal=0,cumPremium=0,expectedBoxes=0;
+  plan.days.forEach((pd,d)=>{
+    const choice=best.choices[d],score=Number(choice.score||0),premiumStage=strategyResolveStage(score,cfg,"premium"),normalStage=strategyResolveStage(score,cfg,"normal");
+    const dayNormal=Number(fixed.days[d].directNormal||0)+Number(pd.rolls||0)*rollStats.normalPerRoll+normalStage.value;
+    const dayPremium=Number(fixed.days[d].directPremium||0)+premiumStage.value;cumNormal+=dayNormal;cumPremium+=dayPremium;expectedBoxes+=premiumStage.boxes;
+    dayEstimates.push({fixedScore:Number(fixed.days[d].score||0),expectedScore:score,stage:choice.resolved.stage,boxes:premiumStage.boxes,targetStageValue:choice.resolved.value,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:Number(fixed.days[d].dice||0),expectedLaps:Number(choice.laps||0),expectedRolls:Number(choice.expectedRolls||0),actualRolls:Number(pd.rolls||0),overflow:Number(choice.resolved.overflow||0),gap:Number(choice.resolved.gap||0),fundFreeDice:Number(pd.fundFreeDice||0),fundPremiumDice:Number(pd.fundPremiumDice||0)})
+  });
+  const expectedNormal=cumNormal,expectedPremium=cumPremium,targetExpected=kind==="premium"?expectedPremium:expectedNormal;
+  return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice,expectedNormal,expectedPremium,expectedBoxes,targetExpected,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,fundWithoutPlay:best.fundWithoutPlay,leftoverExpectedDice:Number(best.choices.at(-1)?.leftoverDice||0),completedLaps:best.choices.reduce((s,x)=>s+Number(x.laps||0),0),integerRolls:usedInteger,unclaimedFundDice:Number(best.fundRemaining||0),fundUnlockLaps:unlockLaps}}
+}
+function strategyAllocateRolls(plan,cfg){return strategyOptimizeSchedule(plan,cfg)}
 function strategyBuildCandidates(plan,cfg){
-  const candidates=[],paid=cfg.currencies.paidCurrencyId,gemItem=strategyGemItemId(cfg);
-  const impactOf=rewards=>({dice:(rewards||[]).filter(x=>x.itemId===cfg.currencies.gameTokenId).reduce((s,x)=>s+Number(x.amount||0),0),premium:(rewards||[]).filter(x=>x.itemId===cfg.currencies.premiumExchangeId).reduce((s,x)=>s+Number(x.amount||0),0),normal:(rewards||[]).filter(x=>x.itemId===cfg.currencies.normalExchangeId).reduce((s,x)=>s+Number(x.amount||0),0)});
-  if(cfg.fund.premiumRewards?.length&&!plan.days.some(x=>x.fundPremium))candidates.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),impact:impactOf(cfg.fund.premiumRewards),name:"進階基金"});
+  const candidates=[],paid=cfg.currencies.paidCurrencyId;
+  if(!plan.usePremiumFund&&cfg.fund.premiumCost.itemId===paid&&Number(cfg.fund.premiumCost.amount||0)>0)candidates.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),rewards:clone(cfg.fund.premiumRewards||[]),name:"進階基金"});
   cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+    if(pack.cost.itemId!==paid||Number(pack.cost.amount||0)<=0)return;
     for(let d=0;d<plan.days.length;d++){
       const base=Number(plan.days[d].purchases?.[`${group.id}:${pack.id}`]||0);
-      for(let n=base;n<Number(pack.limit||0);n++)candidates.push({id:`${d}:${group.id}:${pack.id}:${n}`,kind:"package",day:d,groupId:group.id,packId:pack.id,cost:clone(pack.cost),impact:impactOf(pack.rewards),name:pack.name})
+      if(base<Number(pack.limit||0))candidates.push({id:`${d}:${group.id}:${pack.id}:${base}`,kind:"package",day:d,groupId:group.id,packId:pack.id,cost:clone(pack.cost),rewards:clone(pack.rewards||[]),name:pack.name})
     }
   }));
-  candidates.forEach(u=>{
-    const amount=Number(u.cost.amount||0);
-    u.costClass=u.cost.itemId===paid?2:(u.cost.itemId===gemItem?1:0);
-    u.baseCost=u.cost.itemId===paid?amount:(u.cost.itemId===gemItem?amount*.01:amount*.001)
-  });
   return candidates
 }
-function strategyAddUnit(plan,unit){
-  if(unit.kind==="fund")plan.days[unit.day].fundPremium=true;
-  else strategyAddPurchase(plan,unit.day,unit.groupId,unit.packId,1)
-}
+function strategyAddUnit(plan,unit){if(unit.kind==="fund")plan.usePremiumFund=true;else strategyAddPurchase(plan,unit.day,unit.groupId,unit.packId,1)}
 function strategyRemoveUnit(plan,unit){
-  if(unit.kind==="fund"){plan.days[unit.day].fundPremium=false;return}
-  const key=`${unit.groupId}:${unit.packId}`;
-  plan.days[unit.day].purchases[key]=Math.max(0,Number(plan.days[unit.day].purchases[key]||0)-1)
+  if(unit.kind==="fund"){plan.usePremiumFund=false;return}
+  const key=`${unit.groupId}:${unit.packId}`;plan.days[unit.day].purchases[key]=Math.max(0,Number(plan.days[unit.day].purchases[key]||0)-1)
 }
 function strategySeedFreeAndGem(plan,cfg){
   cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
     if(!(strategyIsAutoFreePackage(pack,cfg)||strategyIsGemPackage(pack,cfg)))return;
     for(let d=0;d<plan.days.length;d++)strategyAddPurchase(plan,d,group.id,pack.id,pack.limit)
   }));
-  plan.optimization.freeAndGemSeeded=true;
-  plan.optimization.notes.push("每日免費／廣告已領滿");
-  if(strategyGemItemId(cfg))plan.optimization.notes.push("寶石禮包已按每日上限買滿")
+  plan.useFreeFund=true;plan.optimization.freeAndGemSeeded=true;plan.optimization.notes.push("每日任務、廣告與寶石禮包已拿滿");plan.optimization.notes.push(`免費基金骰子在累計 ${Number(cfg.fund?.plannerUnlockLaps??10)} 圈後，由整週演算法分配到最有價值的日期`)
 }
-function strategyPaidCandidates(plan,cfg){
-  const paid=cfg.currencies.paidCurrencyId;
-  return strategyBuildCandidates(plan,cfg).filter(x=>x.cost.itemId===paid&&Number(x.cost.amount||0)>0)
-}
+function strategyPaidCandidates(plan,cfg){return strategyBuildCandidates(plan,cfg)}
 function strategyPaidUnitsInPlan(plan,cfg){
   const paid=cfg.currencies.paidCurrencyId,units=[];
-  if(plan.days.some(x=>x.fundPremium)&&cfg.fund.premiumCost.itemId===paid)units.push({id:"fundPremium",kind:"fund",day:plan.days.findIndex(x=>x.fundPremium),cost:clone(cfg.fund.premiumCost),name:"進階基金"});
+  if(plan.usePremiumFund&&cfg.fund.premiumCost.itemId===paid)units.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),name:"進階基金"});
   cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-    if(pack.cost.itemId!==paid)return;
-    plan.days.forEach((pd,d)=>{
-      const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);
-      for(let i=0;i<n;i++)units.push({id:`owned:${d}:${group.id}:${pack.id}:${i}`,kind:"package",day:d,groupId:group.id,packId:pack.id,cost:clone(pack.cost),name:pack.name})
-    })
-  }));
-  return units
+    if(pack.cost.itemId!==paid)return;plan.days.forEach((pd,d)=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);for(let i=0;i<n;i++)units.push({id:`owned:${d}:${group.id}:${pack.id}:${i}`,kind:"package",day:d,groupId:group.id,packId:pack.id,cost:clone(pack.cost),name:pack.name})})
+  }));return units
 }
 function strategyPlanPaidCost(plan,cfg){return Number(strategyFixedInfo(plan,cfg).totals.costs[cfg.currencies.paidCurrencyId]||0)}
-function strategyPickPaidCandidate(plan,candidates,cfg,validation=null){
-  if(!candidates.length)return null;
-  const base=plan.estimate||strategyAllocateRolls(plan,cfg),target=plan.targets;
-  const pNeed=Math.max(0,Number(target.premium)-Number(validation?.premium?.avg??base.expectedPremium));
-  const nNeed=Math.max(0,Number(target.normal)-Number(validation?.normal?.avg??base.expectedNormal));
-  const pRateNeed=validation?Math.max(0,Number(target.success)-Number(validation.premiumRate||0)):0;
-  const nRateNeed=validation?Math.max(0,Number(target.success)-Number(validation.normalRate||0)):0;
-  const scored=[];
-  candidates.forEach(unit=>{
-    const trial=clone(plan);strategyAddUnit(trial,unit);const est=strategyAllocateRolls(trial,cfg);
-    const dp=Math.max(0,est.expectedPremium-base.expectedPremium),dn=Math.max(0,est.expectedNormal-base.expectedNormal);
-    let utility=0;
-    if(pNeed>0)utility+=Math.min(1,dp/Math.max(1,pNeed))*1.2;
-    else if(pRateNeed>0)utility+=dp/Math.max(1,Number(target.premium)*.12);
-    if(nNeed>0)utility+=Math.min(1,dn/Math.max(1,nNeed));
-    else if(nRateNeed>0)utility+=dn/Math.max(1,Number(target.normal)*.12);
-    if(!utility&&dp+dn>0)utility=(dp+dn)*.0001;
-    if(utility>0)scored.push({unit,utility,cost:Number(unit.cost.amount||0),dp,dn,ratio:Number(unit.cost.amount||0)/utility})
+function strategyCandidateApproxGain(unit,cfg,kind,baseEstimate){
+  const targetId=strategyTargetItemId(cfg,kind),token=cfg.currencies.gameTokenId,stats=strategyExpectedRollStats(cfg);let direct=0,dice=0;
+  (unit.rewards||[]).forEach(r=>{if(r.itemId===targetId)direct+=Number(r.amount||0);if(r.itemId===token)dice+=Number(r.amount||0)});
+  if(kind==="normal")return direct+dice*stats.normalPerRoll;
+  const stages=strategyCumulativeStages(cfg,"premium");let bestPerLap=0,prevValue=0,prevThreshold=0;
+  stages.forEach(s=>{const laps=Math.max(1,Math.ceil((s.threshold-prevThreshold)/Math.max(1,Number(cfg.scoreRules.pointsPerLap||0))));bestPerLap=Math.max(bestPerLap,(s.value-prevValue)/laps);prevValue=s.value;prevThreshold=s.threshold});
+  return direct+(dice/Math.max(1e-9,stats.dicePerLap))*bestPerLap+Math.max(0,dice*cfgScorePerItem(cfg,token)/Math.max(1,Number(cfg.scoreRules.pointsPerLap||0)))*bestPerLap
+}
+function strategyPickPaidCandidate(plan,candidates,cfg){
+  if(!candidates.length)return null;const kind=strategyTargetKind(plan),base=plan.estimate||strategyAllocateRolls(plan,cfg),baseTarget=Number(base.targetExpected||0);
+  const shortlist=[...candidates].map(unit=>({unit,approx:strategyCandidateApproxGain(unit,cfg,kind,base),cost:Number(unit.cost.amount||0)})).filter(x=>x.approx>0).sort((a,b)=>(a.cost/Math.max(a.approx,1e-9))-(b.cost/Math.max(b.approx,1e-9))||a.cost-b.cost).slice(0,18);
+  let best=null;
+  shortlist.forEach(x=>{
+    const trial=clone(plan);strategyAddUnit(trial,x.unit);const est=strategyAllocateRolls(trial,cfg),gain=Math.max(0,Number(est.targetExpected||0)-baseTarget);if(gain<=1e-9)return;
+    const candidate={unit:x.unit,ratio:Number(x.unit.cost.amount||0)/gain,cost:Number(x.unit.cost.amount||0),gain,estimate:est};
+    if(!best||candidate.ratio<best.ratio-1e-9||(Math.abs(candidate.ratio-best.ratio)<1e-9&&candidate.cost<best.cost))best=candidate
   });
-  scored.sort((a,b)=>a.ratio-b.ratio||a.cost-b.cost||(b.dp+b.dn)-(a.dp+a.dn));
-  return scored[0]?.unit||null
+  return best?.unit||null
 }
 function strategyCreateSimState(cfg){
-  const sim={currentDay:0,position:Number(cfg.board.startIndex)||0,laps:0,resources:{},spent:{},board:[],boardVersion:0,days:Array.from({length:Number(cfg.event.totalDays)},()=>({score:0,claimedStages:[]}))};
-  simGenerateBoard(sim,cfg);return sim
+  const sim={currentDay:0,position:Number(cfg.board.startIndex)||0,laps:0,resources:{},spent:{},board:[],boardVersion:0,days:Array.from({length:Number(cfg.event.totalDays)},()=>({score:0,claimedStages:[]}))};simGenerateBoard(sim,cfg);return sim
 }
 function strategySimGrant(sim,cfg,id,amount){simAddItem(sim,cfg,id,amount)}
 function strategySimClaimStages(sim,cfg){
-  let changed=true;
-  while(changed){changed=false;[...cfg.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)).forEach(stage=>{
-    const day=sim.days[sim.currentDay];
-    if(!day.claimedStages.includes(stage.stage)&&Number(day.score)>=Number(stage.requiredScore)){
-      day.claimedStages.push(stage.stage);(stage.rewards||[]).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount));changed=true
-    }
+  let changed=true;while(changed){changed=false;[...cfg.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)).forEach(stage=>{
+    const day=sim.days[sim.currentDay];if(!day.claimedStages.includes(stage.stage)&&Number(day.score)>=Number(stage.requiredScore)){day.claimedStages.push(stage.stage);(stage.rewards||[]).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount));changed=true}
   })}
 }
 function strategySimOpenBoxes(sim,cfg){
-  cfg.randomBoxes.forEach(box=>{
-    const count=Math.floor(Number(sim.resources[box.boxItemId]||0));if(count<1)return;
-    sim.resources[box.boxItemId]-=count;let total=0;
-    for(let i=0;i<count;i++)total+=Number(weightedPick(box.outcomes).amount||0);
-    strategySimGrant(sim,cfg,box.rewardItemId,total)
-  })
+  cfg.randomBoxes.forEach(box=>{const count=Math.floor(Number(sim.resources[box.boxItemId]||0));if(count<1)return;sim.resources[box.boxItemId]-=count;let total=0;for(let i=0;i<count;i++)total+=Number(weightedPick(box.outcomes).amount||0);strategySimGrant(sim,cfg,box.rewardItemId,total)})
+}
+function strategyGrantFundOther(sim,cfg,plan,which,day){
+  if(!(which==="free"?plan.useFreeFund:plan.usePremiumFund))return;
+  const claimDay=Number(plan.fundOtherClaimDays?.[which]||0);if(day!==claimDay)return;
+  strategyFundRewards(cfg,which).filter(r=>r.itemId!==cfg.currencies.gameTokenId).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))
 }
 function simulateStrategyPlan(plan,cfg){
-  const sim=strategyCreateSimState(cfg),token=cfg.currencies.gameTokenId;let usedDice=0;
-  const dayResults=[];
+  strategyNormalizePlan(plan,cfg);const sim=strategyCreateSimState(cfg),token=cfg.currencies.gameTokenId;let usedDice=0;const dayResults=[];
   for(let d=0;d<plan.days.length;d++){
-    const pd=plan.days[d];sim.currentDay=d;
-    if(pd.missionAmount)strategySimGrant(sim,cfg,token,pd.missionAmount);
-    if(pd.fundFree)(cfg.fund.freeRewards||[]).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount));
-    if(pd.fundPremium)(cfg.fund.premiumRewards||[]).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount));
-    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-      const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);for(let i=0;i<n;i++)pack.rewards.forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))
-    }));
-    strategySimClaimStages(sim,cfg);
-    const planned=Math.floor(Number(pd.rolls||0));let dayUsed=0;
+    const pd=plan.days[d];sim.currentDay=d;if(pd.missionAmount)strategySimGrant(sim,cfg,token,pd.missionAmount);
+    if(pd.fundFreeDice)strategySimGrant(sim,cfg,token,pd.fundFreeDice);if(pd.fundPremiumDice)strategySimGrant(sim,cfg,token,pd.fundPremiumDice);
+    strategyGrantFundOther(sim,cfg,plan,"free",d);strategyGrantFundOther(sim,cfg,plan,"premium",d);
+    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);for(let i=0;i<n;i++)pack.rewards.forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount))}));
+    strategySimClaimStages(sim,cfg);const planned=Math.floor(Number(pd.rolls||0));let dayUsed=0;
     while(dayUsed<planned&&Number(sim.resources[token]||0)>=1){
-      sim.resources[token]-=1;usedDice++;dayUsed++;
-      const roll=Math.floor(Math.random()*Number(cfg.board.diceSides))+1;
-      for(let step=0;step<roll;step++){
-        sim.position=(Number(sim.position)+1)%Number(cfg.board.cellCount);
-        if(sim.position===Number(cfg.board.startIndex)){
-          sim.laps=Number(sim.laps||0)+1;sim.days[d].score=Number(sim.days[d].score||0)+Number(cfg.scoreRules.pointsPerLap||0);
-          if(cfg.board.refreshOnLap)simGenerateBoard(sim,cfg)
-        }
-      }
+      sim.resources[token]-=1;usedDice++;dayUsed++;const roll=Math.floor(Math.random()*Number(cfg.board.diceSides))+1;
+      for(let step=0;step<roll;step++){sim.position=(Number(sim.position)+1)%Number(cfg.board.cellCount);if(sim.position===Number(cfg.board.startIndex)){sim.laps=Number(sim.laps||0)+1;sim.days[d].score=Number(sim.days[d].score||0)+Number(cfg.scoreRules.pointsPerLap||0);if(cfg.board.refreshOnLap)simGenerateBoard(sim,cfg)}}
       const cell=sim.board[sim.position];if(cell?.kind==="reward")strategySimGrant(sim,cfg,cell.reward.itemId,cell.reward.amount)
     }
-    strategySimClaimStages(sim,cfg);
-    dayResults.push({score:Number(sim.days[d].score||0),stage:sim.days[d].claimedStages.length?Math.max(...sim.days[d].claimedStages):0,usedDice:dayUsed})
+    strategySimClaimStages(sim,cfg);dayResults.push({score:Number(sim.days[d].score||0),stage:sim.days[d].claimedStages.length?Math.max(...sim.days[d].claimedStages):0,usedDice:dayUsed})
   }
-  strategySimOpenBoxes(sim,cfg);
-  return{premium:Number(sim.resources[cfg.currencies.premiumExchangeId]||0),normal:Number(sim.resources[cfg.currencies.normalExchangeId]||0),usedDice,laps:Number(sim.laps||0),dayResults,resources:sim.resources}
+  strategySimOpenBoxes(sim,cfg);return{premium:Number(sim.resources[cfg.currencies.premiumExchangeId]||0),normal:Number(sim.resources[cfg.currencies.normalExchangeId]||0),usedDice,laps:Number(sim.laps||0),dayResults,resources:sim.resources}
 }
 function strategyEvaluate(plan,cfg,count){
-  const premiumValues=[],normalValues=[],results=[];let joint=0,premiumHit=0,normalHit=0;
+  const kind=strategyTargetKind(plan),amount=strategyTargetAmount(plan),premiumValues=[],normalValues=[],targetValues=[],results=[];let premiumHit=0,normalHit=0,targetHit=0;
   for(let i=0;i<count;i++){
-    const r=simulateStrategyPlan(plan,cfg);results.push(r);premiumValues.push(r.premium);normalValues.push(r.normal);
-    const p=r.premium>=Number(plan.targets.premium),n=r.normal>=Number(plan.targets.normal);if(p)premiumHit++;if(n)normalHit++;if(p&&n)joint++
+    const r=simulateStrategyPlan(plan,cfg),target=kind==="premium"?r.premium:r.normal;results.push(r);premiumValues.push(r.premium);normalValues.push(r.normal);targetValues.push(target);
+    if(r.premium>=Number(plan.targets.premium||0))premiumHit++;if(r.normal>=Number(plan.targets.normal||0))normalHit++;if(target>=amount)targetHit++
   }
-  const stat=arr=>({avg:average(arr),min:Math.min(...arr),max:Math.max(...arr)});
-  return{count,jointRate:joint/count*100,premiumRate:premiumHit/count*100,normalRate:normalHit/count*100,premium:stat(premiumValues),normal:stat(normalValues),avgLaps:average(results.map(x=>x.laps)),avgDayScores:plan.days.map((_,d)=>average(results.map(x=>x.dayResults[d]?.score||0)))}
+  const stat=arr=>({avg:average(arr),min:Math.min(...arr),max:Math.max(...arr)}),targetRate=amount<=0?100:targetHit/count*100;
+  return{count,targetKind:kind,targetRate,jointRate:targetRate,premiumRate:premiumHit/count*100,normalRate:normalHit/count*100,target:stat(targetValues),premium:stat(premiumValues),normal:stat(normalValues),avgLaps:average(results.map(x=>x.laps)),avgDayScores:plan.days.map((_,d)=>average(results.map(x=>x.dayResults[d]?.score||0)))}
 }
 async function generateStrategy(){
   if(rolling)return toast("目前正在擲骰");
-  const premium=Math.max(0,Number($("strategyPremiumTarget").value||0)),normal=Math.max(0,Number($("strategyNormalTarget").value||0));
-  const mode=$("strategyOptimizationMode")?.value||"expected";
-  const success=Math.max(1,Math.min(99,Number($("strategySuccessTarget").value||80))),samples=Math.max(100,Math.min(3000,Math.floor(Number($("strategySamples").value||500))));
-  const plan=strategyEmptyPlan(config,{premium,normal,success,samples,mode});
-  strategySeedFreeAndGem(plan,config);
-  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="5%";$("strategyProgressText").textContent="已買滿每日寶石禮包，先計算整週 0 翡翠石期望值…";
-  await wait(0);
-  plan.estimate=strategyAllocateRolls(plan,config);
-  const expectedMet=()=>plan.estimate.expectedPremium+1e-9>=premium&&plan.estimate.expectedNormal+1e-9>=normal;
-  const baselineSamples=Math.min(Math.max(180,Math.floor(samples*.4)),samples);
-  let validation=strategyEvaluate(plan,config,baselineSamples);
-  plan.optimization.zeroEmeraldRate=validation.jointRate;
-  plan.optimization.zeroEmeraldExpected={premium:plan.estimate.expectedPremium,normal:plan.estimate.expectedNormal};
-  const paidId=config.currencies.paidCurrencyId;
-  if(mode==="expected"){
-    if(expectedMet()){
-      plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}的整週期望值已達標`)
-    }else{
-      plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}期望：${cfgItem(config,config.currencies.premiumExchangeId).name} ${fmt(plan.estimate.expectedPremium)}、${cfgItem(config,config.currencies.normalExchangeId).name} ${fmt(plan.estimate.expectedNormal)}`);
-      let candidates=strategyPaidCandidates(plan,config),loops=0;
-      $("strategyProgress").style.width="30%";$("strategyProgressText").textContent="0 翡翠石期望值不足，尋找最低翡翠石補足方案…";await wait(0);
-      while(!expectedMet()&&candidates.length&&loops++<120){
-        const unit=strategyPickPaidCandidate(plan,candidates,config,null);if(!unit)break;
-        strategyAddUnit(plan,unit);candidates=candidates.filter(x=>x.id!==unit.id);plan.estimate=strategyAllocateRolls(plan,config);
-        $("strategyProgress").style.width=`${30+Math.min(38,loops*.7)}%`;
-        $("strategyProgressText").textContent=`補足期望值第 ${loops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜高級 ${fmt(plan.estimate.expectedPremium)}／普通 ${fmt(plan.estimate.expectedNormal)}`;
-        if(loops%3===0)await wait(0)
-      }
-      $("strategyProgress").style.width="72%";$("strategyProgressText").textContent="反向移除不必要的翡翠石購買…";await wait(0);
-      let removed=0,passes=0,changed=true;
-      while(changed&&passes++<4){
-        changed=false;
-        const units=strategyPaidUnitsInPlan(plan,config).sort((a,b)=>Number(b.cost.amount||0)-Number(a.cost.amount||0));
-        for(const unit of units){
-          const trial=clone(plan);strategyRemoveUnit(trial,unit);trial.estimate=strategyAllocateRolls(trial,config);
-          if(trial.estimate.expectedPremium+1e-9>=premium&&trial.estimate.expectedNormal+1e-9>=normal){
-            strategyRemoveUnit(plan,unit);plan.estimate=trial.estimate;removed++;changed=true
-          }
-        }
-      }
-      plan.optimization.paidPruned=removed;if(removed)plan.optimization.notes.push(`已移除 ${removed} 筆非必要課金購買`)
+  const kind=$("strategyTargetKind")?.value||"premium",premium=Math.max(0,Number($("strategyPremiumTarget").value||0)),normal=Math.max(0,Number($("strategyNormalTarget").value||0)),amount=kind==="premium"?premium:normal;
+  const mode=$("strategyOptimizationMode")?.value||"expected",success=Math.max(1,Math.min(99,Number($("strategySuccessTarget").value||80))),samples=Math.max(100,Math.min(3000,Math.floor(Number($("strategySamples").value||500))));
+  const targets={kind,amount,premium:kind==="premium"?amount:0,normal:kind==="normal"?amount:0,success,samples,mode},plan=strategyEmptyPlan(config,targets);strategySeedFreeAndGem(plan,config);
+  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="6%";$("strategyProgressText").textContent=`正在比較七天所有階段 CP，尋找${strategyTargetName(config,kind)}的最佳圈數分配…`;await wait(0);
+  plan.estimate=strategyAllocateRolls(plan,config);const baselineSamples=Math.min(Math.max(180,Math.floor(samples*.4)),samples);let validation=strategyEvaluate(plan,config,baselineSamples);
+  plan.optimization.zeroEmeraldRate=validation.targetRate;plan.optimization.zeroEmeraldExpected={premium:plan.estimate.expectedPremium,normal:plan.estimate.expectedNormal,target:plan.estimate.targetExpected};
+  plan.optimization.notes.push(`整週動態規劃：先最大化選定目標收益，再減少有操作的日期與無意義積分溢出`);
+  const paidId=config.currencies.paidCurrencyId,targetMet=()=>mode==="expected"?plan.estimate.targetExpected+1e-9>=amount:validation.targetRate+1e-9>=success;
+  if(kind==="normal"){
+    plan.optimization.notes.push(`普通兌換幣模式固定不使用${cfgItem(config,paidId).name}，高級兌換幣不納入條件`);
+    if(!targetMet())plan.optimization.notes.push(`零課方案最高期望約 ${fmt(plan.estimate.targetExpected)}，目標仍差 ${fmt(Math.max(0,amount-plan.estimate.targetExpected))}`)
+  }else if(!targetMet()){
+    let loops=0,candidates=strategyPaidCandidates(plan,config);$("strategyProgress").style.width="35%";$("strategyProgressText").textContent=`零翡翠石方案不足，按每單位${cfgItem(config,paidId).name}的高級收益尋找補強…`;await wait(0);
+    while(!targetMet()&&candidates.length&&loops++<60){
+      const unit=strategyPickPaidCandidate(plan,candidates,config);if(!unit)break;strategyAddUnit(plan,unit);plan.estimate=strategyAllocateRolls(plan,config);
+      if(mode==="probability")validation=strategyEvaluate(plan,config,Math.min(220,Math.max(100,Math.floor(samples*.28))));
+      candidates=strategyPaidCandidates(plan,config);$("strategyProgress").style.width=`${35+Math.min(40,loops*1.4)}%`;$("strategyProgressText").textContent=`補強第 ${loops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜${strategyTargetName(config,kind)}期望 ${fmt(plan.estimate.targetExpected)}${mode==="probability"?`｜達標率約 ${fmt(validation.targetRate)}%`:""}`;if(loops%2===0)await wait(0)
     }
-    $("strategyProgress").style.width="90%";$("strategyProgressText").textContent=`方案已按期望值最省化，使用 ${samples} 次模擬估算實際達標機率…`;await wait(0);
-    plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples)
-  }else{
-    if(validation.jointRate+1e-9>=success){
-      plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}方案已達指定達標率`)
-    }else{
-      plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}方案同時達標率 ${fmt(validation.jointRate)}%`);
-      let candidates=strategyPaidCandidates(plan,config),loops=0;
-      $("strategyProgress").style.width="28%";$("strategyProgressText").textContent=`0 翡翠石達標率不足，開始尋找最低課金補強（目前 ${fmt(validation.jointRate)}%）…`;await wait(0);
-      while(validation.jointRate+1e-9<success&&candidates.length&&loops++<120){
-        const unit=strategyPickPaidCandidate(plan,candidates,config,validation);if(!unit)break;
-        strategyAddUnit(plan,unit);candidates=candidates.filter(x=>x.id!==unit.id);plan.estimate=strategyAllocateRolls(plan,config);
-        const quickCount=Math.min(160,Math.max(80,Math.floor(samples*.22)));
-        validation=strategyEvaluate(plan,config,quickCount);
-        $("strategyProgress").style.width=`${28+Math.min(42,loops*.1+strategyPlanPaidCost(plan,config)/5000)}%`;
-        $("strategyProgressText").textContent=`保守補強第 ${loops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜達標率約 ${fmt(validation.jointRate)}%`;
-        if(loops%2===0)await wait(0)
+    $("strategyProgress").style.width="80%";$("strategyProgressText").textContent="反向檢查並移除不必要的翡翠石購買…";await wait(0);
+    let removed=0,changed=true,passes=0;
+    while(changed&&passes++<3){changed=false;const units=strategyPaidUnitsInPlan(plan,config).sort((a,b)=>Number(b.cost.amount||0)-Number(a.cost.amount||0));
+      for(const unit of units){const trial=clone(plan);strategyRemoveUnit(trial,unit);trial.estimate=strategyAllocateRolls(trial,config);let keepRemoved=false;
+        if(mode==="expected")keepRemoved=trial.estimate.targetExpected+1e-9>=amount;else{const check=strategyEvaluate(trial,config,Math.min(220,Math.max(100,Math.floor(samples*.3))));keepRemoved=check.targetRate+1e-9>=success}
+        if(keepRemoved){strategyRemoveUnit(plan,unit);plan.estimate=trial.estimate;removed++;changed=true}
       }
-      plan.estimate=strategyAllocateRolls(plan,config);
-      validation=strategyEvaluate(plan,config,Math.min(samples,Math.max(240,Math.floor(samples*.55))));
-      $("strategyProgress").style.width="76%";$("strategyProgressText").textContent="反向移除不必要的翡翠石購買…";await wait(0);
-      let removed=0,passes=0,changed=true;
-      while(changed&&passes++<3){
-        changed=false;
-        const units=strategyPaidUnitsInPlan(plan,config).sort((a,b)=>Number(b.cost.amount||0)-Number(a.cost.amount||0));
-        for(const unit of units){
-          const trial=clone(plan);strategyRemoveUnit(trial,unit);trial.estimate=strategyAllocateRolls(trial,config);
-          const check=strategyEvaluate(trial,config,Math.min(220,Math.max(110,Math.floor(samples*.3))));
-          if(check.jointRate+1e-9>=success){strategyRemoveUnit(plan,unit);plan.estimate=trial.estimate;validation=check;removed++;changed=true}
-          if(removed%3===0)await wait(0)
-        }
-      }
-      plan.optimization.paidPruned=removed;if(removed)plan.optimization.notes.push(`已移除 ${removed} 筆非必要課金購買`)
     }
-    $("strategyProgress").style.width="90%";$("strategyProgressText").textContent=`以 ${samples} 次模擬進行最終驗證…`;await wait(0);
-    plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples);
-    let candidates=strategyPaidCandidates(plan,config),finalLoops=0;
-    while(plan.validation.jointRate+1e-9<success&&candidates.length&&finalLoops++<20){
-      const unit=strategyPickPaidCandidate(plan,candidates,config,plan.validation);if(!unit)break;
-      strategyAddUnit(plan,unit);candidates=candidates.filter(x=>x.id!==unit.id);plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples);
-      $("strategyProgressText").textContent=`最終補強第 ${finalLoops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜達標率 ${fmt(plan.validation.jointRate)}%`;await wait(0)
-    }
-  }
-  strategyPlan=plan;
-  localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
-  $("strategyProgress").style.width="100%";
-  $("strategyProgressText").textContent=mode==="expected"?`攻略完成：整週期望值優先，${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}；實際同時達標率約 ${fmt(plan.validation.jointRate)}%`:`保守攻略完成：${samples} 次驗證達標率 ${fmt(plan.validation.jointRate)}%`;
-  $("generateStrategyBtn").disabled=false;renderStrategy();toast("省翡翠石攻略已產生")
+    plan.optimization.paidPruned=removed;if(removed)plan.optimization.notes.push(`已移除 ${removed} 筆非必要課金購買`)
+  }else plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}方案已符合選定目標`);
+  $("strategyProgress").style.width="91%";$("strategyProgressText").textContent=`使用 ${samples} 次隨機遊戲驗證選定目標…`;await wait(0);
+  plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples);strategyPlan=plan;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
+  $("strategyProgress").style.width="100%";$("strategyProgressText").textContent=`攻略完成：${strategyTargetName(config,kind)}獨立判定｜期望 ${fmt(plan.estimate.targetExpected)}｜達標率約 ${fmt(plan.validation.targetRate)}%｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}`;
+  $("generateStrategyBtn").disabled=false;renderStrategy();toast("整週動態攻略已產生")
 }
 function strategyOperationRows(plan,cfg){
-  const rows=[];
+  const kind=strategyTargetKind(plan),targetName=strategyTargetName(cfg,kind),rows=[];
   rows.push({label:"📋 每日任務骰子",values:plan.days.map(x=>x.missionAmount||0)});
-  if(plan.days.some(x=>x.fundFree))rows.push({label:"免費基金",values:plan.days.map(x=>x.fundFree?"領取":"—")});
-  if(plan.days.some(x=>x.fundPremium))rows.push({label:"進階基金",values:plan.days.map(x=>x.fundPremium?"購買":"—")});
-  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-    const values=plan.days.map(d=>Number(d.purchases?.[`${group.id}:${pack.id}`]||0));
-    if(values.some(Boolean))rows.push({label:pack.name,values:values.map(x=>x||"—")})
-  }));
-  rows.push({section:"自動計算與預期"});
-  rows.push({label:"建議擲骰",values:plan.days.map(x=>x.rolls||0)});
+  if(plan.useFreeFund&&plan.days.some(x=>Number(x.fundFreeDice||0)>0))rows.push({label:"免費基金骰子（最佳領取時機）",values:plan.days.map(x=>Number(x.fundFreeDice||0)||"—")});
+  if(plan.usePremiumFund&&plan.days.some(x=>Number(x.fundPremiumDice||0)>0))rows.push({label:"進階基金骰子（最佳領取時機）",values:plan.days.map(x=>Number(x.fundPremiumDice||0)||"—")});
+  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const values=plan.days.map(d=>Number(d.purchases?.[`${group.id}:${pack.id}`]||0));if(values.some(Boolean))rows.push({label:pack.name,values:values.map(x=>x||"—")})}));
+  rows.push({section:"整週階段動態規劃"});
+  rows.push({label:"建議實際擲骰",values:plan.days.map(x=>x.rolls||0)});
+  rows.push({label:"期望完成圈數",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedLaps))});
   rows.push({label:"取得骰子",values:plan.estimate.dayEstimates.map(x=>fmt(x.acquiredDice))});
+  rows.push({label:"固定積分（領骰／禮包）",values:plan.estimate.dayEstimates.map(x=>fmt(x.fixedScore))});
   rows.push({label:"預期每日積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.expectedScore))});
   rows.push({label:"預期達成階段",values:plan.estimate.dayEstimates.map(x=>x.stage?`${x.stage} 階`:"—")});
-  rows.push({label:"預期獲得箱子",values:plan.estimate.dayEstimates.map(x=>x.boxes||0)});
-  rows.push({label:`${cfgItem(cfg,cfg.currencies.normalExchangeId).name}累計`,values:plan.estimate.dayEstimates.map(x=>fmt(x.cumNormal))});
-  rows.push({label:`${cfgItem(cfg,cfg.currencies.premiumExchangeId).name}累計期望`,values:plan.estimate.dayEstimates.map(x=>fmt(x.cumPremium))});
+  rows.push({label:"預期獲得隨機箱",values:plan.estimate.dayEstimates.map(x=>x.boxes||0)});
+  rows.push({label:"階段後溢出積分",values:plan.estimate.dayEstimates.map(x=>fmt(x.overflow))});
+  rows.push({label:"距離下一階",values:plan.estimate.dayEstimates.map(x=>x.gap?fmt(x.gap):"—")});
+  rows.push({label:`${targetName}累計期望`,values:plan.estimate.dayEstimates.map(x=>fmt(kind==="premium"?x.cumPremium:x.cumNormal))});
   return rows
 }
+function strategyStageCpTable(cfg,kind){
+  const stages=strategyCumulativeStages(cfg,kind),points=Math.max(1e-9,Number(cfg.scoreRules.pointsPerLap||0));let prevScore=0,prevValue=0;
+  const rows=stages.map(s=>{const addScore=s.threshold-prevScore,addValue=s.value-prevValue,laps=Math.ceil(addScore/points),cp=laps>0?addValue/laps:0;prevScore=s.threshold;prevValue=s.value;return`<tr><td>第 ${s.stage} 階</td><td>${fmt(addScore)}</td><td>${fmt(laps)}</td><td>${fmt(addValue)}</td><td>${fmt(s.incrementBoxes)}</td><td>${fmt(cp)}</td></tr>`});
+  return`<h3 style="margin:16px 0 8px">階段 CP 比較（選定目標：${escapeHtml(strategyTargetName(cfg,kind))}）</h3><table class="strategy-table"><thead><tr><th>階段</th><th>新增門檻分</th><th>約需新增圈數</th><th>新增目標期望</th><th>新增箱子</th><th>每圈目標收益</th></tr></thead><tbody>${rows.join("")}</tbody></table>`
+}
+function updateStrategyTargetUI(){
+  const kind=$("strategyTargetKind")?.value||"premium";if($("premiumTargetField"))$("premiumTargetField").style.opacity=kind==="premium"?"1":".45";if($("normalTargetField"))$("normalTargetField").style.opacity=kind==="normal"?"1":".45";
+  if($("strategyPremiumTarget"))$("strategyPremiumTarget").disabled=kind!=="premium";if($("strategyNormalTarget"))$("strategyNormalTarget").disabled=kind!=="normal"
+}
 function renderStrategy(){
-  $("premiumTargetLabel").textContent=`目標${item(config.currencies.premiumExchangeId).name}`;
-  $("normalTargetLabel").textContent=`目標${item(config.currencies.normalExchangeId).name}`;
+  $("premiumTargetLabel").textContent=`${item(config.currencies.premiumExchangeId).name}需求`;
+  $("normalTargetLabel").textContent=`${item(config.currencies.normalExchangeId).name}需求`;updateStrategyTargetUI();
   const has=!!strategyPlan;$("applyStrategyBtn").disabled=!has;$("exportStrategyBtn").disabled=!has;$("clearStrategyBtn").disabled=!has;
-  if(!has){$("strategySummary").innerHTML="";$("strategyWarning").innerHTML="";$("strategyTable").innerHTML=`<div class="empty">輸入兩種兌換幣目標後，按「分析並產生」。</div>`;return}
-  const cfg=strategyPlan.config||config,e=strategyPlan.estimate,v=strategyPlan.validation,t=strategyPlan.targets;
-  const mismatch=strategySignature(config)!==strategyPlan.configSignature;
-  const optimizationNote=(strategyPlan.optimization?.notes||[]).join("；"),mode=t.mode||"expected";
-  const probabilityMessage=mode==="probability"&&v.jointRate<t.success?`<div class="strategy-warning">目前可用禮包下，驗證達標率為 ${fmt(v.jointRate)}%，低於希望的 ${fmt(t.success)}%。表格仍會顯示可找到的最高方案。</div>`:(mode==="expected"?`<div class="active-strategy" style="margin-top:8px"><strong>機率提醒：</strong>本方案以整週平均期望值達標為準；模擬中實際同時達標率約 ${fmt(v.jointRate)}%。若要更保守，將判定方式改成「指定達標率」。</div>`:"");
-  $("strategyWarning").innerHTML=(mismatch?`<div class="strategy-warning">⚠️ 此攻略使用的活動設定與目前設定不同。套用攻略時可以連同攻略內的活動設定一起匯入。</div>`:"")+probabilityMessage+(optimizationNote?`<div class="active-strategy" style="margin-top:8px"><strong>省課金分析：</strong>${escapeHtml(optimizationNote)}</div>`:"");
+  if(!has){$("strategySummary").innerHTML="";$("strategyWarning").innerHTML="";$("strategyTable").innerHTML=`<div class="empty">先選擇高級或普通目標；兩種需求不會同時判定。</div>`;return}
+  const cfg=strategyPlan.config||config;strategyNormalizePlan(strategyPlan,cfg);const e=strategyPlan.estimate,v=strategyPlan.validation,t=strategyPlan.targets,kind=strategyTargetKind(strategyPlan),targetName=strategyTargetName(cfg,kind),amount=strategyTargetAmount(strategyPlan);
+  const mismatch=strategySignature(config)!==strategyPlan.configSignature,optimizationNote=(strategyPlan.optimization?.notes||[]).join("；"),mode=t.mode||"expected",targetRate=Number(v.targetRate??v.jointRate??0);
+  const probabilityMessage=mode==="probability"&&targetRate<t.success?`<div class="strategy-warning">目前方案的${escapeHtml(targetName)}達標率為 ${fmt(targetRate)}%，低於希望的 ${fmt(t.success)}%。</div>`:`<div class="active-strategy" style="margin-top:8px"><strong>獨立判定：</strong>只檢查${escapeHtml(targetName)} ≥ ${fmt(amount)}；另一種兌換幣不會影響方案。</div>`;
+  $("strategyWarning").innerHTML=(mismatch?`<div class="strategy-warning">⚠️ 此攻略使用的活動設定與目前設定不同。套用時可連同設定一起匯入。</div>`:"")+probabilityMessage+(optimizationNote?`<div class="active-strategy" style="margin-top:8px"><strong>演算法：</strong>${escapeHtml(optimizationNote)}</div>`:"");
   const paid=cfg.currencies.paidCurrencyId,gem=cfg.items.find(x=>x.id==="gem"||x.name==="寶石")?.id;
   $("strategySummary").innerHTML=`
-    <div class="strategy-stat"><div class="k">建議總骰子</div><div class="v">${fmt(e.totalDice)}</div></div>
-    <div class="strategy-stat"><div class="k">${escapeHtml(cfgItem(cfg,cfg.currencies.normalExchangeId).name)}平均</div><div class="v">${fmt(v.normal.avg)}</div></div>
-    <div class="strategy-stat"><div class="k">${escapeHtml(cfgItem(cfg,cfg.currencies.premiumExchangeId).name)}平均</div><div class="v">${fmt(v.premium.avg)}</div></div>
-    <div class="strategy-stat"><div class="k">同時達標率</div><div class="v">${fmt(v.jointRate)}%</div></div>
+    <div class="strategy-stat"><div class="k">攻略目標</div><div class="v" style="font-size:15px">${escapeHtml(targetName)} ${fmt(amount)}</div></div>
+    <div class="strategy-stat"><div class="k">目標期望值</div><div class="v">${fmt(e.targetExpected)}</div></div>
+    <div class="strategy-stat"><div class="k">目標達標率</div><div class="v">${fmt(targetRate)}%</div></div>
+    <div class="strategy-stat"><div class="k">預期箱子</div><div class="v">${fmt(e.expectedBoxes)}</div></div>
+    <div class="strategy-stat"><div class="k">完成圈數期望</div><div class="v">${fmt(e.scheduleMeta?.completedLaps||0)}</div></div>
+    <div class="strategy-stat"><div class="k">有操作日期</div><div class="v">${fmt(e.scheduleMeta?.activeDays||0)} 天</div></div>
+    <div class="strategy-stat"><div class="k">無意義溢出分</div><div class="v">${fmt(e.scheduleMeta?.totalOverflow||0)}</div></div>
     <div class="strategy-stat"><div class="k">預估支出</div><div class="v" style="font-size:14px">${escapeHtml(cfgItem(cfg,paid).name)} ${fmt(e.costs[paid]||0)}<br>${gem?`${escapeHtml(cfgItem(cfg,gem).name)} ${fmt(e.costs[gem]||0)}`:""}</div></div>
-    <div class="strategy-stat"><div class="k">0 翡翠石基線</div><div class="v">${fmt(strategyPlan.optimization?.zeroEmeraldRate||0)}%</div></div>
-    <div class="strategy-stat"><div class="k">計算口徑</div><div class="v" style="font-size:13px">${(t.mode||"expected")==="expected"?"整週期望值達標":"指定機率達標"}</div></div>
-    <div class="strategy-stat"><div class="k">規劃原則</div><div class="v" style="font-size:13px">免費／廣告 → 寶石買滿 → 翡翠石最少</div></div>`;
-  const rows=strategyOperationRows(strategyPlan,cfg);
-  $("strategyTable").innerHTML=`<table class="strategy-table"><thead><tr><th>項目</th>${cfg.event.dayLabels.slice(0,cfg.event.totalDays).map(x=>`<th>${escapeHtml(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>row.section?`<tr class="strategy-section-row"><td colspan="${cfg.event.totalDays+1}">${escapeHtml(row.section)}</td></tr>`:`<tr><td>${escapeHtml(row.label)}</td>${row.values.map(x=>`<td>${escapeHtml(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+    <div class="strategy-stat"><div class="k">0 翡翠石基線率</div><div class="v">${fmt(strategyPlan.optimization?.zeroEmeraldRate||0)}%</div></div>
+    <div class="strategy-stat"><div class="k">判定口徑</div><div class="v" style="font-size:13px">${mode==="expected"?"選定目標期望值":"選定目標達標率"}</div></div>`;
+  const rows=strategyOperationRows(strategyPlan,cfg),operation=`<table class="strategy-table"><thead><tr><th>項目</th>${cfg.event.dayLabels.slice(0,cfg.event.totalDays).map(x=>`<th>${escapeHtml(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>row.section?`<tr class="strategy-section-row"><td colspan="${cfg.event.totalDays+1}">${escapeHtml(row.section)}</td></tr>`:`<tr><td>${escapeHtml(row.label)}</td>${row.values.map(x=>`<td>${escapeHtml(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  $("strategyTable").innerHTML=operation+strategyStageCpTable(cfg,kind)
 }
 function strategyGrantToGame(day,id,amount){
   const v=Number(amount||0);state.resources[id]=Number(state.resources[id]||0)+v;state.days[day].score=Number(state.days[day].score||0)+scorePerItem(id)*v
@@ -1651,25 +1691,20 @@ function strategySpendInGame(cost,count=1){
   if(!config.simulator.allowInsufficientCost)state.resources[cost.itemId]=Number(state.resources[cost.itemId]||0)-total
 }
 function applyStrategyToGame(){
-  if(!strategyPlan)return;
-  if(strategySignature(config)!==strategyPlan.configSignature){
-    if(!confirm("攻略使用不同的活動設定。是否一併套用攻略內的活動設定？"))return;
-    validateConfig(strategyPlan.config);config=clone(strategyPlan.config)
-  }
-  if(!confirm("套用攻略會把目前遊戲進度改成攻略的七日領取與購買狀態。可使用「復原上一步」返回，確定套用嗎？"))return;
-  recordHistory("套用七日攻略");state=createState();ensureStateSchema(state,config);generateBoard();
+  if(!strategyPlan)return;strategyNormalizePlan(strategyPlan,strategyPlan.config||config);
+  if(strategySignature(config)!==strategyPlan.configSignature){if(!confirm("攻略使用不同的活動設定。是否一併套用攻略內的活動設定？"))return;validateConfig(strategyPlan.config);config=clone(strategyPlan.config)}
+  if(!confirm("套用攻略會把目前遊戲進度改成攻略的七日領取、基金時機與購買狀態。可使用「復原上一步」返回，確定套用嗎？"))return;
+  recordHistory("套用七日動態攻略");state=createState();ensureStateSchema(state,config);generateBoard();
   strategyPlan.days.forEach((pd,d)=>{
-    const day=state.days[d];
-    if(pd.missionAmount>0){day.missionClaimed=true;day.missionAmount=Number(pd.missionAmount);strategyGrantToGame(d,config.currencies.gameTokenId,pd.missionAmount)}
-    if(pd.fundFree){state.fundFreeClaimed=true;state.fundFreeClaimDay=d;(config.fund.freeRewards||[]).forEach(r=>strategyGrantToGame(d,r.itemId,r.amount))}
-    if(pd.fundPremium){state.fundPremiumClaimed=true;state.fundPremiumClaimDay=d;strategySpendInGame(config.fund.premiumCost);(config.fund.premiumRewards||[]).forEach(r=>strategyGrantToGame(d,r.itemId,r.amount))}
-    config.packageGroups.forEach(group=>group.packages.forEach(pack=>{
-      const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;
-      day.packagePurchases[`${group.id}:${pack.id}`]=n;strategySpendInGame(pack.cost,n);pack.rewards.forEach(r=>strategyGrantToGame(d,r.itemId,Number(r.amount)*n))
-    }))
+    const day=state.days[d];if(pd.missionAmount>0){day.missionClaimed=true;day.missionAmount=Number(pd.missionAmount);strategyGrantToGame(d,config.currencies.gameTokenId,pd.missionAmount)}
+    if(pd.fundFreeDice)strategyGrantToGame(d,config.currencies.gameTokenId,pd.fundFreeDice);if(pd.fundPremiumDice)strategyGrantToGame(d,config.currencies.gameTokenId,pd.fundPremiumDice);
+    config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;day.packagePurchases[`${group.id}:${pack.id}`]=n;strategySpendInGame(pack.cost,n);pack.rewards.forEach(r=>strategyGrantToGame(d,r.itemId,Number(r.amount)*n))}))
   });
+  const token=config.currencies.gameTokenId;
+  if(strategyPlan.useFreeFund){state.fundFreeClaimed=true;state.fundFreeClaimDay=Number(strategyPlan.fundOtherClaimDays?.free||0);state.fundFreeClaimAllocations=strategyPlan.days.map(x=>Number(x.fundFreeDice||0));(config.fund.freeRewards||[]).filter(r=>r.itemId!==token).forEach(r=>strategyGrantToGame(state.fundFreeClaimDay,r.itemId,r.amount))}
+  if(strategyPlan.usePremiumFund){state.fundPremiumClaimed=true;state.fundPremiumClaimDay=Number(strategyPlan.fundOtherClaimDays?.premium||0);state.fundPremiumClaimAllocations=strategyPlan.days.map(x=>Number(x.fundPremiumDice||0));strategySpendInGame(config.fund.premiumCost);(config.fund.premiumRewards||[]).filter(r=>r.itemId!==token).forEach(r=>strategyGrantToGame(state.fundPremiumClaimDay,r.itemId,r.amount))}
   state.activeStrategy={plan:clone(strategyPlan),rollsCompleted:Array.from({length:strategyPlan.days.length},()=>0),appliedAt:new Date().toISOString()};state.currentDay=0;
-  simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);log("已套用七日攻略：固定任務、基金與禮包已配置，請依各日建議擲骰");render();toast("攻略已套用，可逐日執行並驗證")
+  simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);log("已套用整週動態攻略：基金骰子與每日圈數已按階段 CP 配置");render();toast("攻略已套用，可逐日執行並驗證")
 }
 function claimReachedStagesWithoutHistory(){
   let changed=true;
@@ -1696,12 +1731,12 @@ async function executeStrategyDay(){
   claimReachedStagesWithoutHistory();openAllBoxesWithoutHistory();render();toast(`本日攻略已擲 ${count} 次`)
 }
 function renderActiveStrategyCard(){
-  const box=$("activeStrategyCard"),active=state.activeStrategy;
-  if(!active){box.innerHTML="";return}
+  const box=$("activeStrategyCard"),active=state.activeStrategy;if(!active){box.innerHTML="";return}
   const pd=active.plan.days[state.currentDay];if(!pd){box.innerHTML="";return}
-  const done=Number(active.rollsCompleted[state.currentDay]||0),planned=Number(pd.rolls||0),remain=Math.max(0,planned-done);
-  const packNames=[];config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(n)packNames.push(`${pack.name}×${n}`)}));
-  box.innerHTML=`<div class="active-strategy"><div class="row-top"><div><strong>🧭 已套用攻略｜${escapeHtml(config.event.dayLabels[state.currentDay])}</strong><div class="row-desc">${packNames.length?escapeHtml(packNames.join("、")):"本日無額外禮包"}</div></div><button class="btn green small" id="executeStrategyDayBtn" ${remain<1?"disabled":""}>依攻略擲剩餘 ${fmt(remain)} 次</button></div><div class="active-strategy-grid"><div class="active-strategy-cell"><div class="k">建議擲骰</div><div class="v">${fmt(planned)}</div></div><div class="active-strategy-cell"><div class="k">已擲</div><div class="v">${fmt(done)}</div></div><div class="active-strategy-cell"><div class="k">預期階段</div><div class="v">${active.plan.estimate?.dayEstimates?.[state.currentDay]?.stage||0} 階</div></div><div class="active-strategy-cell"><div class="k">目前積分</div><div class="v">${fmt(dayState().score)}</div></div></div></div>`
+  const done=Number(active.rollsCompleted[state.currentDay]||0),planned=Number(pd.rolls||0),remain=Math.max(0,planned-done),packNames=[];
+  config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(n)packNames.push(`${pack.name}×${n}`)}));
+  const fundParts=[];if(pd.fundFreeDice)fundParts.push(`免費基金骰子×${pd.fundFreeDice}`);if(pd.fundPremiumDice)fundParts.push(`進階基金骰子×${pd.fundPremiumDice}`);
+  box.innerHTML=`<div class="active-strategy"><div class="row-top"><div><strong>🧭 已套用攻略｜${escapeHtml(config.event.dayLabels[state.currentDay])}</strong><div class="row-desc">${escapeHtml([...fundParts,...packNames].join("、")||"本日只領每日任務")}</div></div><button class="btn green small" id="executeStrategyDayBtn" ${remain<1?"disabled":""}>依攻略擲剩餘 ${fmt(remain)} 次</button></div><div class="active-strategy-grid"><div class="active-strategy-cell"><div class="k">建議擲骰</div><div class="v">${fmt(planned)}</div></div><div class="active-strategy-cell"><div class="k">期望圈數</div><div class="v">${fmt(pd.expectedLaps||0)}</div></div><div class="active-strategy-cell"><div class="k">預期階段</div><div class="v">${active.plan.estimate?.dayEstimates?.[state.currentDay]?.stage||0} 階</div></div><div class="active-strategy-cell"><div class="k">溢出積分</div><div class="v">${fmt(active.plan.estimate?.dayEstimates?.[state.currentDay]?.overflow||0)}</div></div></div></div>`
 }
 function exportStrategy(){
   if(!strategyPlan)return;const blob=new Blob([JSON.stringify(strategyPlan,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`${strategyPlan.config.event.name}_七日攻略.json`;a.click();URL.revokeObjectURL(url)
@@ -1844,6 +1879,7 @@ function renderSettings(){
       ${c.scoreRules.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="scoreRules.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`scoreRules.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeScoreRule" data-index="${i}">刪除</button></div>`).join("")}
     </div><button class="btn secondary small" data-settings-action="addScoreRule">＋加入計分物品</button></div>
     <h3>活動基金</h3>
+    <div class="setting-grid"><div class="field"><label>攻略規劃：基金骰子開始可領的累計圈數</label>${pathInput("fund.plannerUnlockLaps",c.fund.plannerUnlockLaps??10,"number",'min="0" step="1"')}</div></div>
     <div class="editor-card">
       <strong>免費獎勵</strong><div class="editor-table">${rewardRows(c.fund.freeRewards,"fund.freeRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.freeRewards">＋加入獎勵</button>
       <hr style="border:0;border-top:1px solid #dce5ed">
@@ -2011,6 +2047,7 @@ $("captureBaselineBtn").addEventListener("click",captureBaseline);
 $("restoreBaselineBtn").addEventListener("click",restoreBaseline);
 $("clearBaselineBtn").addEventListener("click",clearBaseline);
 $("runSimulationBtn").addEventListener("click",runBatchSimulation);
+$("strategyTargetKind").addEventListener("change",updateStrategyTargetUI);
 $("generateStrategyBtn").addEventListener("click",generateStrategy);
 $("applyStrategyBtn").addEventListener("click",applyStrategyToGame);
 $("exportStrategyBtn").addEventListener("click",exportStrategy);
@@ -2035,9 +2072,9 @@ $("importStrategyInput").addEventListener("change",async e=>{
   const file=e.target.files[0];if(!file)return;
   try{
     const parsed=JSON.parse(await file.text());if(!parsed.config||!parsed.days||!parsed.targets)throw new Error("不是有效的攻略檔");validateConfig(parsed.config);
-    parsed.configSignature=parsed.configSignature||strategySignature(parsed.config);parsed.estimate=parsed.estimate||strategyAllocateRolls(parsed,parsed.config);
-    parsed.validation=parsed.validation||strategyEvaluate(parsed,parsed.config,Math.min(300,Number(parsed.targets.samples||300)));
-    strategyPlan=parsed;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));renderStrategy();toast("攻略檔已匯入，可套用到遊戲")
+    parsed.configSignature=parsed.configSignature||strategySignature(parsed.config);strategyNormalizePlan(parsed,parsed.config);parsed.estimate=strategyAllocateRolls(parsed,parsed.config);
+    parsed.validation=strategyEvaluate(parsed,parsed.config,Math.min(300,Number(parsed.targets.samples||300)));
+    strategyPlan=parsed;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));renderStrategy();toast("攻略檔已匯入並以新版整週演算法重算")
   }catch(err){toast(`攻略匯入失敗：${err.message}`)}
   e.target.value=""
 });
