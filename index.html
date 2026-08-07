@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜階段基金動態規劃版 v7</title>
+<title>活動玩法模擬器｜非洲歐洲省翡翠版 v8</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -385,6 +385,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <label>今日任務完成量</label>
             <input class="input" type="number" id="dailyDiceInput" min="0">
             <button class="btn" id="claimDailyBtn">領取每日骰子</button>
+            <button class="btn secondary" id="refundDailyBtn">退回領取</button>
           </div>
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
           <div class="help" id="progressText"></div>
@@ -409,12 +410,11 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <div class="field"><label>攻略目標（兩種需求獨立）</label><select class="input" id="strategyTargetKind"><option value="premium" selected>高級兌換幣：允許用翡翠石補足</option><option value="normal">普通兌換幣：固定零翡翠石</option></select></div>
             <div class="field" id="premiumTargetField"><label id="premiumTargetLabel">高級兌換幣需求</label><input class="input" type="number" id="strategyPremiumTarget" min="0" step="1" value="17"></div>
             <div class="field" id="normalTargetField"><label id="normalTargetLabel">普通兌換幣需求</label><input class="input" type="number" id="strategyNormalTarget" min="0" step="1" value="500"></div>
-            <div class="field"><label>選定目標的判定方式</label><select class="input" id="strategyOptimizationMode"><option value="expected" selected>期望值達標（最低成本）</option><option value="probability">指定達標率（保守方案）</option></select></div>
-            <div class="field"><label>選定目標的達標率</label><input class="input" type="number" id="strategySuccessTarget" min="1" max="99" step="1" value="80"></div>
-            <div class="field"><label>最終驗證次數</label><input class="input" type="number" id="strategySamples" min="100" max="3000" step="100" value="500"></div>
+            <div class="field"><label>運氣估算模式</label><select class="input" id="strategyLuckMode"><option value="africa">非洲模式：箱子按最低常見結果</option><option value="europe" selected>歐洲模式：箱子按完整期望值</option></select></div>
+            <div class="field"><label>實戰驗證次數（僅供參考）</label><input class="input" type="number" id="strategySamples" min="100" max="3000" step="100" value="1000"></div>
             <div class="field"><label>產生攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">整週動態分析</button></div>
           </div>
-          <div class="help" style="margin-top:8px"><strong>高級目標：</strong>只判斷高級兌換幣，先拿滿每日免費、廣告與寶石禮包，再用整週階段 CP 分配圈數；仍不足才考慮翡翠石。<br><strong>普通目標：</strong>只判斷普通兌換幣，翡翠石固定為 0，高級兌換幣完全不納入達標條件。基金骰子會由演算法拆分到最能補足階段門檻的日期。</div>
+          <div class="help" style="margin-top:8px"><strong>高級目標：</strong>只判斷高級兌換幣，先拿滿每日任務、廣告與寶石禮包，再比較整週階段、基金領取時機及翡翠石組合。<br><strong>普通目標：</strong>只判斷普通兌換幣，翡翠石固定為 0，高級兌換幣完全不納入條件。<br><strong>非洲模式：</strong>骰子按平均 3.5 格，隨機箱按最低常見的 1 個計算。<strong>歐洲模式：</strong>骰子同樣按 3.5 格，隨機箱按完整期望值計算。下方 1000 次達標率只供風險參考，不參與購買最佳化。</div>
           <div class="sim-progress"><div id="strategyProgress"></div></div>
           <div class="help" id="strategyProgressText" style="margin-top:5px"></div>
           <div id="strategyWarning"></div>
@@ -447,7 +447,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             完成後目前操作畫面不會被改動。
           </div>
           <div class="sim-controls">
-            <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="10"></div>
+            <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="3000" value="1000"></div>
             <div class="field"><label>達標統計項目</label><select id="targetMetric"></select></div>
             <div class="field"><label>達標值（大於等於）</label><input class="input" type="number" id="targetValue" step="any" value="2055"></div>
             <div class="field"><label>執行</label><button class="btn green" id="runSimulationBtn" style="width:100%">全砸 → 重置 → 重複</button></div>
@@ -463,6 +463,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <select id="boxSelect"></select>
             <button class="btn green" id="openOneBoxBtn">開 1 箱</button>
             <button class="btn secondary" id="openAllBoxesBtn">全部開啟</button>
+            <button class="btn secondary" id="undoBoxBtn">退回上次開箱</button>
           </div>
           <div class="setting-grid">
             <div class="row-card"><h3 style="margin-top:0">目前資源</h3><div id="inventoryList"></div></div>
@@ -538,6 +539,10 @@ const DEFAULT_CONFIG = {
   event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true},
   simulator:{allowInsufficientCost:true},
+  strategyLuck:{
+    africa:{label:"非洲模式",diceAverage:3.5,boxMode:"minimum"},
+    europe:{label:"歐洲模式",diceAverage:3.5,boxMode:"expected"}
+  },
   items:[
     {id:"dice",name:"骰子",unit:"個",icon:"🎲"},
     {id:"dragonFruitJuice",name:"火龍果汁",unit:"個",icon:"🐉"},
@@ -612,9 +617,9 @@ const DEFAULT_CONFIG = {
       {id:"fundLap22",laps:22,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
       {id:"fundLap23",laps:23,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
       {id:"fundLap24",laps:24,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"petArmToken",amount:200}]},
-      {id:"fundLap25",laps:25,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap25",laps:25,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:20}]},
       {id:"fundLap26",laps:26,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
-      {id:"fundLap27",laps:27,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:10}]},
+      {id:"fundLap27",laps:27,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"dice",amount:20}]},
       {id:"fundLap28",laps:28,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"gem",amount:300}]},
       {id:"fundLap30",laps:30,freeRewards:[{itemId:"dice",amount:2}],premiumRewards:[{itemId:"limitedWishLetter",amount:1}]}
     ]
@@ -654,14 +659,14 @@ const DEFAULT_CONFIG = {
   ]
 };
 
-const STORAGE_STATE="monopolySimulatorStateV7";
-const STORAGE_CONFIG="monopolySimulatorConfigV7";
-const STORAGE_BASELINE="monopolySimulatorBaselineV7";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV7";
-const LEGACY_STATE="monopolySimulatorStateV6";
-const LEGACY_CONFIG="monopolySimulatorConfigV6";
-const LEGACY_BASELINE="monopolySimulatorBaselineV6";
-const LEGACY_STRATEGY="monopolySimulatorStrategyV6";
+const STORAGE_STATE="monopolySimulatorStateV8";
+const STORAGE_CONFIG="monopolySimulatorConfigV8";
+const STORAGE_BASELINE="monopolySimulatorBaselineV8";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV8";
+const LEGACY_STATE="monopolySimulatorStateV7";
+const LEGACY_CONFIG="monopolySimulatorConfigV7";
+const LEGACY_BASELINE="monopolySimulatorBaselineV7";
+const LEGACY_STRATEGY="monopolySimulatorStrategyV7";
 const LEGACY2_STATE="monopolySimulatorStateV4";
 const LEGACY2_CONFIG="monopolySimulatorConfigV4";
 const LEGACY2_BASELINE="monopolySimulatorBaselineV4";
@@ -682,8 +687,18 @@ let redoStack=[];
 let simulationBaseline=loadStoredBaseline();
 let batchResults=[];
 let strategyPlan=loadStoredStrategy();
+let strategyLuckContext="europe";
+let strategyLuckConfigContext=null;
+let strategyCarryWeight=0;
 
 function normalizeFundConfig(cfg){
+  if(!cfg.strategyLuck)cfg.strategyLuck={};
+  if(!cfg.strategyLuck.africa)cfg.strategyLuck.africa={label:"非洲模式",diceAverage:3.5,boxMode:"minimum"};
+  if(!cfg.strategyLuck.europe)cfg.strategyLuck.europe={label:"歐洲模式",diceAverage:3.5,boxMode:"expected"};
+  cfg.strategyLuck.africa.diceAverage=Math.max(.1,Number(cfg.strategyLuck.africa.diceAverage||3.5));
+  cfg.strategyLuck.europe.diceAverage=Math.max(.1,Number(cfg.strategyLuck.europe.diceAverage||3.5));
+  if(!["minimum","expected"].includes(cfg.strategyLuck.africa.boxMode))cfg.strategyLuck.africa.boxMode="minimum";
+  if(!["minimum","expected"].includes(cfg.strategyLuck.europe.boxMode))cfg.strategyLuck.europe.boxMode="expected";
   if(!cfg.fund)cfg.fund={};
   if(!cfg.fund.premiumCost)cfg.fund.premiumCost={itemId:cfg.currencies?.paidCurrencyId||"emerald",amount:0};
   if(!Array.isArray(cfg.fund.milestones)){
@@ -724,8 +739,8 @@ function createState(){
   return{
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
-    fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},
-    activeStrategy:null,log:[]
+    fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
+    lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
 }
 function ensureStateSchema(targetState=state,cfg=config){
@@ -744,6 +759,9 @@ function ensureStateSchema(targetState=state,cfg=config){
   if(!targetState.fundClaimEvents||typeof targetState.fundClaimEvents!=="object")targetState.fundClaimEvents={free:[],premium:[]};
   if(!Array.isArray(targetState.fundClaimEvents.free))targetState.fundClaimEvents.free=[];
   if(!Array.isArray(targetState.fundClaimEvents.premium))targetState.fundClaimEvents.premium=[];
+  if(!Object.prototype.hasOwnProperty.call(targetState,"fundEventSeq"))targetState.fundEventSeq=0;
+  if(!Object.prototype.hasOwnProperty.call(targetState,"lastFundUndo"))targetState.lastFundUndo=null;
+  if(!Object.prototype.hasOwnProperty.call(targetState,"lastBoxUndo"))targetState.lastBoxUndo=null;
   if(!Object.prototype.hasOwnProperty.call(targetState,"fundPremiumPurchased"))targetState.fundPremiumPurchased=!!targetState.fundPremiumClaimed;
   if(targetState.fundFreeClaimed&&!Object.keys(targetState.fundClaims.free).length){
     const day=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.fundFreeClaimDay||0)));
@@ -1084,22 +1102,57 @@ function claimDaily(){
   dayState().missionClaimed=true;dayState().missionAmount=amount;
   addItem(config.currencies.gameTokenId,amount,"每日任務",true);render()
 }
+function refundDailyClaim(){
+  if(!dayState().missionClaimed)return toast("本日尚未領取每日任務");
+  const amount=Number(dayState().missionAmount||0),token=config.currencies.gameTokenId;
+  recordHistory(`退回${config.event.dayLabels[state.currentDay]}每日任務`);
+  state.resources[token]=Number(state.resources[token]||0)-amount;
+  dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(token)*amount);
+  dayState().missionClaimed=false;dayState().missionAmount=0;
+  log(`退回每日任務 ${itemText(token,amount)}`);render();
+  toast(state.resources[token]<0?"已退回；骰子已使用，因此目前數量為負數。":"已退回每日任務")
+}
 function fundUnlockedUnclaimed(kind,targetState=state,cfg=config){
   ensureStateSchema(targetState,cfg);const claimed=targetState.fundClaims[kind]||{};
   return fundMilestones(cfg).filter(m=>Number(m.laps)<=Number(targetState.laps||0)&&!Object.prototype.hasOwnProperty.call(claimed,m.id))
 }
-function purchasePremiumFund(){
-  if(state.fundPremiumPurchased)return toast("進階基金已購買");
-  if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
-  recordHistory("購買進階基金");spend(config.fund.premiumCost,"購買進階基金");state.fundPremiumPurchased=true;render();toast("進階基金已解鎖，可領取目前圈數已開放的全部獎勵")
+function fundRewardsForMilestones(track,milestones){
+  return milestones.flatMap(m=>clone(track==="free"?(m.freeRewards||[]):(m.premiumRewards||[])))
 }
+function fundClaimCombined({purchase=false}={}){
+  const free=fundUnlockedUnclaimed("free"),premium=state.fundPremiumPurchased?fundUnlockedUnclaimed("premium"):[];
+  if(!free.length&&!premium.length&&!purchase)return toast("目前沒有新解鎖的基金獎勵");
+  const beforePurchased=state.fundPremiumPurchased,tracks=[];
+  if(purchase){
+    if(state.fundPremiumPurchased)return fundClaimCombined({purchase:false});
+    if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
+    recordHistory("購買進階基金並領取已解鎖獎勵");spend(config.fund.premiumCost,"購買進階基金");state.fundPremiumPurchased=true
+  }else recordHistory(state.fundPremiumPurchased?"領取免費與進階基金已解鎖獎勵":"領取免費基金已解鎖獎勵");
+  const nowFree=fundUnlockedUnclaimed("free"),nowPremium=state.fundPremiumPurchased?fundUnlockedUnclaimed("premium"):[];
+  const seq=++state.fundEventSeq,allRewards=[];
+  [["free",nowFree],["premium",nowPremium]].forEach(([kind,list])=>{
+    if(!list.length)return;const ids=[];
+    list.forEach(m=>{ids.push(m.id);state.fundClaims[kind][m.id]=state.currentDay;const rewards=kind==="free"?m.freeRewards:m.premiumRewards;(rewards||[]).forEach(r=>{allRewards.push({track:kind,milestoneId:m.id,...clone(r)});addItem(r.itemId,r.amount,`${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true)})});
+    const event={seq,day:state.currentDay,laps:Number(state.laps||0),milestoneIds:ids};state.fundClaimEvents[kind].push(event);tracks.push({kind,ids})
+  });
+  state.lastFundUndo={seq,purchased:purchase&&!beforePurchased,cost:purchase?clone(config.fund.premiumCost):null,tracks,rewards:allRewards,day:state.currentDay};
+  render();toast(`已一次領取免費 ${nowFree.length} 階${state.fundPremiumPurchased?`、進階 ${nowPremium.length} 階`:""}`)
+}
+function purchasePremiumFund(){return fundClaimCombined({purchase:true})}
 function claimFund(kind){
   if(kind==="premium"&&!state.fundPremiumPurchased)return purchasePremiumFund();
-  const unlocked=fundUnlockedUnclaimed(kind);if(!unlocked.length)return toast("目前沒有新解鎖的基金獎勵");
-  recordHistory(`領取${kind==="free"?"免費":"進階"}基金已解鎖獎勵`);
-  const ids=[];unlocked.forEach(m=>{ids.push(m.id);state.fundClaims[kind][m.id]=state.currentDay;const rewards=kind==="free"?m.freeRewards:m.premiumRewards;(rewards||[]).forEach(r=>addItem(r.itemId,r.amount,`${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true))});
-  state.fundClaimEvents[kind].push({day:state.currentDay,laps:Number(state.laps||0),milestoneIds:ids});render();toast(`已一次領取 ${unlocked.length} 個解鎖階段`)
+  return fundClaimCombined({purchase:false})
 }
+function undoLastFundAction(){
+  const u=state.lastFundUndo;if(!u)return toast("沒有可退回的基金操作");
+  recordHistory("退回上次基金操作");let negative=false;
+  (u.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(state.resources[r.itemId]<0)negative=true;dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(r.itemId)*Number(r.amount||0));delete state.fundClaims[r.track][r.milestoneId]});
+  ["free","premium"].forEach(kind=>state.fundClaimEvents[kind]=(state.fundClaimEvents[kind]||[]).filter(e=>Number(e.seq)!==Number(u.seq)));
+  if(u.purchased){state.fundPremiumPurchased=false;const c=u.cost;state.spent[c.itemId]=Math.max(0,Number(state.spent[c.itemId]||0)-Number(c.amount||0));if(!config.simulator.allowInsufficientCost)state.resources[c.itemId]=Number(state.resources[c.itemId]||0)+Number(c.amount||0)}
+  state.lastFundUndo=null;log("退回上次基金領取／購買");render();toast(negative?"已退回；部分基金獎勵已使用，因此資源可能為負數。":"已退回上次基金操作")
+}
+function dayStateForIndex(index){return state.days[Math.max(0,Math.min(state.days.length-1,Number(index||0)))]}
+
 function claimStage(stageNo){
   const stage=config.progressStages.find(x=>Number(x.stage)===Number(stageNo));
   if(!stage||dayState().claimedStages.includes(stage.stage)||dayState().score<Number(stage.requiredScore))return;
@@ -1107,6 +1160,13 @@ function claimStage(stageNo){
   dayState().claimedStages.push(stage.stage);
   stage.rewards.forEach(x=>addItem(x.itemId,x.amount,`第 ${stage.stage} 階獎勵`,true));render()
 }
+function refundStage(stageNo){
+  const stage=config.progressStages.find(x=>Number(x.stage)===Number(stageNo));if(!stage||!dayState().claimedStages.includes(stage.stage))return toast("此階段尚未領取");
+  recordHistory(`退回第 ${stage.stage} 階獎勵`);dayState().claimedStages=dayState().claimedStages.filter(x=>Number(x)!==Number(stage.stage));let negative=false;
+  (stage.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(state.resources[r.itemId]<0)negative=true;dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(r.itemId)*Number(r.amount||0))});
+  log(`退回第 ${stage.stage} 階獎勵：${rewardsText(stage.rewards)}`);render();toast(negative?"已退回；部分獎勵已使用，因此資源可能為負數。":"已退回階段獎勵")
+}
+
 function buyPackage(groupId,packageId){
   const group=config.packageGroups.find(x=>x.id===groupId);
   const pack=group?.packages.find(x=>x.id===packageId);if(!pack)return;
@@ -1167,7 +1227,14 @@ function openBoxes(all){
   let total=0;const detail={};
   for(let i=0;i<count;i++){const result=weightedPick(box.outcomes);total+=Number(result.amount);detail[result.amount]=(detail[result.amount]||0)+1}
   addItem(box.rewardItemId,total,`開啟 ${count} 個${box.name}`,true);
+  state.lastBoxUndo={boxId:box.id,boxItemId:box.boxItemId,rewardItemId:box.rewardItemId,count,total,day:state.currentDay,detail};
   log(`開箱分布：${Object.entries(detail).map(([a,n])=>`${a}個×${n}次`).join("、")}`);render()
+}
+function undoLastBoxOpen(){
+  const u=state.lastBoxUndo;if(!u)return toast("沒有可退回的開箱結果");
+  recordHistory("退回上次開箱");state.resources[u.boxItemId]=Number(state.resources[u.boxItemId]||0)+Number(u.count||0);state.resources[u.rewardItemId]=Number(state.resources[u.rewardItemId]||0)-Number(u.total||0);
+  dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(u.rewardItemId)*Number(u.total||0));
+  const negative=state.resources[u.rewardItemId]<0;state.lastBoxUndo=null;log(`退回上次開箱：返還 ${itemText(u.boxItemId,u.count)}，扣回 ${itemText(u.rewardItemId,u.total)}`);render();toast(negative?"已退回；開箱獎勵已使用，因此資源可能為負數。":"已退回上次開箱")
 }
 
 function cfgItem(cfg,id){return cfg.items.find(x=>x.id===id)||{id,name:id,unit:"",icon:"❔"}}
@@ -1270,7 +1337,7 @@ function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0
 async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");
   if(rolling)return toast("目前正在擲骰");
-  const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||10))));
+  const count=Math.max(1,Math.min(3000,Math.floor(Number($("simulationCount").value||1000))));
   $("simulationCount").value=count;
   const metricKey=$("targetMetric").value||"finalScore";
   const target=Number($("targetValue").value||0);
@@ -1356,14 +1423,15 @@ function strategyTargetItemId(cfg,kind){return kind==="premium"?cfg.currencies.p
 function strategyTargetName(cfg,kind){return cfgItem(cfg,strategyTargetItemId(cfg,kind)).name}
 function strategyEmptyPlan(cfg,targets){
   return{
-    version:4,optimizer:"milestone-fund-weekly-stage-dp",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
+    version:5,optimizer:"minimum-emerald-portfolio-search-with-luck-modes",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
     useFreeFund:true,usePremiumFund:false,
     days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{},rolls:0,expectedRolls:0,expectedLaps:0,fundFreeDice:0,fundPremiumDice:0,fundFreeMilestoneIds:[],fundPremiumMilestoneIds:[]})),
     estimate:null,validation:null,optimization:{freeAndGemSeeded:false,zeroEmeraldRate:0,paidPruned:0,notes:[]}
   }
 }
 function strategyNormalizePlan(plan,cfg=plan?.config||config){
-  if(!plan.targets)plan.targets={premium:0,normal:0,success:80,samples:500,mode:"expected"};
+  if(!plan.targets)plan.targets={premium:0,normal:0,samples:1000,luckMode:"europe"};
+  if(!plan.targets.luckMode)plan.targets.luckMode="europe";
   if(!plan.targets.kind)plan.targets.kind=Number(plan.targets.premium||0)>0?"premium":"normal";
   if(plan.targets.amount==null)plan.targets.amount=plan.targets.kind==="premium"?Number(plan.targets.premium||0):Number(plan.targets.normal||0);
   plan.targets.premium=plan.targets.kind==="premium"?Number(plan.targets.amount||0):0;
@@ -1385,6 +1453,7 @@ function strategyAddPurchase(plan,day,groupId,packId,count=1){
   const key=`${groupId}:${packId}`;
   plan.days[day].purchases[key]=Number(plan.days[day].purchases[key]||0)+Number(count||0)
 }
+function strategyLuckSettings(cfg,mode=strategyLuckContext){normalizeFundConfig(cfg);return cfg.strategyLuck?.[mode]||cfg.strategyLuck.europe}
 function strategyExpectedRollStats(cfg){
   const totalWeight=cfg.cellTypes.reduce((s,x)=>s+Math.max(0,Number(x.distributionWeight||0)),0)||1;
   const landingFactor=(Number(cfg.board.cellCount)-1)/Number(cfg.board.cellCount);
@@ -1396,12 +1465,16 @@ function strategyExpectedRollStats(cfg){
       means[r.itemId]=Number(means[r.itemId]||0)+expected;rewardScore+=expected*cfgScorePerItem(cfg,r.itemId)
     })
   });
-  const meanStep=(Number(cfg.board.diceSides)+1)/2;
+  const meanStep=Number(strategyLuckSettings(cfg).diceAverage||((Number(cfg.board.diceSides)+1)/2));
   const dicePerLap=meanStep>0?Number(cfg.board.cellCount)/meanStep:Infinity;
   const lapScorePerRoll=meanStep/Number(cfg.board.cellCount)*Number(cfg.scoreRules.pointsPerLap||0);
   return{itemMeans:means,normalPerRoll:Number(means[cfg.currencies.normalExchangeId]||0),premiumPerRoll:Number(means[cfg.currencies.premiumExchangeId]||0),scorePerRoll:lapScorePerRoll+rewardScore,lapsPerRoll:meanStep/Number(cfg.board.cellCount),dicePerLap,meanStep}
 }
-function strategyBoxMean(box){return box.outcomes.reduce((s,x)=>s+Number(x.amount||0)*Number(x.probability||0)/100,0)}
+function strategyBoxMean(box){
+  const mode=strategyLuckSettings(strategyLuckConfigContext||config).boxMode;
+  if(mode==="minimum")return Math.min(...box.outcomes.map(x=>Number(x.amount||0)));
+  return box.outcomes.reduce((s,x)=>s+Number(x.amount||0)*Number(x.probability||0)/100,0)
+}
 function strategyStageYield(stage,cfg,kind){
   const targetId=strategyTargetItemId(cfg,kind);let value=0,boxes=0;
   (stage.rewards||[]).forEach(r=>{
@@ -1457,30 +1530,50 @@ function strategyFixedInfo(plan,cfg,includeFund=true){
   days.forEach(x=>{x.dice=Number(x.grants[token]||0);x.directPremium=Number(x.grants[premium]||0);x.directNormal=Number(x.grants[normal]||0)});
   const totals={grants:{},costs:{},dice:0,directPremium:0,directNormal:0};days.forEach(x=>{Object.entries(x.grants).forEach(([id,v])=>totals.grants[id]=Number(totals.grants[id]||0)+v);Object.entries(x.costs).forEach(([id,v])=>totals.costs[id]=Number(totals.costs[id]||0)+v);totals.dice+=x.dice;totals.directPremium+=x.directPremium;totals.directNormal+=x.directNormal});return{days,totals}
 }
-function strategyFundTransition(entry,baseDice,lapsAdded,claimFree,claimPremium,cfg,kind,dpl){
+function strategyFundClaimPointOptions(entry,lapsAdded,cfg,allowPremium){
+  const start=Number(entry.totalLaps||0),end=start+Number(lapsAdded||0),points=[null],seen=new Set();
+  const freeClaimed=Number(entry.freeClaimed||0),premiumClaimed=Number(entry.premiumClaimed||0);
+  const addPoint=lap=>{const unlocked=strategyFundUnlockedCount(cfg,lap),needFree=unlocked>freeClaimed,needPremium=allowPremium&&unlocked>premiumClaimed;if(!(needFree||needPremium))return;const key=`${unlocked}`;if(seen.has(key))return;seen.add(key);points.push(Number(lap))};
+  addPoint(start);fundMilestones(cfg).forEach(m=>{const lap=Number(m.laps);if(lap>start+1e-9&&lap<=end+1e-9)addPoint(lap)});return points
+}
+function strategyFundTransition(entry,baseDice,lapsAdded,claimAt,claimPremium,cfg,kind,dpl){
+  const claimFree=claimAt!==null&&claimAt!==undefined;
   let available=Number(entry.carry||0)+Number(baseDice||0),cursor=Number(entry.totalLaps||0),freeIdx=Number(entry.freeClaimed||0),premiumIdx=Number(entry.premiumClaimed||0);
   const target=cursor+Number(lapsAdded||0),summary=strategyEmptySummary(),freeIds=[],premiumIds=[];
-  const claimAt=laps=>{
-    const unlocked=strategyFundUnlockedCount(cfg,laps);
-    if(claimFree&&unlocked>freeIdx){const range=strategyFundRange(cfg,"free",freeIdx,unlocked),part=strategyRewardSummary(range.rewards,cfg,kind);strategyMergeSummary(summary,part);available+=part.dice;freeIds.push(...range.ids);freeIdx=unlocked}
+  if(claimFree){
+    const point=Math.max(cursor,Math.min(target,Number(claimAt)));
+    const firstCost=(point-cursor)*dpl;if(firstCost>available+1e-8)return null;available-=firstCost;cursor=point;
+    const unlocked=strategyFundUnlockedCount(cfg,cursor);
+    if(unlocked>freeIdx){const range=strategyFundRange(cfg,"free",freeIdx,unlocked),part=strategyRewardSummary(range.rewards,cfg,kind);strategyMergeSummary(summary,part);available+=part.dice;freeIds.push(...range.ids);freeIdx=unlocked}
     if(claimPremium&&unlocked>premiumIdx){const range=strategyFundRange(cfg,"premium",premiumIdx,unlocked),part=strategyRewardSummary(range.rewards,cfg,kind);strategyMergeSummary(summary,part);available+=part.dice;premiumIds.push(...range.ids);premiumIdx=unlocked}
-  };
-  claimAt(cursor);
-  const thresholds=[...new Set(fundMilestones(cfg).map(m=>Number(m.laps)).filter(x=>x>cursor+1e-9&&x<=target+1e-9))].sort((a,b)=>a-b);
-  for(const threshold of thresholds){const cost=(threshold-cursor)*dpl;if(cost>available+1e-8)return null;available-=cost;cursor=threshold;claimAt(cursor)}
+  }
   const cost=(target-cursor)*dpl;if(cost>available+1e-8)return null;available-=cost;
-  return{carry:Number(Math.max(0,available).toFixed(6)),freeClaimed:freeIdx,premiumClaimed:premiumIdx,summary,freeIds,premiumIds,rolls:Number(lapsAdded||0)*dpl}
+  return{carry:Number(Math.max(0,available).toFixed(6)),freeClaimed:freeIdx,premiumClaimed:premiumIdx,summary,freeIds,premiumIds,rolls:Number(lapsAdded||0)*dpl,claimAt}
+}
+function strategyTransitionsForLaps(entry,baseDice,lapsAdded,cfg,kind,dpl,allowPremium){
+  return strategyFundClaimPointOptions(entry,lapsAdded,cfg,allowPremium).map(point=>strategyFundTransition(entry,baseDice,lapsAdded,point,allowPremium&&point!==null,cfg,kind,dpl)).filter(Boolean)
 }
 function strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,allowPremium){
-  const remainingFree=strategyFundRange(cfg,"free",Number(entry.freeClaimed||0),fundMilestones(cfg).length).rewards;
-  const remainingPremium=allowPremium?strategyFundRange(cfg,"premium",Number(entry.premiumClaimed||0),fundMilestones(cfg).length).rewards:[];
-  const upper=Math.max(0,Math.min(500,Math.floor((Number(entry.carry||0)+Number(baseDice||0)+strategyRewardSummary([...remainingFree,...remainingPremium],cfg,kind).dice)/Math.max(dpl,1e-9))+2));
-  let max=0;for(let k=0;k<=upper;k++){const t=strategyFundTransition(entry,baseDice,k,true,allowPremium,cfg,kind,dpl);if(!t)break;max=k}return max
+  const start=Number(entry.totalLaps||0),available=Number(entry.carry||0)+Number(baseDice||0),freeIdx=Number(entry.freeClaimed||0),premiumIdx=Number(entry.premiumClaimed||0);
+  let max=Math.floor(available/Math.max(dpl,1e-9));
+  const points=[start,...fundMilestones(cfg).map(m=>Number(m.laps)).filter(x=>x>start&&x<=start+max+1e-9)];
+  points.forEach(point=>{const cost=(point-start)*dpl;if(cost>available+1e-9)return;const unlocked=strategyFundUnlockedCount(cfg,point);let rewards=[];if(unlocked>freeIdx)rewards.push(...strategyFundRange(cfg,"free",freeIdx,unlocked).rewards);if(allowPremium&&unlocked>premiumIdx)rewards.push(...strategyFundRange(cfg,"premium",premiumIdx,unlocked).rewards);const dice=strategyRewardSummary(rewards,cfg,kind).dice;max=Math.max(max,Math.floor((available+dice)/Math.max(dpl,1e-9))) });
+  return Math.max(0,Math.min(500,max))
+}
+function strategyCandidateLaps(entry,baseDice,baseScore,cfg,kind,dpl,allowPremium,lapPoints){
+  const maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,allowPremium),start=Number(entry.totalLaps||0),set=new Set([0,maxK]);
+  fundMilestones(cfg).forEach(m=>{const k=Number(m.laps)-start;if(k>=0&&k<=maxK)set.add(Math.floor(k))});
+  const claimPoints=strategyFundClaimPointOptions(entry,maxK,cfg,allowPremium);
+  claimPoints.forEach(point=>{let fundScore=0,minK=0;if(point!==null){minK=Math.max(0,Number(point)-start);const unlocked=strategyFundUnlockedCount(cfg,point),rewards=[];if(unlocked>Number(entry.freeClaimed||0))rewards.push(...strategyFundRange(cfg,"free",Number(entry.freeClaimed||0),unlocked).rewards);if(allowPremium&&unlocked>Number(entry.premiumClaimed||0))rewards.push(...strategyFundRange(cfg,"premium",Number(entry.premiumClaimed||0),unlocked).rewards);fundScore=strategyRewardSummary(rewards,cfg,kind).score}
+    cfg.progressStages.forEach(stage=>{const raw=(Number(stage.requiredScore)-Number(baseScore||0)-fundScore)/Math.max(1e-9,lapPoints),k=Math.ceil(raw-1e-9);for(const v of [k-1,k,k+1])if(v>=minK&&v>=0&&v<=maxK)set.add(v)})
+  });
+  return [...set].filter(x=>Number.isFinite(x)).sort((a,b)=>a-b)
 }
 function strategyEntryBetter(a,b,includeCarry=false){
-  if(!b)return true;if(Math.abs(a.targetValue-b.targetValue)>1e-9)return a.targetValue>b.targetValue;if(a.activeDays!==b.activeDays)return a.activeDays<b.activeDays;if(Math.abs(a.overflow-b.overflow)>1e-9)return a.overflow<b.overflow;if(Math.abs(a.earlyPenalty-b.earlyPenalty)>1e-9)return a.earlyPenalty<b.earlyPenalty;if(includeCarry&&Math.abs(a.carry-b.carry)>1e-9)return a.carry>b.carry;return false
+  if(!b)return true;const av=Number(a.targetValue||0)+(includeCarry?Number(a.carry||0)*strategyCarryWeight:0),bv=Number(b.targetValue||0)+(includeCarry?Number(b.carry||0)*strategyCarryWeight:0);
+  if(Math.abs(av-bv)>1e-9)return av>bv;if(Math.abs(a.targetValue-b.targetValue)>1e-9)return a.targetValue>b.targetValue;if(a.activeDays!==b.activeDays)return a.activeDays<b.activeDays;if(Math.abs(a.overflow-b.overflow)>1e-9)return a.overflow<b.overflow;if(Math.abs(a.earlyPenalty-b.earlyPenalty)>1e-9)return a.earlyPenalty<b.earlyPenalty;if(includeCarry&&Math.abs(a.carry-b.carry)>1e-9)return a.carry>b.carry;return false
 }
-function strategyPruneStates(states,beamWidth=280){
+function strategyPruneStates(states,beamWidth=80){
   const exact=new Map();states.forEach(s=>{const key=`${s.carry.toFixed(3)}|${s.totalLaps}|${s.freeClaimed}|${s.premiumClaimed}`;if(strategyEntryBetter(s,exact.get(key),true))exact.set(key,s)});
   const buckets=new Map();[...exact.values()].forEach(s=>{const key=`${s.freeClaimed}|${s.premiumClaimed}|${Math.floor(Number(s.totalLaps||0)/5)}`;if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(s)});
   const kept=[];buckets.forEach(arr=>{arr.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);kept.push(...arr.slice(0,7))});kept.sort((a,b)=>strategyEntryBetter(a,b,true)?-1:strategyEntryBetter(b,a,true)?1:0);return kept.slice(0,beamWidth)
@@ -1495,28 +1588,27 @@ function strategySetFundSchedule(plan,cfg,choices){
 function strategyOptimizeSchedule(plan,cfg){
   strategyNormalizePlan(plan,cfg);plan.days.forEach(d=>{d.fundFreeMilestoneIds=[];d.fundPremiumMilestoneIds=[];d.fundFreeDice=0;d.fundPremiumDice=0;d.rolls=0;d.expectedRolls=0;d.expectedLaps=0});
   const kind=strategyTargetKind(plan),rollStats=strategyExpectedRollStats(cfg),lapPoints=Number(cfg.scoreRules.pointsPerLap||0),dpl=Number(rollStats.dicePerLap||Infinity),perRollTarget=kind==="premium"?Number(rollStats.premiumPerRoll||0):Number(rollStats.normalPerRoll||0);
+  const stageRows=strategyCumulativeStages(cfg,kind);let bestPerLap=0,ps=0,pv=0;stageRows.forEach(x=>{bestPerLap=Math.max(bestPerLap,(x.value-pv)/Math.max(1,(x.threshold-ps)/Math.max(1,lapPoints)));ps=x.threshold;pv=x.value});strategyCarryWeight=perRollTarget+bestPerLap/Math.max(dpl,1e-9);
   const base=strategyFixedInfo(plan,cfg,false),last=plan.days.length-1;
   let states=[{carry:0,totalLaps:0,freeClaimed:0,premiumClaimed:0,targetValue:0,activeDays:0,overflow:0,earlyPenalty:0,choices:[]}];
   for(let d=0;d<last;d++){
     const map=[],baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),baseDirect=strategyRewardYield(baseRewards,cfg,kind).value;
     states.forEach(entry=>{
-      const maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,plan.usePremiumFund);
-      for(let k=0;k<=maxK;k++){
-        const unlockedAtEnd=strategyFundUnlockedCount(cfg,Number(entry.totalLaps||0)+k),freePossible=unlockedAtEnd>Number(entry.freeClaimed||0),premPossible=plan.usePremiumFund&&unlockedAtEnd>Number(entry.premiumClaimed||0);
-        const freeOptions=freePossible?[false,true]:[false],premiumOptions=premPossible?[false,true]:[false];
-        for(const claimFree of freeOptions)for(const claimPremium of premiumOptions){
-          const t=strategyFundTransition(entry,baseDice,k,claimFree,claimPremium,cfg,kind,dpl);if(!t)continue;
+      const kOptions=strategyCandidateLaps(entry,baseDice,baseScore,cfg,kind,dpl,plan.usePremiumFund,lapPoints);
+      for(const k of kOptions){
+        const transitions=strategyTransitionsForLaps(entry,baseDice,k,cfg,kind,dpl,plan.usePremiumFund);
+        for(const t of transitions){
           const score=baseScore+Number(t.summary.score||0)+k*lapPoints,resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+Number(t.rolls||0)*perRollTarget+resolved.value;
           const next={carry:t.carry,totalLaps:Number(entry.totalLaps||0)+k,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(k>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0)+Number(t.rolls||0)*(last-d),choices:[...entry.choices,{laps:k,expectedRolls:t.rolls,score,resolved,...t}]};map.push(next)
         }
       }
-    });states=strategyPruneStates(map,280)
+    });states=strategyPruneStates(map,80)
   }
   let best=null;states.forEach(entry=>{
     const d=last,baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),baseDirect=strategyRewardYield(baseRewards,cfg,kind).value,maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,plan.usePremiumFund);
-    const t=strategyFundTransition(entry,baseDice,maxK,true,plan.usePremiumFund,cfg,kind,dpl);if(!t)return;
-    const allRolls=Number(t.rolls||0)+Number(t.carry||0),score=baseScore+Number(t.summary.score||0)+maxK*lapPoints,resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+allRolls*perRollTarget+resolved.value;
-    const final={carry:0,totalLaps:Number(entry.totalLaps||0)+maxK,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(allRolls>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0),choices:[...entry.choices,{laps:maxK,expectedRolls:allRolls,score,resolved,...t,expectedRolls:allRolls,leftoverDice:0}]};if(strategyEntryBetter(final,best,true))best=final
+    const transitions=strategyTransitionsForLaps(entry,baseDice,maxK,cfg,kind,dpl,plan.usePremiumFund);if(!transitions.length)return;
+    transitions.forEach(t=>{const allRolls=Number(t.rolls||0)+Number(t.carry||0),score=baseScore+Number(t.summary.score||0)+maxK*lapPoints,resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+allRolls*perRollTarget+resolved.value;
+    const final={carry:0,totalLaps:Number(entry.totalLaps||0)+maxK,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(allRolls>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0),choices:[...entry.choices,{laps:maxK,expectedRolls:allRolls,score,resolved,...t,expectedRolls:allRolls,leftoverDice:0}]};if(strategyEntryBetter(final,best,true))best=final})
   });
   if(!best)throw new Error("找不到可行的整週分配");strategySetFundSchedule(plan,cfg,best.choices);
   plan.days.forEach((d,i)=>{d.expectedLaps=Number(best.choices[i]?.laps||0);d.expectedRolls=Number(best.choices[i]?.expectedRolls||0)});
@@ -1531,7 +1623,10 @@ function strategyOptimizeSchedule(plan,cfg){
   });
   return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice,expectedNormal:cumNormal,expectedPremium:cumPremium,expectedBoxes,targetExpected:kind==="premium"?cumPremium:cumNormal,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,completedLaps:Number(best.totalLaps||0),integerRolls:usedInteger,freeFundClaimed:best.freeClaimed,premiumFundClaimed:best.premiumClaimed,totalFundStages:fundMilestones(cfg).length}}
 }
-function strategyAllocateRolls(plan,cfg){return strategyOptimizeSchedule(plan,cfg)}
+function strategyAllocateRolls(plan,cfg){
+  const oldMode=strategyLuckContext,oldCfg=strategyLuckConfigContext;strategyLuckContext=plan.targets?.luckMode||"europe";strategyLuckConfigContext=cfg;
+  try{return strategyOptimizeSchedule(plan,cfg)}finally{strategyLuckContext=oldMode;strategyLuckConfigContext=oldCfg}
+}
 function strategyBuildCandidates(plan,cfg){
   const candidates=[],paid=cfg.currencies.paidCurrencyId;
   if(!plan.usePremiumFund&&cfg.fund.premiumCost.itemId===paid&&Number(cfg.fund.premiumCost.amount||0)>0)candidates.push({id:"fundPremium",kind:"fund",day:0,cost:clone(cfg.fund.premiumCost),rewards:strategyFundRewards(cfg,"premium"),name:"進階基金"});
@@ -1565,6 +1660,55 @@ function strategyPaidUnitsInPlan(plan,cfg){
   }));return units
 }
 function strategyPlanPaidCost(plan,cfg){return Number(strategyFixedInfo(plan,cfg).totals.costs[cfg.currencies.paidCurrencyId]||0)}
+
+function strategyWeeklyPaidPortfolios(cfg,kind,maxCost){
+  const paid=cfg.currencies.paidCurrencyId,days=Number(cfg.event.totalDays),types=[];
+  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+    if(pack.cost.itemId!==paid||Number(pack.cost.amount||0)<=0)return;
+    const summary=strategyRewardSummary(pack.rewards||[],cfg,kind),maxCount=Number(pack.limit||0)*(group.dailyReset?days:1);
+    types.push({groupId:group.id,packId:pack.id,pack,group,cost:Number(pack.cost.amount||0),maxCount,dice:summary.dice,direct:summary.targetValue,score:summary.score})
+  }));
+  let states=[{cost:0,dice:0,direct:0,score:0,counts:Array(types.length).fill(0)}];
+  types.forEach((type,ti)=>{
+    const next=[];for(const st of states){const max=Math.min(type.maxCount,Math.floor((maxCost-st.cost)/type.cost));for(let n=0;n<=max;n++){const counts=st.counts.slice();counts[ti]=n;next.push({cost:st.cost+n*type.cost,dice:st.dice+n*type.dice,direct:st.direct+n*type.direct,score:st.score+n*type.score,counts})}}
+    const byCost=new Map();next.forEach(st=>{if(!byCost.has(st.cost))byCost.set(st.cost,[]);byCost.get(st.cost).push(st)});states=[];
+    byCost.forEach(arr=>{const unique=new Map();arr.forEach(x=>{const key=x.counts.join(",");if(!unique.has(key))unique.set(key,x)});const vals=[...unique.values()];vals.sort((a,b)=>(b.direct+b.dice*.075)-(a.direct+a.dice*.075)||b.direct-a.direct||b.dice-a.dice);states.push(...vals.slice(0,30))})
+  });
+  const grouped=new Map();states.forEach(st=>{if(!grouped.has(st.cost))grouped.set(st.cost,[]);grouped.get(st.cost).push(st)});grouped.forEach(arr=>arr.sort((a,b)=>(b.direct+b.dice*.075)-(a.direct+a.dice*.075)||b.direct-a.direct||b.dice-a.dice));
+  return{types,grouped}
+}
+function strategyApplyPortfolio(base,portfolio,types,fundFlag,templateIndex=0){
+  const plan=clone(base);plan.usePremiumFund=fundFlag;const dayCount=plan.days.length,orders=[[4,6,5,3,2,1,0],[6,4,5,3,2,1,0],[5,4,6,3,2,1,0],[0,1,2,3,4,5,6]].map(a=>a.filter(x=>x<dayCount));
+  portfolio.counts.forEach((count,ti)=>{if(!count)return;const type=types[ti],isDice=type.dice>0,order=isDice?orders[templateIndex%orders.length]:[...Array(dayCount).keys()].reverse();let left=count,round=0;
+    while(left>0&&round<100){let changed=false;for(const day of order){const perDay=Number(type.pack.limit||0),key=`${type.groupId}:${type.packId}`,cur=Number(plan.days[day].purchases[key]||0);if(cur>=perDay)continue;plan.days[day].purchases[key]=cur+1;left--;changed=true;if(left<=0)break}if(!changed)break;round++}
+  });return plan
+}
+function strategyPortfolioShortlist(arr){
+  const selected=new Map(),add=x=>{if(x)selected.set(x.counts.join(","),x)};
+  arr.slice(0,4).forEach(add);
+  const groups=new Map();arr.forEach(x=>{const key=Number(x.direct||0).toFixed(6);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x)});
+  groups.forEach(list=>{list.sort((a,b)=>b.dice-a.dice||b.score-a.score);add(list[0]);add(list[Math.floor((list.length-1)/2)]);add(list.at(-1))});
+  [...arr].sort((a,b)=>b.dice-a.dice).slice(0,2).forEach(add);[...arr].sort((a,b)=>b.direct-a.direct||b.dice-a.dice).slice(0,2).forEach(add);
+  return[...selected.values()].slice(0,16)
+}
+async function strategyFindCheapestPortfolio(base,cfg,amount,progress){
+  const kind=strategyTargetKind(base),fundCost=Number(cfg.fund.premiumCost.amount||0),upper=Math.max(10000,Math.ceil((Number(amount||0)*500+fundCost)/500)*500),portfolioData=strategyWeeklyPaidPortfolios(cfg,kind,upper),baseExpected=Number(base.estimate?.targetExpected||strategyAllocateRolls(base,cfg).targetExpected),fundSummary=strategyRewardSummary(strategyFundRewards(cfg,"premium"),cfg,kind),fundFast=fundSummary.targetValue+fundSummary.dice*.075;
+  for(let cost=0;cost<=upper;cost+=500){
+    const candidates=[];
+    for(const fundFlag of [false,true]){
+      const pcost=cost-(fundFlag?fundCost:0);if(pcost<0)continue;const arr=strategyPortfolioShortlist(portfolioData.grouped.get(pcost)||[]);
+      arr.forEach((portfolio,rank)=>{const fast=baseExpected+portfolio.direct+portfolio.dice*.075+(fundFlag?fundFast:0);if(fast+5.25<amount)return;candidates.push({portfolio,fundFlag,template:0,fast,rank})})
+    }
+    candidates.sort((a,b)=>a.rank-b.rank||b.fast-a.fast||Number(b.fundFlag)-Number(a.fundFlag));
+    for(let i=0;i<candidates.length;i++){
+      const c=candidates[i],plan=strategyApplyPortfolio(base,c.portfolio,portfolioData.types,c.fundFlag,c.template);plan.estimate=strategyAllocateRolls(plan,cfg);
+      if(progress)progress(cost,upper,i+1,c.fundFlag);
+      if(plan.estimate.targetExpected+1e-9>=amount)return plan;
+      await wait(0)
+    }
+  }
+  return null
+}
 function strategyCandidateApproxGain(unit,cfg,kind,baseEstimate){
   const token=cfg.currencies.gameTokenId,stats=strategyExpectedRollStats(cfg);let dice=0;
   (unit.rewards||[]).forEach(r=>{if(r.itemId===token)dice+=Number(r.amount||0)});
@@ -1626,30 +1770,21 @@ function strategyEvaluate(plan,cfg,count){
 async function generateStrategy(){
   if(rolling)return toast("目前正在擲骰");
   const kind=$("strategyTargetKind")?.value||"premium",premium=Math.max(0,Number($("strategyPremiumTarget").value||0)),normal=Math.max(0,Number($("strategyNormalTarget").value||0)),amount=kind==="premium"?premium:normal;
-  const mode=$("strategyOptimizationMode")?.value||"expected",success=Math.max(1,Math.min(99,Number($("strategySuccessTarget").value||80))),samples=Math.max(100,Math.min(3000,Math.floor(Number($("strategySamples").value||500))));
-  const targets={kind,amount,premium:kind==="premium"?amount:0,normal:kind==="normal"?amount:0,success,samples,mode},plan=strategyEmptyPlan(config,targets);strategySeedFreeAndGem(plan,config);
-  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="6%";$("strategyProgressText").textContent=`正在比較七天所有階段 CP，尋找${strategyTargetName(config,kind)}的最佳圈數分配…`;await wait(0);
-  plan.estimate=strategyAllocateRolls(plan,config);const baselineSamples=Math.min(Math.max(180,Math.floor(samples*.4)),samples);let validation=strategyEvaluate(plan,config,baselineSamples);
-  plan.optimization.zeroEmeraldRate=validation.targetRate;plan.optimization.zeroEmeraldExpected={premium:plan.estimate.expectedPremium,normal:plan.estimate.expectedNormal,target:plan.estimate.targetExpected};
-  plan.optimization.notes.push(`整週動態規劃：先最大化選定目標收益，再減少有操作的日期與無意義積分溢出`);
-  const paidId=config.currencies.paidCurrencyId,targetMet=()=>mode==="expected"?plan.estimate.targetExpected+1e-9>=amount:validation.targetRate+1e-9>=success;
-  if(kind==="normal"){
-    plan.optimization.notes.push(`普通兌換幣模式固定不使用${cfgItem(config,paidId).name}，高級兌換幣不納入條件`);
-    if(!targetMet())plan.optimization.notes.push(`零課方案最高期望約 ${fmt(plan.estimate.targetExpected)}，目標仍差 ${fmt(Math.max(0,amount-plan.estimate.targetExpected))}`)
-  }else if(!targetMet()){
-    let loops=0,candidates=strategyPaidCandidates(plan,config);$("strategyProgress").style.width="35%";$("strategyProgressText").textContent=`零翡翠石方案不足，按每單位${cfgItem(config,paidId).name}的高級收益尋找補強…`;await wait(0);
-    while(!targetMet()&&candidates.length&&loops++<60){
-      const unit=strategyPickPaidCandidate(plan,candidates,config);if(!unit)break;strategyAddUnit(plan,unit);plan.estimate=strategyAllocateRolls(plan,config);
-      if(mode==="probability")validation=strategyEvaluate(plan,config,Math.min(220,Math.max(100,Math.floor(samples*.28))));
-      candidates=strategyPaidCandidates(plan,config);$("strategyProgress").style.width=`${35+Math.min(40,loops*1.4)}%`;$("strategyProgressText").textContent=`補強第 ${loops} 步｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}｜${strategyTargetName(config,kind)}期望 ${fmt(plan.estimate.targetExpected)}${mode==="probability"?`｜達標率約 ${fmt(validation.targetRate)}%`:""}`;if(loops%2===0)await wait(0)
-    }
-    $("strategyProgress").style.width="80%";$("strategyProgressText").textContent="反向檢查並移除不必要的翡翠石購買…";await wait(0);
-    const removed=0;plan.optimization.paidPruned=removed;plan.optimization.notes.push("課金來源依每單位翡翠石的預估目標收益逐筆加入，達標後立即停止")
-  }else plan.optimization.notes.push(`0 ${cfgItem(config,paidId).name}方案已符合選定目標`);
-  $("strategyProgress").style.width="91%";$("strategyProgressText").textContent=`使用 ${samples} 次隨機遊戲驗證選定目標…`;await wait(0);
+  const luckMode=$("strategyLuckMode")?.value||"europe",samples=Math.max(100,Math.min(3000,Math.floor(Number($("strategySamples").value||1000))));
+  const targets={kind,amount,premium:kind==="premium"?amount:0,normal:kind==="normal"?amount:0,samples,luckMode},base=strategyEmptyPlan(config,targets);strategySeedFreeAndGem(base,config);
+  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="6%";$("strategyProgressText").textContent=`正在以${luckMode==="africa"?"非洲":"歐洲"}模式計算零翡翠石整週分配…`;await wait(0);
+  base.estimate=strategyAllocateRolls(base,config);base.optimization.zeroEmeraldExpected={premium:base.estimate.expectedPremium,normal:base.estimate.expectedNormal,target:base.estimate.targetExpected};let plan=base;
+  const paidName=cfgItem(config,config.currencies.paidCurrencyId).name;
+  if(kind==="premium"&&base.estimate.targetExpected+1e-9<amount){
+    $("strategyProgress").style.width="18%";$("strategyProgressText").textContent=`零翡翠石期望 ${fmt(base.estimate.targetExpected)}，正在按成本由低到高比較基金、骰子禮包與火龍果汁禮包…`;await wait(0);
+    const found=await strategyFindCheapestPortfolio(base,config,amount,(cost,upper,index,fund)=>{$("strategyProgress").style.width=`${18+Math.min(62,cost/Math.max(upper,1)*62)}%`;$("strategyProgressText").textContent=`搜尋 ${paidName} ${fmt(cost)} 方案｜候選 ${index}${fund?"｜含進階基金":""}`});
+    if(found)plan=found;else plan.optimization.notes.push("目前禮包上限內找不到期望值達標方案")
+  }else if(kind==="normal")plan.optimization.notes.push(`普通兌換幣模式固定不使用${paidName}，高級兌換幣不納入條件`);
+  plan.optimization.notes.push(`最佳化只以期望值與最低${paidName}為準；1000 次實戰達標率不會觸發額外購買`);
+  $("strategyProgress").style.width="88%";$("strategyProgressText").textContent=`正在執行 ${samples} 次實戰驗證（僅供風險參考）…`;await wait(0);
   plan.estimate=strategyAllocateRolls(plan,config);plan.validation=strategyEvaluate(plan,config,samples);strategyPlan=plan;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
-  $("strategyProgress").style.width="100%";$("strategyProgressText").textContent=`攻略完成：${strategyTargetName(config,kind)}獨立判定｜期望 ${fmt(plan.estimate.targetExpected)}｜達標率約 ${fmt(plan.validation.targetRate)}%｜${cfgItem(config,paidId).name} ${fmt(strategyPlanPaidCost(plan,config))}`;
-  $("generateStrategyBtn").disabled=false;renderStrategy();toast("整週動態攻略已產生")
+  $("strategyProgress").style.width="100%";$("strategyProgressText").textContent=`攻略完成：${strategyTargetName(config,kind)}期望 ${fmt(plan.estimate.targetExpected)}｜實戰達標率約 ${fmt(plan.validation.targetRate)}%（參考）｜${paidName} ${fmt(strategyPlanPaidCost(plan,config))}`;
+  $("generateStrategyBtn").disabled=false;renderStrategy();toast("整週省翡翠石攻略已產生")
 }
 function strategyOperationRows(plan,cfg){
   const kind=strategyTargetKind(plan),targetName=strategyTargetName(cfg,kind),rows=[];
@@ -1677,21 +1812,21 @@ function renderStrategy(){
   const has=!!strategyPlan;$("applyStrategyBtn").disabled=!has;$("exportStrategyBtn").disabled=!has;$("clearStrategyBtn").disabled=!has;
   if(!has){$("strategySummary").innerHTML="";$("strategyWarning").innerHTML="";$("strategyTable").innerHTML=`<div class="empty">先選擇高級或普通目標；兩種需求不會同時判定。</div>`;return}
   const cfg=strategyPlan.config||config;strategyNormalizePlan(strategyPlan,cfg);const e=strategyPlan.estimate,v=strategyPlan.validation,t=strategyPlan.targets,kind=strategyTargetKind(strategyPlan),targetName=strategyTargetName(cfg,kind),amount=strategyTargetAmount(strategyPlan);
-  const mismatch=strategySignature(config)!==strategyPlan.configSignature,optimizationNote=(strategyPlan.optimization?.notes||[]).join("；"),mode=t.mode||"expected",targetRate=Number(v.targetRate??v.jointRate??0);
-  const probabilityMessage=mode==="probability"&&targetRate<t.success?`<div class="strategy-warning">目前方案的${escapeHtml(targetName)}達標率為 ${fmt(targetRate)}%，低於希望的 ${fmt(t.success)}%。</div>`:`<div class="active-strategy" style="margin-top:8px"><strong>獨立判定：</strong>只檢查${escapeHtml(targetName)} ≥ ${fmt(amount)}；另一種兌換幣不會影響方案。</div>`;
+  const mismatch=strategySignature(config)!==strategyPlan.configSignature,optimizationNote=(strategyPlan.optimization?.notes||[]).join("；"),mode=t.luckMode||"europe",targetRate=Number(v.targetRate??v.jointRate??0);
+  const probabilityMessage=`<div class="active-strategy" style="margin-top:8px"><strong>獨立判定：</strong>只檢查${escapeHtml(targetName)} ≥ ${fmt(amount)}；1000 次達標率只供風險參考，不會要求系統加購。</div>`;
   $("strategyWarning").innerHTML=(mismatch?`<div class="strategy-warning">⚠️ 此攻略使用的活動設定與目前設定不同。套用時可連同設定一起匯入。</div>`:"")+probabilityMessage+(optimizationNote?`<div class="active-strategy" style="margin-top:8px"><strong>演算法：</strong>${escapeHtml(optimizationNote)}</div>`:"");
   const paid=cfg.currencies.paidCurrencyId,gem=cfg.items.find(x=>x.id==="gem"||x.name==="寶石")?.id;
   $("strategySummary").innerHTML=`
     <div class="strategy-stat"><div class="k">攻略目標</div><div class="v" style="font-size:15px">${escapeHtml(targetName)} ${fmt(amount)}</div></div>
     <div class="strategy-stat"><div class="k">目標期望值</div><div class="v">${fmt(e.targetExpected)}</div></div>
-    <div class="strategy-stat"><div class="k">目標達標率</div><div class="v">${fmt(targetRate)}%</div></div>
+    <div class="strategy-stat"><div class="k">實戰達標率（參考）</div><div class="v">${fmt(targetRate)}%</div></div>
     <div class="strategy-stat"><div class="k">預期箱子</div><div class="v">${fmt(e.expectedBoxes)}</div></div>
     <div class="strategy-stat"><div class="k">完成圈數期望</div><div class="v">${fmt(e.scheduleMeta?.completedLaps||0)}</div></div>
     <div class="strategy-stat"><div class="k">有操作日期</div><div class="v">${fmt(e.scheduleMeta?.activeDays||0)} 天</div></div>
     <div class="strategy-stat"><div class="k">無意義溢出分</div><div class="v">${fmt(e.scheduleMeta?.totalOverflow||0)}</div></div>
     <div class="strategy-stat"><div class="k">預估支出</div><div class="v" style="font-size:14px">${escapeHtml(cfgItem(cfg,paid).name)} ${fmt(e.costs[paid]||0)}<br>${gem?`${escapeHtml(cfgItem(cfg,gem).name)} ${fmt(e.costs[gem]||0)}`:""}</div></div>
-    <div class="strategy-stat"><div class="k">0 翡翠石基線率</div><div class="v">${fmt(strategyPlan.optimization?.zeroEmeraldRate||0)}%</div></div>
-    <div class="strategy-stat"><div class="k">判定口徑</div><div class="v" style="font-size:13px">${mode==="expected"?"選定目標期望值":"選定目標達標率"}</div></div>`;
+    <div class="strategy-stat"><div class="k">零課基線期望</div><div class="v">${fmt(strategyPlan.optimization?.zeroEmeraldExpected?.target||0)}</div></div>
+    <div class="strategy-stat"><div class="k">估算模式</div><div class="v" style="font-size:13px">${mode==="africa"?"非洲：箱子最低值":"歐洲：箱子期望值"}</div></div>`;
   const rows=strategyOperationRows(strategyPlan,cfg),operation=`<table class="strategy-table"><thead><tr><th>項目</th>${cfg.event.dayLabels.slice(0,cfg.event.totalDays).map(x=>`<th>${escapeHtml(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>row.section?`<tr class="strategy-section-row"><td colspan="${cfg.event.totalDays+1}">${escapeHtml(row.section)}</td></tr>`:`<tr><td>${escapeHtml(row.label)}</td>${row.values.map(x=>`<td>${escapeHtml(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   $("strategyTable").innerHTML=operation+strategyStageCpTable(cfg,kind)
 }
@@ -1777,6 +1912,7 @@ function renderDaily(){
   $("dailyDiceInput").max=config.dailyMission.maxGameTokens;
   $("claimDailyBtn").disabled=dayState().missionClaimed;
   $("claimDailyBtn").textContent=dayState().missionClaimed?"本日已領取":"領取每日骰子";
+  $("refundDailyBtn").disabled=!dayState().missionClaimed;
   const max=Math.max(1,...config.progressStages.map(x=>Number(x.requiredScore)));
   $("progressFill").style.width=`${Math.min(100,dayState().score/max*100)}%`;
   const next=config.progressStages.find(x=>dayState().score<Number(x.requiredScore));
@@ -1784,13 +1920,13 @@ function renderDaily(){
   const milestones=fundMilestones(config),unlockedCount=strategyFundUnlockedCount(config,state.laps),freeReady=fundUnlockedUnclaimed("free"),premiumReady=fundUnlockedUnclaimed("premium"),freeClaimed=Object.keys(state.fundClaims.free||{}).length,premiumClaimed=Object.keys(state.fundClaims.premium||{}).length,nextFund=milestones.find(m=>Number(m.laps)>Number(state.laps));
   const trackStatus=(kind,m)=>Object.prototype.hasOwnProperty.call(state.fundClaims[kind]||{},m.id)?`<span class="fund-track-status ok">已領</span>`:Number(m.laps)<=Number(state.laps)?`<span class="fund-track-status ready">可領</span>`:`<span class="fund-track-status lock">未解鎖</span>`;
   $("fundList").innerHTML=`<div class="fund-summary-grid">
-    <div class="row-card"><div class="row-top"><div><strong>🎟️ 免費基金</strong><div class="row-desc">已領 ${freeClaimed}/${milestones.length} 階｜目前可一次領 ${freeReady.length} 階</div></div><button class="btn small" data-fund="free" ${freeReady.length?"":"disabled"}>一次領取全部已解鎖</button></div><div class="fund-progress"><span style="width:${milestones.length?freeClaimed/milestones.length*100:0}%"></span></div></div>
-    <div class="row-card"><div class="row-top"><div><strong>👑 進階基金</strong><div class="row-desc">${state.fundPremiumPurchased?`已購買｜已領 ${premiumClaimed}/${milestones.length} 階｜目前可領 ${premiumReady.length} 階`:`購買成本：${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}`}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumPurchased&&!premiumReady.length?"disabled":""}>${state.fundPremiumPurchased?"一次領取全部已解鎖":"購買進階基金"}</button></div><div class="fund-progress"><span style="width:${milestones.length?premiumClaimed/milestones.length*100:0}%"></span></div></div>
-  </div><div class="help" style="margin-bottom:8px">目前完成 ${fmt(state.laps)} 圈，已解鎖 ${unlockedCount}/${milestones.length} 階${nextFund?`；下一階需 ${fmt(nextFund.laps)} 圈`:`；全部已解鎖`}。每次按領取會一次取得當下所有已解鎖且尚未領取的階段，不能挑單階。</div>
+    <div class="row-card"><div class="row-top"><div><strong>🎟️ 免費基金</strong><div class="row-desc">已領 ${freeClaimed}/${milestones.length} 階｜目前可一次領 ${freeReady.length} 階</div></div><div class="form-row"><button class="btn secondary small" data-undo-fund ${state.lastFundUndo?"":"disabled"}>退回上次</button><button class="btn small" data-fund="free" ${freeReady.length?"":"disabled"}>${state.fundPremiumPurchased?"同時領免費＋進階":"領取免費已解鎖"}</button></div></div><div class="fund-progress"><span style="width:${milestones.length?freeClaimed/milestones.length*100:0}%"></span></div></div>
+    <div class="row-card"><div class="row-top"><div><strong>👑 進階基金</strong><div class="row-desc">${state.fundPremiumPurchased?`已購買｜已領 ${premiumClaimed}/${milestones.length} 階｜目前可領 ${premiumReady.length} 階`:`購買成本：${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}`}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumPurchased&&!freeReady.length&&!premiumReady.length?"disabled":""}>${state.fundPremiumPurchased?"同時領免費＋進階":"購買並領取已解鎖"}</button></div><div class="fund-progress"><span style="width:${milestones.length?premiumClaimed/milestones.length*100:0}%"></span></div></div>
+  </div><div class="help" style="margin-bottom:8px">目前完成 ${fmt(state.laps)} 圈，已解鎖 ${unlockedCount}/${milestones.length} 階${nextFund?`；下一階需 ${fmt(nextFund.laps)} 圈`:`；全部已解鎖`}。每次按領取會一次取得當下所有已解鎖且尚未領取的階段；已購買進階基金時，免費與進階會同時領取。</div>
   <div class="fund-milestones"><table class="fund-table"><thead><tr><th>圈數</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{const cls=Number(m.laps)>Number(state.laps)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id)?"claimed":"unlocked");return`<tr class="${cls}"><td><strong>${fmt(m.laps)} 圈</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`}).join("")}</tbody></table></div>`;
   $("stageList").innerHTML=config.progressStages.map(stage=>{
     const claimed=dayState().claimedStages.includes(stage.stage),unlocked=dayState().score>=Number(stage.requiredScore);
-    return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div>`
+    return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-stage="${stage.stage}" ${claimed?"":"disabled"}>退回</button><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div></div>`
   }).join("")
 }
 function renderPackages(){
@@ -1809,7 +1945,8 @@ function renderResources(){
   $("spentList").innerHTML=spent.length?spent.map(x=>`<div class="resource-row"><span>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</span><strong>${fmt(state.spent[x.id])} ${escapeHtml(x.unit)}</strong></div>`).join(""):`<div class="empty">尚無支出</div>`;
   const current=$("boxSelect").value;
   $("boxSelect").innerHTML=config.randomBoxes.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}（持有 ${fmt(state.resources[x.boxItemId])}）</option>`).join("");
-  if(config.randomBoxes.some(x=>x.id===current))$("boxSelect").value=current
+  if(config.randomBoxes.some(x=>x.id===current))$("boxSelect").value=current;
+  $("undoBoxBtn").disabled=!state.lastBoxUndo
 }
 function renderDistribution(){
   const counts={};
@@ -1883,6 +2020,10 @@ function renderSettings(){
       <div class="field"><label>每完成一圈積分</label>${pathInput("scoreRules.pointsPerLap",c.scoreRules.pointsPerLap,"number",'step="any"')}</div>
       <div class="field"><label>地圖設定</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
+      <div class="field"><label>非洲模式每顆骰子平均格數</label>${pathInput("strategyLuck.africa.diceAverage",c.strategyLuck.africa.diceAverage,"number",'min="0.1" step="0.01"')}</div>
+      <div class="field"><label>非洲模式隨機箱</label><select data-path="strategyLuck.africa.boxMode"><option value="minimum" ${c.strategyLuck.africa.boxMode==="minimum"?"selected":""}>最低結果</option><option value="expected" ${c.strategyLuck.africa.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
+      <div class="field"><label>歐洲模式每顆骰子平均格數</label>${pathInput("strategyLuck.europe.diceAverage",c.strategyLuck.europe.diceAverage,"number",'min="0.1" step="0.01"')}</div>
+      <div class="field"><label>歐洲模式隨機箱</label><select data-path="strategyLuck.europe.boxMode"><option value="minimum" ${c.strategyLuck.europe.boxMode==="minimum"?"selected":""}>最低結果</option><option value="expected" ${c.strategyLuck.europe.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
     </div>
     <h3>每日名稱</h3>
     <div class="setting-grid">${labels.map((x,i)=>`<div class="field"><label>第 ${i+1} 天</label>${pathInput(`event.dayLabels.${i}`,x)}</div>`).join("")}</div>
@@ -1897,7 +2038,7 @@ function renderSettings(){
   </section>`;
 
   sections.fund=`<section class="setting-section active">
-    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段，免費與進階軌道分開領取。</div></div></div>
+    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段；購買進階基金後，免費與進階獎勵會同時領取。</div></div></div>
     <h3>活動基金（依累計圈數解鎖）</h3>
     <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需依圈數逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
     ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fmt(m.laps)} 圈解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
@@ -2044,6 +2185,8 @@ document.addEventListener("click",e=>{
   }
   const fund=e.target.closest("[data-fund]");if(fund)claimFund(fund.dataset.fund);
   const stage=e.target.closest("[data-stage]");if(stage)claimStage(stage.dataset.stage);
+  const refundStageBtn=e.target.closest("[data-refund-stage]");if(refundStageBtn)refundStage(refundStageBtn.dataset.refundStage);
+  const undoFundBtn=e.target.closest("[data-undo-fund]");if(undoFundBtn)undoLastFundAction();
   const buy=e.target.closest("[data-buy-package]");if(buy)buyPackage(buy.dataset.buyGroup,buy.dataset.buyPackage);
   const refund=e.target.closest("[data-refund-package]");if(refund)refundPackage(refund.dataset.refundGroup,refund.dataset.refundPackage);
   const multiplier=e.target.closest("[data-roll-count]");if(multiplier){
@@ -2059,8 +2202,10 @@ $("autoRollBtn").addEventListener("click",autoRoll);
 $("stopAutoBtn").addEventListener("click",()=>{stopAuto=true});
 $("refreshBoardBtn").addEventListener("click",()=>{recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()});
 $("claimDailyBtn").addEventListener("click",claimDaily);
+$("refundDailyBtn").addEventListener("click",refundDailyClaim);
 $("openOneBoxBtn").addEventListener("click",()=>openBoxes(false));
 $("openAllBoxesBtn").addEventListener("click",()=>openBoxes(true));
+$("undoBoxBtn").addEventListener("click",undoLastBoxOpen);
 $("clearLogBtn").addEventListener("click",()=>{recordHistory("清除模擬紀錄");state.log=[];render()});
 $("undoBtn").addEventListener("click",undoAction);
 $("redoBtn").addEventListener("click",redoAction);
