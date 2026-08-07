@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜逐日資源鎖定修正版 v8.4</title>
+<title>活動玩法模擬器｜蒙地卡羅校準版 v8.5</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -1427,7 +1427,7 @@ function strategyTargetItemId(cfg,kind){return kind==="premium"?cfg.currencies.p
 function strategyTargetName(cfg,kind){return cfgItem(cfg,strategyTargetItemId(cfg,kind)).name}
 function strategyEmptyPlan(cfg,targets){
   return{
-    version:7,optimizer:"minimum-emerald-chronological-search-v8.4",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
+    version:8,optimizer:"minimum-emerald-monte-carlo-calibrated-v8.5",createdAt:new Date().toISOString(),config:clone(cfg),configSignature:strategySignature(cfg),targets,
     useFreeFund:true,usePremiumFund:false,
     days:Array.from({length:Number(cfg.event.totalDays)},(_,day)=>({day,missionAmount:Number(cfg.dailyMission.maxGameTokens||0),purchases:{},rolls:0,expectedRolls:0,expectedLaps:0,fundFreeDice:0,fundPremiumDice:0,fundFreeMilestoneIds:[],fundPremiumMilestoneIds:[]})),
     estimate:null,validation:null,optimization:{freeAndGemSeeded:false,zeroEmeraldRate:0,paidPruned:0,notes:[]}
@@ -1799,8 +1799,19 @@ function strategySimClaimStages(sim,cfg){
     const day=sim.days[sim.currentDay];if(!day.claimedStages.includes(stage.stage)&&Number(day.score)>=Number(stage.requiredScore)){day.claimedStages.push(stage.stage);(stage.rewards||[]).forEach(r=>strategySimGrant(sim,cfg,r.itemId,r.amount));changed=true}
   })}
 }
-function strategySimOpenBoxes(sim,cfg){
-  cfg.randomBoxes.forEach(box=>{const count=Math.floor(Number(sim.resources[box.boxItemId]||0));if(count<1)return;sim.resources[box.boxItemId]-=count;let total=0;for(let i=0;i<count;i++)total+=Number(weightedPick(box.outcomes).amount||0);strategySimGrant(sim,cfg,box.rewardItemId,total)})
+function strategySimOpenBoxes(sim,cfg,plan){
+  const africa=(plan?.targets?.luckMode||"europe")==="africa";
+  cfg.randomBoxes.forEach(box=>{
+    const count=Math.floor(Number(sim.resources[box.boxItemId]||0));if(count<1)return;
+    sim.resources[box.boxItemId]-=count;let total=0;
+    if(africa){
+      const modal=[...(box.outcomes||[])].sort((a,b)=>Number(b.probability||0)-Number(a.probability||0)||Number(a.amount||0)-Number(b.amount||0))[0];
+      total=count*Number(modal?.amount||0)
+    }else{
+      for(let i=0;i<count;i++)total+=Number(weightedPick(box.outcomes).amount||0)
+    }
+    strategySimGrant(sim,cfg,box.rewardItemId,total)
+  })
 }
 function strategySimClaimPlannedFund(sim,cfg,plan,day){
   ["free","premium"].forEach(kind=>{
@@ -1825,7 +1836,7 @@ function simulateStrategyPlan(plan,cfg){
     }
     strategySimClaimPlannedFund(sim,cfg,plan,d);strategySimClaimStages(sim,cfg);dayResults.push({score:Number(sim.days[d].score||0),stage:sim.days[d].claimedStages.length?Math.max(...sim.days[d].claimedStages):0,plannedDice:planned,usedDice:dayUsed,shortfall:Math.max(0,planned-dayUsed),completed:dayUsed>=planned})
   }
-  strategySimOpenBoxes(sim,cfg);return{premium:Number(sim.resources[cfg.currencies.premiumExchangeId]||0),normal:Number(sim.resources[cfg.currencies.normalExchangeId]||0),usedDice,laps:Number(sim.laps||0),dayResults,chronologyCompleted:dayResults.every(x=>x.completed),resources:sim.resources}
+  strategySimOpenBoxes(sim,cfg,plan);return{premium:Number(sim.resources[cfg.currencies.premiumExchangeId]||0),normal:Number(sim.resources[cfg.currencies.normalExchangeId]||0),usedDice,laps:Number(sim.laps||0),dayResults,chronologyCompleted:dayResults.every(x=>x.completed),resources:sim.resources}
 }
 function strategyEvaluate(plan,cfg,count){
   const kind=strategyTargetKind(plan),amount=strategyTargetAmount(plan),premiumValues=[],normalValues=[],targetValues=[],results=[];let premiumHit=0,normalHit=0,targetHit=0,chronologyHit=0;
@@ -1833,30 +1844,132 @@ function strategyEvaluate(plan,cfg,count){
     const r=simulateStrategyPlan(plan,cfg),target=kind==="premium"?r.premium:r.normal;results.push(r);premiumValues.push(r.premium);normalValues.push(r.normal);targetValues.push(target);
     if(r.premium>=Number(plan.targets.premium||0))premiumHit++;if(r.normal>=Number(plan.targets.normal||0))normalHit++;if(target>=amount)targetHit++;if(r.chronologyCompleted)chronologyHit++
   }
-  const stat=arr=>({avg:average(arr),min:Math.min(...arr),max:Math.max(...arr)}),targetRate=amount<=0?100:targetHit/count*100;
+  const percentile=(arr,p)=>{const s=[...arr].sort((a,b)=>a-b),i=Math.max(0,Math.min(s.length-1,Math.floor((s.length-1)*p)));return s[i]};
+  const stat=arr=>({avg:average(arr),min:Math.min(...arr),p10:percentile(arr,.10),p25:percentile(arr,.25),median:percentile(arr,.50),p75:percentile(arr,.75),max:Math.max(...arr)}),targetRate=amount<=0?100:targetHit/count*100;
   return{count,targetKind:kind,targetRate,jointRate:targetRate,premiumRate:premiumHit/count*100,normalRate:normalHit/count*100,chronologyRate:chronologyHit/count*100,target:stat(targetValues),premium:stat(premiumValues),normal:stat(normalValues),avgLaps:average(results.map(x=>x.laps)),avgDayScores:plan.days.map((_,d)=>average(results.map(x=>x.dayResults[d]?.score||0)))}
+}
+
+function strategyExactTargetGrant(plan,cfg){
+  const kind=strategyTargetKind(plan),targetId=kind==="premium"?cfg.currencies.premiumExchangeId:cfg.currencies.normalExchangeId;
+  return Number(plan.estimate?.fixed?.totals?.grants?.[targetId]||0)
+}
+function strategyDirectTopUpCandidates(plan,cfg){
+  const kind=strategyTargetKind(plan),targetId=kind==="premium"?cfg.currencies.premiumExchangeId:cfg.currencies.normalExchangeId,paid=cfg.currencies.paidCurrencyId,out=[];
+  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+    if(pack.cost.itemId!==paid||Number(pack.cost.amount||0)<=0)return;
+    const direct=(pack.rewards||[]).filter(r=>r.itemId===targetId).reduce((s,r)=>s+Number(r.amount||0),0);
+    if(direct<=0)return;
+    for(let d=0;d<plan.days.length;d++){
+      const key=`${group.id}:${pack.id}`,owned=Number(plan.days[d].purchases?.[key]||0),available=Math.max(0,Number(pack.limit||0)-owned);
+      for(let n=0;n<available;n++)out.push({day:d,groupId:group.id,packId:pack.id,cost:Number(pack.cost.amount||0),direct,name:pack.name})
+    }
+  }));
+  return out.sort((a,b)=>a.cost/a.direct-b.cost/b.direct||a.cost-b.cost||b.direct-a.direct||b.day-a.day)
+}
+function strategyAddDirectTopUp(plan,cfg,shortfall){
+  if(strategyTargetKind(plan)!=="premium"||shortfall<=0)return 0;
+  const units=strategyDirectTopUpCandidates(plan,cfg),chosen=[];
+  let gain=0,cost=0;
+  // 小型整數背包：找出能補足差額且翡翠石最少的直接兌換幣組合。
+  let states=[{gain:0,cost:0,units:[]}];
+  units.forEach((unit,ui)=>{
+    const next=states.map(x=>x);
+    states.forEach(st=>next.push({gain:st.gain+unit.direct,cost:st.cost+unit.cost,units:[...st.units,ui]}));
+    const best=new Map();
+    next.forEach(st=>{
+      const g=Math.min(Math.ceil(shortfall)+30,st.gain),old=best.get(g);
+      if(!old||st.cost<old.cost)best.set(g,st)
+    });
+    states=[...best.values()].sort((a,b)=>a.cost-b.cost||a.gain-b.gain).slice(0,300)
+  });
+  const best=states.filter(x=>x.gain+1e-9>=shortfall).sort((a,b)=>a.cost-b.cost||a.gain-b.gain)[0];
+  if(!best)return 0;
+  best.units.forEach(i=>{const u=units[i];strategyAddPurchase(plan,u.day,u.groupId,u.packId,1);gain+=u.direct;cost+=u.cost});
+  plan.optimization.notes.push(`實戰校準後以直接高級兌換幣禮包補足約 ${fmt(gain)}，增加 ${fmt(cost)} ${cfgItem(cfg,cfg.currencies.paidCurrencyId).name}`);
+  return gain
+}
+async function strategyCalibrateForReality(base,initialPlan,cfg,amount,samples,progress){
+  let plan=initialPlan,searchTarget=Math.max(amount,Number(plan.estimate?.targetExpected||0));
+  const quickSamples=Math.max(160,Math.min(320,Math.floor(samples/3)));
+  const rounds=[];
+  for(let round=0;round<4;round++){
+    plan.estimate=strategyAllocateRolls(plan,cfg);
+    plan.chronology=strategyChronologyCheck(plan,cfg);
+    const quick=strategyEvaluate(plan,cfg,quickSamples);
+    const exact=strategyExactTargetGrant(plan,cfg);
+    const theoreticalRandom=Math.max(0,Number(plan.estimate.targetExpected||0)-exact);
+    const actualRandom=Math.max(0,Number(quick.target.avg||0)-exact);
+    const factor=theoreticalRandom>1e-9?Math.max(.25,Math.min(1.15,actualRandom/theoreticalRandom)):1;
+    rounds.push({round:round+1,formula:Number(plan.estimate.targetExpected||0),simAvg:Number(quick.target.avg||0),chronologyRate:Number(quick.chronologyRate||0),factor,cost:strategyPlanPaidCost(plan,cfg)});
+    if(progress)progress(round,quick,searchTarget);
+    if(quick.target.avg+1e-9>=amount&&quick.chronologyRate>=50){
+      plan.calibration={quickSamples,rounds,formulaToRealityFactor:factor,quickValidation:quick};
+      return plan
+    }
+    const neededRandom=Math.max(0,amount-exact);
+    const corrected=exact+(neededRandom/Math.max(.25,factor))*1.035;
+    searchTarget=Math.max(searchTarget+1,corrected);
+    const found=await strategyFindCheapestPortfolio(base,cfg,searchTarget);
+    if(!found)break;
+    const oldCost=strategyPlanPaidCost(plan,cfg),newCost=strategyPlanPaidCost(found,cfg);
+    if(newCost<=oldCost&&Number(found.estimate?.targetExpected||0)<=Number(plan.estimate?.targetExpected||0)+1e-9)break;
+    plan=found;
+    await wait(0)
+  }
+  plan.estimate=strategyAllocateRolls(plan,cfg);
+  let finalQuick=strategyEvaluate(plan,cfg,quickSamples);
+  if(finalQuick.target.avg+1e-9<amount&&strategyTargetKind(plan)==="premium"){
+    strategyAddDirectTopUp(plan,cfg,Math.ceil(amount-finalQuick.target.avg));
+    plan.estimate=strategyAllocateRolls(plan,cfg);
+    plan.chronology=strategyChronologyCheck(plan,cfg);
+    finalQuick=strategyEvaluate(plan,cfg,quickSamples)
+  }
+  plan.calibration={quickSamples,rounds,quickValidation:finalQuick,formulaToRealityFactor:Number(finalQuick.target.avg||0)/Math.max(1e-9,Number(plan.estimate.targetExpected||0))};
+  return plan
 }
 async function generateStrategy(){
   if(rolling)return toast("目前正在擲骰");
   const kind=$("strategyTargetKind")?.value||"premium",premium=Math.max(0,Number($("strategyPremiumTarget").value||0)),normal=Math.max(0,Number($("strategyNormalTarget").value||0)),amount=kind==="premium"?premium:normal;
-  const luckMode=$("strategyLuckMode")?.value||"europe",samples=Math.max(100,Math.min(3000,Math.floor(Number($("strategySamples").value||1000))));
+  const luckMode=$("strategyLuckMode")?.value||"europe",samples=Math.max(300,Math.min(3000,Math.floor(Number($("strategySamples").value||1000))));
   const targets={kind,amount,premium:kind==="premium"?amount:0,normal:kind==="normal"?amount:0,samples,luckMode},base=strategyEmptyPlan(config,targets);strategySeedFreeAndGem(base,config);
   strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);renderStrategy();
-  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="6%";$("strategyProgressText").textContent=`目標 ${fmt(amount)}｜${luckMode==="africa"?"非洲模式（箱子按 1 個）":"歐洲模式（箱子按完整期望值）"}｜正在完整計算零翡翠石基線…`;await wait(0);
+  $("generateStrategyBtn").disabled=true;$("strategyProgress").style.width="5%";$("strategyProgressText").textContent=`目標 ${fmt(amount)}｜正在計算零翡翠石整週基線…`;await wait(0);
   strategySchedulePrecision="exact";
   try{base.estimate=strategyAllocateRolls(base,config)}
-  finally{strategySchedulePrecision="fast"};base.optimization.zeroEmeraldExpected={premium:base.estimate.expectedPremium,normal:base.estimate.expectedNormal,target:base.estimate.targetExpected};let plan=base;
-  const paidName=cfgItem(config,config.currencies.paidCurrencyId).name;
+  finally{strategySchedulePrecision="fast"}
+  base.optimization.zeroEmeraldExpected={premium:base.estimate.expectedPremium,normal:base.estimate.expectedNormal,target:base.estimate.targetExpected};
+  let plan=base;const paidName=cfgItem(config,config.currencies.paidCurrencyId).name;
   if(kind==="premium"&&base.estimate.targetExpected+1e-9<amount){
-    $("strategyProgress").style.width="18%";$("strategyProgressText").textContent=`零翡翠石期望 ${fmt(base.estimate.targetExpected)}，正在按成本由低到高比較基金、骰子禮包與火龍果汁禮包…`;await wait(0);
-    const found=await strategyFindCheapestPortfolio(base,config,amount,(cost,upper,index,fund)=>{$("strategyProgress").style.width=`${18+Math.min(62,cost/Math.max(upper,1)*62)}%`;$("strategyProgressText").textContent=`${luckMode==="africa"?"非洲":"歐洲"}模式｜搜尋 ${paidName} ${fmt(cost)} 方案｜已驗證 ${index} 組${fund?"｜含進階基金":""}`});
-    if(found)plan=found;else plan.optimization.notes.push("目前禮包上限內找不到期望值達標方案")
-  }else if(kind==="normal")plan.optimization.notes.push(`普通兌換幣模式固定不使用${paidName}，高級兌換幣不納入條件`);
-  plan.optimization.notes.push(`最佳化只以期望值與最低${paidName}為準；1000 次實戰達標率不會觸發額外購買`);
-  $("strategyProgress").style.width="88%";$("strategyProgressText").textContent=`正在執行 ${samples} 次實戰驗證（僅供風險參考）…`;await wait(0);
-  plan.estimate=strategyAllocateRolls(plan,config);plan.chronology=strategyChronologyCheck(plan,config);plan.validation=strategyEvaluate(plan,config,samples);strategyPlan=plan;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
-  $("strategyProgress").style.width="100%";$("strategyProgressText").textContent=`攻略完成：${strategyTargetName(config,kind)}期望 ${fmt(plan.estimate.targetExpected)}｜逐日完整執行率約 ${fmt(plan.validation.chronologyRate)}%｜${paidName} ${fmt(strategyPlanPaidCost(plan,config))}`;
-  $("generateStrategyBtn").disabled=false;renderStrategy();toast("整週省翡翠石攻略已產生")
+    $("strategyProgress").style.width="15%";$("strategyProgressText").textContent=`公式基線 ${fmt(base.estimate.targetExpected)}，正在搜尋第一個低成本候選…`;await wait(0);
+    const found=await strategyFindCheapestPortfolio(base,config,amount,(cost,upper,index,fund)=>{
+      $("strategyProgress").style.width=`${15+Math.min(35,cost/Math.max(upper,1)*35)}%`;
+      $("strategyProgressText").textContent=`初步搜尋 ${paidName} ${fmt(cost)}｜已驗證 ${index} 組${fund?"｜含進階基金":""}`
+    });
+    if(found)plan=found;else plan.optimization.notes.push("目前禮包上限內找不到公式估算達標方案")
+  }else if(kind==="normal"){
+    plan.optimization.notes.push(`普通兌換幣模式固定不使用${paidName}，高級兌換幣不納入條件`)
+  }
+
+  $("strategyProgress").style.width="52%";$("strategyProgressText").textContent="正在用現實逐日流程進行蒙地卡羅校準；公式值不足以視為可行…";await wait(0);
+  plan=await strategyCalibrateForReality(base,plan,config,amount,samples,(round,quick,searchTarget)=>{
+    $("strategyProgress").style.width=`${52+round*8}%`;
+    $("strategyProgressText").textContent=`校準第 ${round+1} 輪｜公式 ${fmt(plan.estimate?.targetExpected||0)}｜模擬平均 ${fmt(quick.target.avg)}｜逐日完整 ${fmt(quick.chronologyRate)}%｜下一搜尋值 ${fmt(searchTarget)}`
+  });
+
+  $("strategyProgress").style.width="88%";$("strategyProgressText").textContent=`正在執行 ${samples} 次最終現實流程驗證…`;await wait(0);
+  plan.estimate=strategyAllocateRolls(plan,config);
+  plan.chronology=strategyChronologyCheck(plan,config);
+  plan.validation=strategyEvaluate(plan,config,samples);
+  plan.feasible=Number(plan.validation.target.avg||0)+1e-9>=amount&&Number(plan.validation.chronologyRate||0)>=50;
+  plan.optimization.notes.push(`最終可行性以 ${samples} 次現實逐日模擬平均值判定，不再以公式期望值直接判定`);
+  if(!plan.feasible)plan.optimization.notes.push(`本方案模擬平均僅 ${fmt(plan.validation.target.avg)}，未達 ${fmt(amount)}，已禁止套用`);
+  strategyPlan=plan;localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
+  $("strategyProgress").style.width="100%";
+  $("strategyProgressText").textContent=plan.feasible
+    ?`攻略完成：實測平均 ${fmt(plan.validation.target.avg)}｜達標率 ${fmt(plan.validation.targetRate)}%｜${paidName} ${fmt(strategyPlanPaidCost(plan,config))}`
+    :`未找到可靠方案：實測平均 ${fmt(plan.validation.target.avg)}／目標 ${fmt(amount)}；此結果不可套用`;
+  $("generateStrategyBtn").disabled=false;renderStrategy();
+  toast(plan.feasible?"已產生通過實戰校準的攻略":"方案未通過實戰校準，已禁止套用")
 }
 function strategyOperationRows(plan,cfg){
   const kind=strategyTargetKind(plan),targetName=strategyTargetName(cfg,kind),rows=[];
@@ -1889,16 +2002,19 @@ function updateStrategyTargetUI(){
 function renderStrategy(){
   $("premiumTargetLabel").textContent=`${item(config.currencies.premiumExchangeId).name}需求`;
   $("normalTargetLabel").textContent=`${item(config.currencies.normalExchangeId).name}需求`;updateStrategyTargetUI();
-  const has=!!strategyPlan;$("applyStrategyBtn").disabled=!has;$("exportStrategyBtn").disabled=!has;$("clearStrategyBtn").disabled=!has;
+  const has=!!strategyPlan;$("applyStrategyBtn").disabled=!has||strategyPlan?.feasible===false;$("exportStrategyBtn").disabled=!has;$("clearStrategyBtn").disabled=!has;
   if(!has){$("strategySummary").innerHTML="";$("strategyWarning").innerHTML="";$("strategyTable").innerHTML=`<div class="empty">先選擇高級或普通目標；兩種需求不會同時判定。</div>`;return}
   const cfg=strategyPlan.config||config;strategyNormalizePlan(strategyPlan,cfg);const e=strategyPlan.estimate,v=strategyPlan.validation,t=strategyPlan.targets,kind=strategyTargetKind(strategyPlan),targetName=strategyTargetName(cfg,kind),amount=strategyTargetAmount(strategyPlan);
   const mismatch=strategySignature(config)!==strategyPlan.configSignature,optimizationNote=(strategyPlan.optimization?.notes||[]).join("；"),mode=t.luckMode||"europe",targetRate=Number(v.targetRate??v.jointRate??0);
-  const probabilityMessage=`<div class="active-strategy" style="margin-top:8px"><strong>現實時間軸：</strong>攻略搜尋與套用都按週一→週日逐日到帳；未來日任務與禮包不會提前加入背包。逐日完整執行率表示隨機骰運下，能否依原定每天骰數完整走完。</div>`;
+  const probabilityMessage=`<div class="active-strategy" style="margin-top:8px"><strong>可行性判定：</strong>公式估算只用於找候選；最終必須以現實逐日流程模擬平均達到目標。未達標的方案會禁止套用。${strategyPlan.feasible===false?"<br><strong style=\"color:#c62828\">目前方案未通過，不可套用。</strong>":""}</div>`;
   $("strategyWarning").innerHTML=(mismatch?`<div class="strategy-warning">⚠️ 此攻略使用的活動設定與目前設定不同。套用時可連同設定一起匯入。</div>`:"")+probabilityMessage+(optimizationNote?`<div class="active-strategy" style="margin-top:8px"><strong>演算法：</strong>${escapeHtml(optimizationNote)}</div>`:"");
   const paid=cfg.currencies.paidCurrencyId,gem=cfg.items.find(x=>x.id==="gem"||x.name==="寶石")?.id;
   $("strategySummary").innerHTML=`
     <div class="strategy-stat"><div class="k">攻略目標／模式</div><div class="v" style="font-size:14px">${escapeHtml(targetName)} ${fmt(amount)}<br>${mode==="africa"?"非洲模式":"歐洲模式"}</div></div>
-    <div class="strategy-stat"><div class="k">目標期望值</div><div class="v">${fmt(e.targetExpected)}</div></div>
+    <div class="strategy-stat"><div class="k">公式估算值</div><div class="v">${fmt(e.targetExpected)}</div></div>
+    <div class="strategy-stat"><div class="k">${v.count}次實測平均</div><div class="v">${fmt(v.target.avg)}</div></div>
+    <div class="strategy-stat"><div class="k">實測中位數</div><div class="v">${fmt(v.target.median)}</div></div>
+    <div class="strategy-stat"><div class="k">實測25%分位</div><div class="v">${fmt(v.target.p25)}</div></div>
     <div class="strategy-stat"><div class="k">實戰達標率（參考）</div><div class="v">${fmt(targetRate)}%</div></div>
     <div class="strategy-stat"><div class="k">逐日完整執行率</div><div class="v">${fmt(v.chronologyRate??0)}%</div></div>
     <div class="strategy-stat"><div class="k">逐日資源硬檢查</div><div class="v">${strategyPlan.chronology?.ok===false?"不通過":"通過"}</div></div>
@@ -1944,7 +2060,7 @@ function prepareStrategyDay(dayIndex,{silent=false}={}){
   return true
 }
 function applyStrategyToGame(){
-  if(!strategyPlan)return;strategyNormalizePlan(strategyPlan,strategyPlan.config||config);
+  if(!strategyPlan)return;if(strategyPlan.feasible===false)return toast("此攻略未通過現實模擬校準，不能套用");strategyNormalizePlan(strategyPlan,strategyPlan.config||config);
   if(strategySignature(config)!==strategyPlan.configSignature){if(!confirm("攻略使用不同的活動設定。是否一併套用攻略內的活動設定？"))return;validateConfig(strategyPlan.config);config=normalizeFundConfig(clone(strategyPlan.config))}
   if(!confirm("套用後會從週一開始，只有進入當天時才發放當日任務與禮包資源；週日資源不能提前使用。可使用「復原上一步」返回，確定套用嗎？"))return;
   recordHistory("套用逐日時間軸攻略");state=createState();ensureStateSchema(state,config);generateBoard();
