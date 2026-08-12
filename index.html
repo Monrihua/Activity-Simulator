@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜偏差骰精細情境版 v14</title>
+<title>活動玩法模擬器｜自動收斂情境版 v15</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -415,7 +415,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <div class="field"><label>固定攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">依固定公式產生</button></div>
             <div class="field"><label>選配驗證</label><button class="btn secondary" id="validateStrategyBtn" style="width:100%" disabled>驗證目前攻略</button></div>
           </div>
-          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>固定分數模型：</strong>以每顆骰子3.5格作為基準。非洲／歐洲不再直接加減整圈，而改用「偏差骰」微調：預設只取1顆骰子，非洲把這1顆視為2格、基本3.5格、歐洲5格，因此整週只偏差 -1.5／0／+1.5 格，而不是一次跳30格。偏差骰數與點數都可設定。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
+          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>固定分數模型：</strong>基本方案永遠以每顆骰子3.5格計算。非洲／歐洲不再綁定102顆、整圈或固定偏差骰，而是依「本次實際使用骰子數 N」自動計算合理浮動；骰子越多，平均值自然越接近3.5。預設使用1.5σ，六面骰在N≈100時大約會落在3.25／3.5／3.75，N越大上下限會自動收斂。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
           <div class="sim-progress"><div id="strategyProgress"></div></div>
           <div class="help" id="strategyProgressText" style="margin-top:5px"></div>
           <div id="strategyWarning"></div>
@@ -540,12 +540,12 @@ const DEFAULT_CONFIG = {
   event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true,playerIcon:"🐹",startIcon:"🏁",startRewards:[]},
   simulator:{allowInsufficientCost:true},
-  strategyFormulaVersion:4,
+  strategyFormulaVersion:5,
   strategyLuck:{
-    deviationDiceCount:1,
-    africa:{label:"非洲方案",diceAverage:3.5,boxMode:"minimum",deviationDiceValue:2},
-    baseline:{label:"基本方案",diceAverage:3.5,boxMode:"minimum",deviationDiceValue:3.5},
-    europe:{label:"歐洲方案",diceAverage:3.5,boxMode:"expected",deviationDiceValue:5}
+    sigmaMultiplier:1.5,
+    africa:{label:"非洲方案",diceAverage:3.5,boxMode:"minimum"},
+    baseline:{label:"基本方案",diceAverage:3.5,boxMode:"minimum"},
+    europe:{label:"歐洲方案",diceAverage:3.5,boxMode:"expected"}
   },
   items:[
     {id:"dice",name:"骰子",unit:"個",icon:"🎲"},
@@ -666,7 +666,7 @@ const DEFAULT_CONFIG = {
 const STORAGE_STATE="monopolySimulatorStateV8";
 const STORAGE_CONFIG="monopolySimulatorConfigV8";
 const STORAGE_BASELINE="monopolySimulatorBaselineV8";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV14";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV15";
 const LEGACY_STATE="monopolySimulatorStateV7";
 const LEGACY_CONFIG="monopolySimulatorConfigV7";
 const LEGACY_BASELINE="monopolySimulatorBaselineV7";
@@ -705,20 +705,18 @@ function normalizeFundConfig(cfg){
   if(!cfg.board.playerIcon)cfg.board.playerIcon="🐹";
   if(!cfg.board.startIcon)cfg.board.startIcon="🏁";
   if(!cfg.strategyLuck)cfg.strategyLuck={};
-  if(!cfg.strategyLuck.africa)cfg.strategyLuck.africa={label:"非洲方案",diceAverage:3.5,boxMode:"minimum",deviationDiceValue:2};
-  if(!cfg.strategyLuck.baseline)cfg.strategyLuck.baseline={label:"基本方案",diceAverage:3.5,boxMode:"minimum",deviationDiceValue:3.5};
-  if(!cfg.strategyLuck.europe)cfg.strategyLuck.europe={label:"歐洲方案",diceAverage:3.5,boxMode:"expected",deviationDiceValue:5};
-  if(Number(cfg.strategyFormulaVersion||0)<4){
-    cfg.strategyLuck.deviationDiceCount=1;
-    cfg.strategyLuck.africa.deviationDiceValue=2;
-    cfg.strategyLuck.baseline.deviationDiceValue=3.5;
-    cfg.strategyLuck.europe.deviationDiceValue=5;
-    cfg.strategyFormulaVersion=4
+  if(!cfg.strategyLuck.africa)cfg.strategyLuck.africa={label:"非洲方案",diceAverage:3.5,boxMode:"minimum"};
+  if(!cfg.strategyLuck.baseline)cfg.strategyLuck.baseline={label:"基本方案",diceAverage:3.5,boxMode:"minimum"};
+  if(!cfg.strategyLuck.europe)cfg.strategyLuck.europe={label:"歐洲方案",diceAverage:3.5,boxMode:"expected"};
+  if(Number(cfg.strategyFormulaVersion||0)<5){
+    cfg.strategyLuck.sigmaMultiplier=1.5;
+    delete cfg.strategyLuck.deviationDiceCount;
+    ["africa","baseline","europe"].forEach(mode=>delete cfg.strategyLuck[mode].deviationDiceValue);
+    cfg.strategyFormulaVersion=5
   }
-  cfg.strategyLuck.deviationDiceCount=Math.max(0,Number(cfg.strategyLuck.deviationDiceCount||1));
+  cfg.strategyLuck.sigmaMultiplier=Math.max(0,Number(cfg.strategyLuck.sigmaMultiplier||1.5));
   ["africa","baseline","europe"].forEach(mode=>{
     cfg.strategyLuck[mode].diceAverage=Math.max(.1,Number(cfg.strategyLuck[mode].diceAverage||3.5));
-    cfg.strategyLuck[mode].deviationDiceValue=Number(cfg.strategyLuck[mode].deviationDiceValue??(mode==="africa"?2:mode==="europe"?5:3.5));
     if(!["minimum","expected"].includes(cfg.strategyLuck[mode].boxMode))cfg.strategyLuck[mode].boxMode=mode==="europe"?"expected":"minimum"
   });
   if(!cfg.fund)cfg.fund={};
@@ -1519,15 +1517,52 @@ function strategyAddPurchase(plan,day,groupId,packId,count=1){
   plan.days[day].purchases[key]=Number(plan.days[day].purchases[key]||0)+Number(count||0)
 }
 function strategyLuckSettings(cfg,mode=strategyLuckContext){normalizeFundConfig(cfg);return cfg.strategyLuck?.[mode]||cfg.strategyLuck.baseline}
-function strategyDeviationDiceCount(cfg){normalizeFundConfig(cfg);return Math.max(0,Number(cfg.strategyLuck?.deviationDiceCount||0))}
-function strategyDeviationDiceValue(cfg,mode=strategyLuckContext){return Number(strategyLuckSettings(cfg,mode).deviationDiceValue??strategyLuckSettings(cfg,"baseline").diceAverage??3.5)}
-function strategyDeviationCells(cfg,mode=strategyLuckContext){
-  const base=Number(strategyLuckSettings(cfg,"baseline").diceAverage||3.5);
-  return strategyDeviationDiceCount(cfg)*(strategyDeviationDiceValue(cfg,mode)-base)
+function strategyDiceStdDev(cfg){
+  const sides=Math.max(1,Number(cfg.board?.diceSides||6));
+  return Math.sqrt(Math.max(0,(sides*sides-1)/12))
 }
-function strategyDeviationLapEquivalent(cfg,mode=strategyLuckContext){return strategyDeviationCells(cfg,mode)/Math.max(1,Number(cfg.board.cellCount||30))}
-function strategyScoredLaps(laps,cfg,mode=strategyLuckContext,applyWeeklyAdjustment=false){
-  const n=Number(laps||0);return n>0?Math.max(0,n+(applyWeeklyAdjustment?strategyDeviationLapEquivalent(cfg,mode):0)):0
+function strategyLuckSigma(cfg){normalizeFundConfig(cfg);return Math.max(0,Number(cfg.strategyLuck?.sigmaMultiplier||1.5))}
+function strategyScenarioDelta(cfg,diceCount){
+  const n=Math.max(1,Number(diceCount||1));
+  return strategyLuckSigma(cfg)*strategyDiceStdDev(cfg)/Math.sqrt(n)
+}
+function strategyScenarioAverage(cfg,mode=strategyLuckContext,diceCount=1){
+  const base=Number(strategyLuckSettings(cfg,"baseline").diceAverage||3.5);
+  if(mode==="baseline")return base;
+  const delta=strategyScenarioDelta(cfg,diceCount),sign=mode==="africa"?-1:1;
+  const sides=Math.max(1,Number(cfg.board?.diceSides||6));
+  return Math.max(1,Math.min(sides,base+sign*delta))
+}
+function strategyDeviationCells(cfg,mode=strategyLuckContext,diceCount=0){
+  const n=Math.max(0,Number(diceCount||0));
+  if(n<=0||mode==="baseline")return 0;
+  const base=Number(strategyLuckSettings(cfg,"baseline").diceAverage||3.5);
+  return n*(strategyScenarioAverage(cfg,mode,n)-base)
+}
+function strategyDeviationLapEquivalent(cfg,mode=strategyLuckContext,diceCount=0){
+  return strategyDeviationCells(cfg,mode,diceCount)/Math.max(1,Number(cfg.board.cellCount||30))
+}
+function strategyScoredLaps(laps,cfg,mode=strategyLuckContext,applyWeeklyAdjustment=false,diceCount=0){
+  const n=Number(laps||0);
+  return n>0?Math.max(0,n+(applyWeeklyAdjustment?strategyDeviationLapEquivalent(cfg,mode,diceCount):0)):0
+}
+function strategyDailyNoPaidDice(cfg){
+  const token=cfg.currencies.gameTokenId,paid=cfg.currencies.paidCurrencyId;
+  let total=Math.max(0,Number(cfg.dailyMission?.maxGameTokens||0));
+  (cfg.packageGroups||[]).forEach(group=>{
+    if(!group.dailyReset)return;
+    (group.packages||[]).forEach(pack=>{
+      if(pack.cost?.itemId===paid)return;
+      const per=(pack.rewards||[]).filter(r=>r.itemId===token).reduce((s,r)=>s+Number(r.amount||0),0);
+      total+=per*Math.max(0,Number(pack.limit||0))
+    })
+  });
+  return total
+}
+function strategyScenarioReference(cfg,mode,diceCount){
+  const dice=Math.max(0,Number(diceCount||0));
+  const average=dice>0?strategyScenarioAverage(cfg,mode,dice):Number(strategyLuckSettings(cfg,"baseline").diceAverage||3.5);
+  return{dice,average,cells:dice*average,deltaCells:strategyDeviationCells(cfg,mode,dice)}
 }
 function startRewards(cfg=config){normalizeFundConfig(cfg);return cfg.board.startRewards||[]}
 function startRewardsText(cfg=config){return startRewards(cfg).length?startRewards(cfg).map(r=>`${cfgItem(cfg,r.itemId).icon||""}${cfgItem(cfg,r.itemId).name} ×${fmt(r.amount)}`).join("、"):"未設定獎勵"}
@@ -1761,7 +1796,7 @@ function strategyOptimizeSchedule(plan,cfg){
   let best=null;states.forEach(entry=>{
     const d=last,baseDice=Number(base.days[d].dice||0),baseScore=Number(base.days[d].score||0),baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),baseDirect=strategyRewardYield(baseRewards,cfg,kind).value,maxK=strategyMaxReachableLaps(entry,baseDice,cfg,kind,dpl,plan.usePremiumFund);
     const transitions=strategyTransitionsForLaps(entry,baseDice,maxK,cfg,kind,dpl,plan.usePremiumFund);if(!transitions.length)return;
-    transitions.forEach(t=>{const allRolls=Number(t.rolls||0)+Number(t.carry||0),scoredLaps=strategyScoredLaps(maxK,cfg,strategyLuckContext,true),luckDelta=scoredLaps-maxK,score=baseScore+Number(t.summary.score||0)+maxK*lapPoints+luckDelta*(lapPoints+Number(startSummary.score||0)),resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+allRolls*perRollTarget+luckDelta*Number(startSummary.targetValue||0)+resolved.value;
+    transitions.forEach(t=>{const allRolls=Number(t.rolls||0)+Number(t.carry||0),scoredLaps=strategyScoredLaps(maxK,cfg,strategyLuckContext,true,allRolls),luckDelta=scoredLaps-maxK,score=baseScore+Number(t.summary.score||0)+maxK*lapPoints+luckDelta*(lapPoints+Number(startSummary.score||0)),resolved=strategyResolveStage(score,cfg,kind),dayTarget=baseDirect+Number(t.summary.targetValue||0)+allRolls*perRollTarget+luckDelta*Number(startSummary.targetValue||0)+resolved.value;
     const final={carry:0,totalLaps:Number(entry.totalLaps||0)+maxK,freeClaimed:t.freeClaimed,premiumClaimed:t.premiumClaimed,targetValue:Number(entry.targetValue||0)+dayTarget,activeDays:Number(entry.activeDays||0)+(allRolls>0?1:0),overflow:Number(entry.overflow||0)+resolved.overflow,earlyPenalty:Number(entry.earlyPenalty||0),choices:[...entry.choices,{laps:maxK,scoredLaps,expectedRolls:allRolls,score,resolved,...t,expectedRolls:allRolls,leftoverDice:0}]};if(strategyEntryBetter(final,best,true))best=final})
   });
   if(!best)throw new Error("找不到可行的整週分配");strategySetFundSchedule(plan,cfg,best.choices);
@@ -1782,7 +1817,7 @@ function strategyOptimizeSchedule(plan,cfg){
     pd.targetStage=Number(choice.resolved.stage||0);
     pd.targetScore=Number(cfg.progressStages.find(x=>Number(x.stage)===Number(pd.targetStage))?.requiredScore||0);
     pd.targetBoxes=Number(premiumStage.boxes||0);
-    dayEstimates.push({fixedScore:Number(fixed.days[d].score||0),expectedScore:score,stage:choice.resolved.stage,targetStage:pd.targetStage,targetScore:pd.targetScore,boxes:premiumStage.boxes,targetStageValue:choice.resolved.value,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:Number(fixed.days[d].dice||0),expectedLaps:Number(choice.laps||0),scoredLaps:Number(choice.scoredLaps??strategyScoredLaps(choice.laps,cfg,strategyLuckContext,d===last)),expectedRolls:Number(choice.expectedRolls||0),actualRolls:rolls,overflow:Number(choice.resolved.overflow||0),gap:Number(choice.resolved.gap||0),fundFreeDice:Number(pd.fundFreeDice||0),fundPremiumDice:Number(pd.fundPremiumDice||0),fundFreeMilestoneIds:[...(pd.fundFreeMilestoneIds||[])],fundPremiumMilestoneIds:[...(pd.fundPremiumMilestoneIds||[])]})
+    dayEstimates.push({fixedScore:Number(fixed.days[d].score||0),expectedScore:score,stage:choice.resolved.stage,targetStage:pd.targetStage,targetScore:pd.targetScore,boxes:premiumStage.boxes,targetStageValue:choice.resolved.value,dayNormal,dayPremium,cumNormal,cumPremium,acquiredDice:Number(fixed.days[d].dice||0),expectedLaps:Number(choice.laps||0),scoredLaps:Number(choice.scoredLaps??strategyScoredLaps(choice.laps,cfg,strategyLuckContext,d===last,rolls)),expectedRolls:Number(choice.expectedRolls||0),actualRolls:rolls,overflow:Number(choice.resolved.overflow||0),gap:Number(choice.resolved.gap||0),fundFreeDice:Number(pd.fundFreeDice||0),fundPremiumDice:Number(pd.fundPremiumDice||0),fundFreeMilestoneIds:[...(pd.fundFreeMilestoneIds||[])],fundPremiumMilestoneIds:[...(pd.fundPremiumMilestoneIds||[])]})
   });
   return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice+totalStartDice,expectedNormal:cumNormal,expectedPremium:cumPremium,expectedBoxes,targetExpected:kind==="premium"?cumPremium:cumNormal,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,completedLaps:Number(best.totalLaps||0),integerRolls:usedInteger,freeFundClaimed:best.freeClaimed,premiumFundClaimed:best.premiumClaimed,totalFundStages:fundMilestones(cfg).length}}
 }
@@ -2138,10 +2173,9 @@ function strategyPaidPurchaseSummary(plan,cfg){
   }));
   return[...counts.entries()].map(([name,n])=>`${name}×${n}`).join("、")||"零翡翠"
 }
-function strategyBenchmarkScore(cfg,mode,dice=102){
-  const baseMove=Number(dice)*Number(cfg.strategyLuck.baseline.diceAverage||3.5);
-  const adjustedMove=baseMove+strategyDeviationCells(cfg,mode);
-  const scored=Math.max(0,adjustedMove/Math.max(1,Number(cfg.board.cellCount)));
+function strategyReferenceScore(cfg,mode,dice){
+  const ref=strategyScenarioReference(cfg,mode,dice);
+  const scored=Math.max(0,ref.cells/Math.max(1,Number(cfg.board.cellCount)));
   const startScore=startRewards(cfg).reduce((s,r)=>s+cfgScorePerItem(cfg,r.itemId)*Number(r.amount||0),0);
   return Number(dice)*cfgScorePerItem(cfg,cfg.currencies.gameTokenId)+scored*(Number(cfg.scoreRules.pointsPerLap||0)+startScore)
 }
@@ -2180,7 +2214,12 @@ function strategyScenarioSummary(plan,cfg){
     scoredLaps:plan.estimate.dayEstimates.map(x=>Number(x.scoredLaps||0)),
     totalDice:Number(plan.estimate.totalDice||0),
     purchases:strategyPaidPurchaseSummary(plan,cfg),
-    benchmark102:strategyBenchmarkScore(cfg,plan.targets.luckMode,102),
+    dailyNoPaidDice:strategyDailyNoPaidDice(cfg),
+    dailyNoPaidAverage:strategyScenarioAverage(cfg,plan.targets.luckMode,Math.max(1,strategyDailyNoPaidDice(cfg))),
+    dailyNoPaidScore:strategyReferenceScore(cfg,plan.targets.luckMode,Math.max(1,strategyDailyNoPaidDice(cfg))),
+    finalDayDice:Number(plan.days?.[plan.days.length-1]?.rolls||0),
+    finalDayAverage:strategyScenarioAverage(cfg,plan.targets.luckMode,Math.max(1,Number(plan.days?.[plan.days.length-1]?.rolls||1))),
+    finalDayDeltaCells:strategyDeviationCells(cfg,plan.targets.luckMode,Number(plan.days?.[plan.days.length-1]?.rolls||0)),
     feasible:plan.feasible
   }
 }
@@ -2199,7 +2238,7 @@ async function generateStrategy(){
 
   const modes=["africa","baseline","europe"],plans={};
   for(let mi=0;mi<modes.length;mi++){
-    const mode=modes[mi],label=mode==="africa"?"非洲下限":mode==="baseline"?"中間基準":"歐洲上限";
+    const mode=modes[mi],label=mode==="africa"?"非洲方案":mode==="baseline"?"基本方案":"歐洲方案";
     $("strategyProgress").style.width=`${8+mi*28}%`;
     $("strategyProgressText").textContent=`正在計算${label}固定方案；此步驟不使用隨機數…`;
     plans[mode]=await strategyBuildDeterministicPlan(config,kind,amount,mode,(cost,upper,index,fund)=>{
@@ -2213,7 +2252,7 @@ async function generateStrategy(){
   strategyPlan=strategyAttachScenarioBundle(plans.baseline,plans,config);
   strategyPlan.targets.samples=samples;
   strategyPlan.selectedScenario="baseline";
-  strategyPlan.optimization.notes.push("同一次產生已保存基本／非洲／歐洲三套完整流程；非洲／歐洲只在整週最後一天套用少量「偏差骰」格數，不再用整圈加減，也不會七天連續累加");
+  strategyPlan.optimization.notes.push("同一次產生已保存基本／非洲／歐洲三套完整流程；非洲／歐洲只在整週最後一天依該日實際骰子數計算統計浮動，骰子越多越自動收斂到3.5，不使用固定102或整圈偏差");
   localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
 
   $("strategyProgress").style.width="100%";
@@ -2324,14 +2363,19 @@ function strategyScenarioComparisonTable(plan,cfg){
   const cmp=plan.scenarioComparison;if(!cmp)return"";
   const labels={africa:"非洲方案",baseline:"基本方案",europe:"歐洲方案"};
   const selected=plan.selectedScenario||plan.targets.luckMode||"baseline",baseCost=Number(cmp.baseline?.cost||0);
-  return`<h3 style="margin:16px 0 8px">三套固定流程（選擇後，下方會顯示該方案完整七日表）</h3>
-  <table class="strategy-table"><thead><tr><th>方案</th><th>102骰固定分</th><th>翡翠石</th><th>相對基本</th><th>固定目標值</th><th>箱數</th><th>每日階段</th><th>付費組合</th><th>選擇</th></tr></thead><tbody>
+  const dailyRef=Number(cmp.baseline?.dailyNoPaidDice||strategyDailyNoPaidDice(cfg));
+  return`<h3 style="margin:16px 0 8px">三套固定流程（浮動依實際骰數自動收斂）</h3>
+  <div class="help">目前設定下，每日不花翡翠可取得約 <strong>${fmt(dailyRef)}</strong> 顆骰子；這只是畫面參考，不是校準常數。真正的非洲／歐洲平均格數會依各方案最後一天實際使用骰子數 N 自動計算。</div>
+  <table class="strategy-table"><thead><tr><th>方案</th><th>最後日骰數</th><th>最後日平均格</th><th>最後日格數偏差</th><th>翡翠石</th><th>相對基本</th><th>固定目標值</th><th>箱數</th><th>每日階段</th><th>付費組合</th><th>選擇</th></tr></thead><tbody>
   ${["baseline","africa","europe"].map(mode=>{
     const x=cmp[mode];if(!x)return"";
     const diff=Number(x.cost)-baseCost;
     return`<tr${mode===selected?' style="font-weight:800;background:rgba(255,214,64,.12)"':""}>
       <td>${labels[mode]}${mode===selected?"（目前）":""}</td>
-      <td>${fmt(x.benchmark102)}</td><td>${fmt(x.cost)}</td>
+      <td>${fmt(x.finalDayDice)}</td>
+      <td>${fmt(x.finalDayAverage)}</td>
+      <td>${Number(x.finalDayDeltaCells)>=0?"+":""}${fmt(x.finalDayDeltaCells)} 格</td>
+      <td>${fmt(x.cost)}</td>
       <td>${diff===0?"—":`${diff>0?"+":""}${fmt(diff)}`}</td>
       <td>${fmt(x.targetExpected)}</td><td>${fmt(x.boxes)}</td>
       <td>${x.stages.map(s=>s||"—").join("／")}</td>
@@ -2385,7 +2429,7 @@ function renderStrategy(){
     <div class="strategy-stat"><div class="k">進度箱數／換算</div><div class="v">${fmt(e.expectedBoxes)} 箱<br>${fmt(boxTarget)} ${escapeHtml(cfgItem(cfg,targetId).name)}</div></div>
     <div class="strategy-stat"><div class="k">直接取得目標貨幣</div><div class="v">${fmt(directTarget)}</div></div>
     <div class="strategy-stat"><div class="k">每顆骰子固定格數</div><div class="v">${fmt(cfg.strategyLuck.baseline.diceAverage)}</div></div>
-    <div class="strategy-stat"><div class="k">整週偏差骰</div><div class="v">${fmt(strategyDeviationDiceCount(cfg))}顆 × ${fmt(strategyDeviationDiceValue(cfg,mode))}格<br>偏差 ${strategyDeviationCells(cfg,mode)>=0?"+":""}${fmt(strategyDeviationCells(cfg,mode))}格</div></div>
+    <div class="strategy-stat"><div class="k">最後日情境浮動</div><div class="v">${fmt(Number(strategyPlan.days?.[strategyPlan.days.length-1]?.rolls||0))}骰 × 平均 ${fmt(strategyScenarioAverage(cfg,mode,Math.max(1,Number(strategyPlan.days?.[strategyPlan.days.length-1]?.rolls||1))))}格<br>偏差 ${strategyDeviationCells(cfg,mode,Number(strategyPlan.days?.[strategyPlan.days.length-1]?.rolls||0))>=0?"+":""}${fmt(strategyDeviationCells(cfg,mode,Number(strategyPlan.days?.[strategyPlan.days.length-1]?.rolls||0)))}格</div></div>
     <div class="strategy-stat"><div class="k">3.5格完成圈數</div><div class="v">${fmt(e.scheduleMeta?.completedLaps||0)}</div></div>
     <div class="strategy-stat"><div class="k">有操作日期</div><div class="v">${fmt(e.scheduleMeta?.activeDays||0)} 天</div></div>
     <div class="strategy-stat"><div class="k">無意義溢出分</div><div class="v">${fmt(e.scheduleMeta?.totalOverflow||0)}</div></div>
@@ -2903,13 +2947,12 @@ function renderSettings(){
       <div class="field"><label>地圖設定</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
       <div class="field"><label>固定計算：每顆骰子平均格數</label>${pathInput("strategyLuck.baseline.diceAverage",c.strategyLuck.baseline.diceAverage,"number",'min="0.1" step="0.01"')}</div>
-      <div class="field"><label>整週偏差骰數</label>${pathInput("strategyLuck.deviationDiceCount",c.strategyLuck.deviationDiceCount,"number",'min="0" step="1"')}</div>
-      <div class="field"><label>非洲方案：偏差骰每顆格數</label>${pathInput("strategyLuck.africa.deviationDiceValue",c.strategyLuck.africa.deviationDiceValue,"number",'min="1" max="6" step="0.1"')}</div>
-      <div class="field"><label>基本方案：偏差骰每顆格數</label>${pathInput("strategyLuck.baseline.deviationDiceValue",c.strategyLuck.baseline.deviationDiceValue,"number",'min="1" max="6" step="0.1"')}</div>
-      <div class="field"><label>歐洲方案：偏差骰每顆格數</label>${pathInput("strategyLuck.europe.deviationDiceValue",c.strategyLuck.europe.deviationDiceValue,"number",'min="1" max="6" step="0.1"')}</div>
-      <div class="field"><label>非洲下限隨機箱</label><select data-path="strategyLuck.africa.boxMode"><option value="minimum" ${c.strategyLuck.africa.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.africa.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
+      <div class="field"><label>非洲／歐洲浮動倍率（σ）</label>${pathInput("strategyLuck.sigmaMultiplier",c.strategyLuck.sigmaMultiplier,"number",'min="0" step="0.1"')}</div>
+      <div class="field"><label>目前每日零翡翠骰數（自動）</label><div class="input" style="height:auto;min-height:42px;display:flex;align-items:center">${fmt(strategyDailyNoPaidDice(c))} 顆｜只供參考，不作固定校準</div></div>
+      <div class="help" style="grid-column:1/-1">情境平均格數直接依本次骰子數 N 計算：基本＝${fmt(c.strategyLuck.baseline.diceAverage)}；非洲／歐洲＝基本 ± σ倍率 × 單顆骰子標準差 ÷ √N。活動復刻後每日任務或禮包數量改變，不需要重新設定102之類的基準值。</div>
+      <div class="field"><label>非洲方案隨機箱</label><select data-path="strategyLuck.africa.boxMode"><option value="minimum" ${c.strategyLuck.africa.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.africa.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
       <div class="field"><label>基本基準隨機箱</label><select data-path="strategyLuck.baseline.boxMode"><option value="minimum" ${c.strategyLuck.baseline.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.baseline.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
-      <div class="field"><label>歐洲上限隨機箱</label><select data-path="strategyLuck.europe.boxMode"><option value="minimum" ${c.strategyLuck.europe.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.europe.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
+      <div class="field"><label>歐洲方案隨機箱</label><select data-path="strategyLuck.europe.boxMode"><option value="minimum" ${c.strategyLuck.europe.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.europe.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
     </div>
     <h3>起點獎勵</h3>
     <div class="editor-card"><div class="help">每次完成一圈、棋子經過起點時取得。初始站在起點不會自動領取。</div><div class="editor-table">${rewardRows(c.board.startRewards||[],"board.startRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="board.startRewards">＋加入起點獎勵</button></div>
