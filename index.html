@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜自動收斂情境版 v15</title>
+<title>活動玩法模擬器｜低成本主線條件補救版 v16</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -415,7 +415,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <div class="field"><label>固定攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">依固定公式產生</button></div>
             <div class="field"><label>選配驗證</label><button class="btn secondary" id="validateStrategyBtn" style="width:100%" disabled>驗證目前攻略</button></div>
           </div>
-          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>固定分數模型：</strong>基本方案永遠以每顆骰子3.5格計算。非洲／歐洲不再綁定102顆、整圈或固定偏差骰，而是依「本次實際使用骰子數 N」自動計算合理浮動；骰子越多，平均值自然越接近3.5。預設使用1.5σ，六面骰在N≈100時大約會落在3.25／3.5／3.75，N越大上下限會自動收斂。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
+          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>主線＋補救：</strong>基本方案以3.5格與隨機箱期望值找「正常情況最省」的主流程，不會因為箱子保底差1個就先強迫多花500。產生主線後，再只針對最後一天搜尋條件式補救：主線做得到就不花，實際骰運不足才依救援梯加購。<br><strong>固定分數模型：</strong>非洲／歐洲依「本次實際使用骰子數 N」自動收斂；骰子越多，平均越接近3.5。非洲箱子保底仍保留作風險參考，但不拿來淘汰高期望值的基本主線。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
           <div class="sim-progress"><div id="strategyProgress"></div></div>
           <div class="help" id="strategyProgressText" style="margin-top:5px"></div>
           <div id="strategyWarning"></div>
@@ -540,11 +540,11 @@ const DEFAULT_CONFIG = {
   event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true,playerIcon:"🐹",startIcon:"🏁",startRewards:[]},
   simulator:{allowInsufficientCost:true},
-  strategyFormulaVersion:5,
+  strategyFormulaVersion:6,
   strategyLuck:{
     sigmaMultiplier:1.5,
     africa:{label:"非洲方案",diceAverage:3.5,boxMode:"minimum"},
-    baseline:{label:"基本方案",diceAverage:3.5,boxMode:"minimum"},
+    baseline:{label:"基本方案",diceAverage:3.5,boxMode:"expected"},
     europe:{label:"歐洲方案",diceAverage:3.5,boxMode:"expected"}
   },
   items:[
@@ -666,7 +666,7 @@ const DEFAULT_CONFIG = {
 const STORAGE_STATE="monopolySimulatorStateV8";
 const STORAGE_CONFIG="monopolySimulatorConfigV8";
 const STORAGE_BASELINE="monopolySimulatorBaselineV8";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV15";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV16";
 const LEGACY_STATE="monopolySimulatorStateV7";
 const LEGACY_CONFIG="monopolySimulatorConfigV7";
 const LEGACY_BASELINE="monopolySimulatorBaselineV7";
@@ -706,18 +706,21 @@ function normalizeFundConfig(cfg){
   if(!cfg.board.startIcon)cfg.board.startIcon="🏁";
   if(!cfg.strategyLuck)cfg.strategyLuck={};
   if(!cfg.strategyLuck.africa)cfg.strategyLuck.africa={label:"非洲方案",diceAverage:3.5,boxMode:"minimum"};
-  if(!cfg.strategyLuck.baseline)cfg.strategyLuck.baseline={label:"基本方案",diceAverage:3.5,boxMode:"minimum"};
+  if(!cfg.strategyLuck.baseline)cfg.strategyLuck.baseline={label:"基本方案",diceAverage:3.5,boxMode:"expected"};
   if(!cfg.strategyLuck.europe)cfg.strategyLuck.europe={label:"歐洲方案",diceAverage:3.5,boxMode:"expected"};
-  if(Number(cfg.strategyFormulaVersion||0)<5){
-    cfg.strategyLuck.sigmaMultiplier=1.5;
+  if(Number(cfg.strategyFormulaVersion||0)<6){
+    cfg.strategyLuck.sigmaMultiplier=Math.max(0,Number(cfg.strategyLuck.sigmaMultiplier||1.5));
     delete cfg.strategyLuck.deviationDiceCount;
     ["africa","baseline","europe"].forEach(mode=>delete cfg.strategyLuck[mode].deviationDiceValue);
-    cfg.strategyFormulaVersion=5
+    cfg.strategyLuck.baseline.boxMode="expected";
+    cfg.strategyLuck.africa.boxMode="minimum";
+    cfg.strategyLuck.europe.boxMode="expected";
+    cfg.strategyFormulaVersion=6
   }
   cfg.strategyLuck.sigmaMultiplier=Math.max(0,Number(cfg.strategyLuck.sigmaMultiplier||1.5));
   ["africa","baseline","europe"].forEach(mode=>{
     cfg.strategyLuck[mode].diceAverage=Math.max(.1,Number(cfg.strategyLuck[mode].diceAverage||3.5));
-    if(!["minimum","expected"].includes(cfg.strategyLuck[mode].boxMode))cfg.strategyLuck[mode].boxMode=mode==="europe"?"expected":"minimum"
+    if(!["minimum","expected"].includes(cfg.strategyLuck[mode].boxMode))cfg.strategyLuck[mode].boxMode=mode==="africa"?"minimum":"expected"
   });
   if(!cfg.fund)cfg.fund={};
   if(!cfg.fund.premiumCost)cfg.fund.premiumCost={itemId:cfg.currencies?.paidCurrencyId||"emerald",amount:0};
@@ -2138,6 +2141,132 @@ async function strategyCalibrateForReality(base,initialPlan,cfg,amount,samples,p
   plan.calibration={quickSamples,rounds,quickValidation:finalQuick,formulaToRealityFactor:Number(finalQuick.target.avg||0)/Math.max(1e-9,Number(plan.estimate.targetExpected||0))};
   return plan
 }
+
+function strategySamePrefixScore(a,b,last,cfg=config){
+  let diff=0;
+  for(let d=0;d<last;d++){
+    if(strategyDayTargetStage(a,cfg,d)!==strategyDayTargetStage(b,cfg,d))diff+=3;
+    const af=(a.days[d].fundFreeMilestoneIds||[]).join(","),bf=(b.days[d].fundFreeMilestoneIds||[]).join(",");
+    const ap=(a.days[d].fundPremiumMilestoneIds||[]).join(","),bp=(b.days[d].fundPremiumMilestoneIds||[]).join(",");
+    if(af!==bf)diff++;if(ap!==bp)diff++
+  }
+  return diff
+}
+function strategyLastDayAdaptiveTypes(plan,cfg){
+  const paid=cfg.currencies.paidCurrencyId,kind=strategyTargetKind(plan),last=plan.days.length-1,out=[];
+  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+    if(pack.cost.itemId!==paid||Number(pack.cost.amount||0)<=0)return;
+    const key=`${group.id}:${pack.id}`,owned=Number(plan.days[last].purchases?.[key]||0);
+    const remain=Math.max(0,Number(pack.limit||0)-owned);
+    if(remain<=0)return;
+    const summary=strategyRewardSummary(pack.rewards||[],cfg,kind);
+    if(summary.dice<=0&&summary.targetValue<=0)return;
+    out.push({groupId:group.id,packId:pack.id,name:pack.name,cost:Number(pack.cost.amount||0),remain,dice:summary.dice,direct:summary.targetValue})
+  }));
+  return out.sort((a,b)=>(a.cost/Math.max(1,a.dice*strategyCpValuePerDice(cfg,kind)+a.direct))-(b.cost/Math.max(1,b.dice*strategyCpValuePerDice(cfg,kind)+b.direct))||a.cost-b.cost)
+}
+function strategyAdaptiveCombos(plan,cfg,maxExtra=10000){
+  const types=strategyLastDayAdaptiveTypes(plan,cfg),states=[{cost:0,items:[],dice:0,direct:0}];
+  for(const type of types){
+    const base=[...states];
+    for(const st of base){
+      for(let n=1;n<=type.remain;n++){
+        const cost=st.cost+n*type.cost;if(cost>maxExtra)break;
+        states.push({cost,items:[...st.items,{...type,count:n}],dice:st.dice+n*type.dice,direct:st.direct+n*type.direct})
+      }
+    }
+    const byCost=new Map();
+    states.forEach(st=>{
+      const value=st.direct+st.dice*strategyCpValuePerDice(cfg,strategyTargetKind(plan));
+      if(!byCost.has(st.cost))byCost.set(st.cost,[]);
+      byCost.get(st.cost).push({...st,value})
+    });
+    states.length=0;
+    byCost.forEach(arr=>{
+      const unique=new Map();
+      arr.forEach(st=>{const key=(st.items||[]).map(x=>`${x.groupId}:${x.packId}:${x.count}`).sort().join('|');if(!unique.has(key))unique.set(key,st)});
+      states.push(...[...unique.values()].sort((a,b)=>b.value-a.value||b.dice-a.dice||b.direct-a.direct).slice(0,6))
+    });
+    states.sort((a,b)=>a.cost-b.cost||b.value-a.value);
+    if(states.length>240)states.splice(240)
+  }
+  return states.sort((a,b)=>a.cost-b.cost||b.value-a.value)
+}
+function strategyApplyAdaptiveCombo(plan,combo){
+  const next=clone(plan),last=next.days.length-1;
+  (combo.items||[]).forEach(x=>strategyAddPurchase(next,last,x.groupId,x.packId,x.count));
+  return next
+}
+async function strategyEvaluateAdaptiveVariant(basePlan,cfg,combo,mode,expectedBoxes=true){
+  const next=strategyApplyAdaptiveCombo(basePlan,combo),testCfg=clone(cfg);
+  normalizeFundConfig(testCfg);
+  next.targets.luckMode=mode;
+  if(expectedBoxes)testCfg.strategyLuck[mode].boxMode="expected";
+  strategySchedulePrecision="screen";
+  try{next.estimate=strategyAllocateRolls(next,testCfg)}
+  finally{strategySchedulePrecision="fast"}
+  next.chronology=strategyChronologyCheck(next,testCfg);
+  return{plan:next,cfg:testCfg}
+}
+async function strategyBuildRecoveryProfile(basePlan,cfg,amount,maxExtra=10000){
+  const last=basePlan.days.length-1,baseCost=strategyPlanPaidCost(basePlan,cfg);
+  const combos=strategyAdaptiveCombos(basePlan,cfg,maxExtra).filter(x=>x.cost>0);
+  let rescue=null;
+  for(const combo of combos){
+    const {plan:test,cfg:testCfg}=await strategyEvaluateAdaptiveVariant(basePlan,cfg,combo,"africa",true);
+    const prefixDiff=strategySamePrefixScore(basePlan,test,last,testCfg);
+    if(Number(test.estimate.targetExpected||0)+1e-9>=amount&&test.chronology.ok){
+      const candidate={extraCost:combo.cost,totalCost:baseCost+combo.cost,combo,prefixDiff,
+        targetExpected:Number(test.estimate.targetExpected||0),stages:test.days.map((d,i)=>strategyDayTargetStage(test,testCfg,i)),
+        purchases:combo.items.map(x=>`${x.name}×${x.count}`).join("、")};
+      if(!rescue||candidate.prefixDiff<rescue.prefixDiff||(candidate.prefixDiff===rescue.prefixDiff&&candidate.extraCost<rescue.extraCost))rescue=candidate;
+      if(candidate.prefixDiff===0)break
+    }
+  }
+
+  // 歐洲：只移除最後一天原本已買的付費禮包，前六天流程不動。
+  const paid=cfg.currencies.paidCurrencyId,lastUnits=[];
+  cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+    if(pack.cost.itemId!==paid)return;
+    const key=`${group.id}:${pack.id}`,n=Number(basePlan.days[last].purchases?.[key]||0);
+    for(let i=0;i<n;i++)lastUnits.push({groupId:group.id,packId:pack.id,name:pack.name,cost:Number(pack.cost.amount||0)})
+  }));
+  let saving=null;
+  const masks=Math.min(1<<Math.min(lastUnits.length,12),4096);
+  for(let mask=1;mask<masks;mask++){
+    const test=clone(basePlan),removed=[],seen={};let save=0;
+    for(let i=0;i<Math.min(lastUnits.length,12);i++)if(mask&(1<<i)){
+      const u=lastUnits[i],key=`${u.groupId}:${u.packId}`;
+      seen[key]=(seen[key]||0)+1;removed.push(u.name);save+=u.cost
+    }
+    Object.entries(seen).forEach(([key,n])=>test.days[last].purchases[key]=Math.max(0,Number(test.days[last].purchases[key]||0)-n));
+    test.targets.luckMode="europe";
+    strategySchedulePrecision="screen";
+    try{test.estimate=strategyAllocateRolls(test,cfg)}
+    finally{strategySchedulePrecision="fast"}
+    test.chronology=strategyChronologyCheck(test,cfg);
+    if(Number(test.estimate.targetExpected||0)+1e-9>=amount&&test.chronology.ok){
+      const prefixDiff=strategySamePrefixScore(basePlan,test,last,cfg);
+      const candidate={saving:save,totalCost:baseCost-save,removed:removed.join("、"),prefixDiff,targetExpected:Number(test.estimate.targetExpected||0)};
+      if(!saving||candidate.prefixDiff<saving.prefixDiff||(candidate.prefixDiff===saving.prefixDiff&&candidate.saving>saving.saving))saving=candidate
+    }
+  }
+
+  // 箱子部分另外列保底與期望，避免把「39保底、40.8期望」誤判成不可行。
+  const targetId=strategyTargetItemId(cfg,strategyTargetKind(basePlan));
+  const direct=Number(basePlan.estimate?.fixed?.totals?.grants?.[targetId]||0);
+  const boxes=Number(basePlan.estimate?.expectedBoxes||0);
+  let minPerBox=0,expectedPerBox=0;
+  cfg.randomBoxes.filter(b=>b.rewardItemId===targetId).forEach(b=>{
+    minPerBox+=Math.min(...b.outcomes.map(x=>Number(x.amount||0)));
+    expectedPerBox+=b.outcomes.reduce((s,x)=>s+Number(x.amount||0)*Number(x.probability||0)/100,0)
+  });
+  return{
+    baseCost,baseExpected:Number(basePlan.estimate?.targetExpected||0),
+    direct,boxes,boxMinimum:direct+boxes*minPerBox,boxExpected:direct+boxes*expectedPerBox,
+    rescue,saving
+  }
+}
 async function strategyBuildDeterministicPlan(cfg,kind,amount,mode,progress){
   const oldMode=strategyLuckContext,oldCfg=strategyLuckConfigContext;
   strategyLuckContext=mode;strategyLuckConfigContext=cfg;
@@ -2159,7 +2288,9 @@ async function strategyBuildDeterministicPlan(cfg,kind,amount,mode,progress){
     plan.chronology=strategyChronologyCheck(plan,cfg);
     plan.validation=null;
     plan.feasible=Number(plan.estimate.targetExpected||0)+1e-9>=amount;
-    plan.optimization.notes.push("攻略由固定分數與禮包CP直接計算；產生過程不使用隨機模擬");
+    plan.optimization.notes.push(mode==="baseline"
+      ?"基本主線以3.5格＋隨機箱期望值找最低正常花費；再另外計算只改最後一天的條件式補救"
+      :"攻略由固定情境公式與禮包CP直接計算；產生過程不使用隨機模擬");
     return plan
   }finally{strategyLuckContext=oldMode;strategyLuckConfigContext=oldCfg}
 }
@@ -2249,10 +2380,15 @@ async function generateStrategy(){
     await wait(0)
   }
 
+  $("strategyProgress").style.width="91%";
+  $("strategyProgressText").textContent="正在保留基本主流程，搜尋只改週日的最小補救與可省方案…";
+  plans.baseline.adaptiveProfile=await strategyBuildRecoveryProfile(plans.baseline,config,amount,Math.max(10000,Math.ceil(amount*500*.08/500)*500));
   strategyPlan=strategyAttachScenarioBundle(plans.baseline,plans,config);
   strategyPlan.targets.samples=samples;
   strategyPlan.selectedScenario="baseline";
-  strategyPlan.optimization.notes.push("同一次產生已保存基本／非洲／歐洲三套完整流程；非洲／歐洲只在整週最後一天依該日實際骰子數計算統計浮動，骰子越多越自動收斂到3.5，不使用固定102或整圈偏差");
+  strategyPlan.adaptiveProfile=clone(plans.baseline.adaptiveProfile);
+  strategyPlan.scenarioPlans.baseline.adaptiveProfile=clone(plans.baseline.adaptiveProfile);
+  strategyPlan.optimization.notes.push("基本方案採低成本主線＋條件式補救：主線成功就不買救援包；不足時只調整最後一天，不重做前六天流程");
   localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
 
   $("strategyProgress").style.width="100%";
@@ -2359,6 +2495,31 @@ function strategyStageCpTable(cfg,kind){
   return`<h3 style="margin:16px 0 8px">每日進度階段 CP 比較</h3><div class="help">${diceNote} 此表用於方向判斷；正式攻略仍會考慮禮包整包購買、每日上限、基金解鎖與七日資源時間。</div>
   <table class="strategy-table"><thead><tr><th>升到階段</th><th>新增門檻分</th><th>新增箱子</th><th>新增目標幣</th><th>約需骰子</th><th>估算翡翠</th><th>每1目標幣成本</th><th>與直接禮包比較</th></tr></thead><tbody>${rows.join("")}</tbody></table>`
 }
+function strategyAdaptiveProfileHtml(plan,cfg){
+  const p=plan.adaptiveProfile;
+  if(!p||((plan.selectedScenario||plan.targets?.luckMode)!=="baseline"))return"";
+  const rescue=p.rescue,saving=p.saving;
+  const rescueText=rescue
+    ?`正常先花 <strong>${fmt(p.baseCost)}</strong>；若最後一天實際骰運不足，再加 <strong>${fmt(rescue.extraCost)}</strong>（${escapeHtml(rescue.purchases)}），總上限約 <strong>${fmt(rescue.totalCost)}</strong>。${rescue.prefixDiff===0?"前六天流程完全相同。":"前六天購買相同；公式重算有少量階段差異，實玩仍以原主線為準。"}`
+    :"目前最後一天可購禮包內，尚未找到非洲情境也能補回目標的單純救援組合。";
+  const savingText=saving
+    ?`若最後一天實際資源明顯優於基本值，可嘗試少花 <strong>${fmt(saving.saving)}</strong>（移除：${escapeHtml(saving.removed)}），最低約 <strong>${fmt(saving.totalCost)}</strong>。`
+    :"目前沒有只刪最後一天禮包仍能維持歐洲情境目標的方案。";
+  return`<h3 style="margin:16px 0 8px">低成本主線＋條件式補救</h3>
+    <div class="active-strategy">
+      <div class="help"><strong>主線：</strong>不是先把最壞情況預付。基本方案先按正常期望走；只有最後一天真的不足才追加。</div>
+      <div class="active-strategy-grid" style="margin-top:8px">
+        <div class="active-strategy-cell"><div class="k">正常主線花費</div><div class="v">${fmt(p.baseCost)}</div></div>
+        <div class="active-strategy-cell"><div class="k">箱子保底／期望</div><div class="v">${fmt(p.boxMinimum)}／${fmt(p.boxExpected)}</div></div>
+        <div class="active-strategy-cell"><div class="k">運氣差追加</div><div class="v">${rescue?`+${fmt(rescue.extraCost)}`:"—"}</div></div>
+        <div class="active-strategy-cell"><div class="k">補救後總成本</div><div class="v">${rescue?fmt(rescue.totalCost):"—"}</div></div>
+        <div class="active-strategy-cell"><div class="k">運氣好可省</div><div class="v">${saving?`-${fmt(saving.saving)}`:"—"}</div></div>
+        <div class="active-strategy-cell"><div class="k">理想最低成本</div><div class="v">${saving?fmt(saving.totalCost):fmt(p.baseCost)}</div></div>
+      </div>
+      <div class="help" style="margin-top:8px"><strong>差時怎麼補：</strong>${rescueText}</div>
+      <div class="help" style="margin-top:6px"><strong>好時怎麼省：</strong>${savingText}</div>
+    </div>`
+}
 function strategyScenarioComparisonTable(plan,cfg){
   const cmp=plan.scenarioComparison;if(!cmp)return"";
   const labels={africa:"非洲方案",baseline:"基本方案",europe:"歐洲方案"};
@@ -2438,7 +2599,7 @@ function renderStrategy(){
 
   const rows=strategyOperationRows(strategyPlan,cfg);
   const operation=`<table class="strategy-table"><thead><tr><th>項目</th>${cfg.event.dayLabels.slice(0,cfg.event.totalDays).map(x=>`<th>${escapeHtml(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>row.section?`<tr class="strategy-section-row"><td colspan="${cfg.event.totalDays+1}">${escapeHtml(row.section)}</td></tr>`:`<tr><td>${escapeHtml(row.label)}</td>${row.values.map(x=>`<td>${escapeHtml(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-  $("strategyTable").innerHTML=operation+strategyScenarioComparisonTable(strategyPlan,cfg)+strategyDirectCpTable(cfg,kind)+strategyStageCpTable(cfg,kind)
+  $("strategyTable").innerHTML=operation+strategyAdaptiveProfileHtml(strategyPlan,cfg)+strategyScenarioComparisonTable(strategyPlan,cfg)+strategyDirectCpTable(cfg,kind)+strategyStageCpTable(cfg,kind)
 }
 function strategyGrantToGame(day,id,amount){
   const v=Number(amount||0);state.resources[id]=Number(state.resources[id]||0)+v;state.days[day].score=Number(state.days[day].score||0)+scorePerItem(id)*v;
@@ -2764,6 +2925,9 @@ function renderActiveStrategyCard(){
   const chronology=active.plan.chronology?.days?.[d],estimate=active.plan.estimate?.dayEstimates?.[d];
   const sim=strategyDaySimulationStats[d],attempt=active.attemptResults?.[d],sampleCount=Math.max(500,Math.min(10000,Math.floor(Number($("strategySamples")?.value||active.plan.targets?.samples||3000))));
   const objectiveText=`第 ${targetStage} 階${plannedFundLaps.length?`＋完成至 ${Math.max(...plannedFundLaps)} 圈基金`:""}`;
+  const recovery=active.plan.adaptiveProfile?.rescue;
+  const recoveryHint=(d===active.plan.days.length-1&&recovery)
+    ?`<div class="help" style="margin-top:6px"><strong>最後日救援：</strong>先照主線跑，不足時再考慮 +${fmt(recovery.extraCost)}（${escapeHtml(recovery.purchases)}）；不要一開始就預買。</div>`:"";
   const actionButtons=`<div class="form-row">
     <button class="btn green small" id="executeStrategyDayBtn" ${past||status.reached||strategyAttemptSimulationRunning?"disabled":""}>${status.reached?"本日目標已完成":`一鍵執行：${objectiveText}`}</button>
     <button class="btn secondary small" id="simulateStrategyDayBtn" ${past||strategyAttemptSimulationRunning?"disabled":""}>${strategyAttemptSimulationRunning?"模擬中…":`模擬 ${sampleCount} 次`}</button>
@@ -2806,7 +2970,7 @@ function renderActiveStrategyCard(){
       <div class="active-strategy-cell"><div class="k">當日到帳</div><div class="v">${fmt(ledger.income||0)}</div></div>
       <div class="active-strategy-cell"><div class="k">當日已消耗</div><div class="v">${fmt(ledger.consumed||0)}</div></div>
       <div class="active-strategy-cell"><div class="k">距離目標分數</div><div class="v">${fmt(gap)}</div></div>
-    </div>${attemptHtml}</div>${simHtml}`
+    </div>${attemptHtml}${recoveryHint}</div>${simHtml}`
 }
 
 function exportStrategy(){
