@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜共用環境與大富翁玩法版 v27</title>
+<title>活動玩法模擬器｜玩法獨立代幣設定版 v28</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -21,6 +21,7 @@ body{
     linear-gradient(180deg,#5bd0f1 0 230px,#f8e2a3 230px 73%,#7bd7e4 73%);
   min-height:100vh;
 }
+*,*::before,*::after{box-sizing:border-box}
 button,input,select{font:inherit}
 button{cursor:pointer}
 button:disabled{cursor:not-allowed;opacity:.45}
@@ -67,13 +68,13 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .stat-value{font-size:20px;font-weight:1000;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .main-grid{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.55fr);gap:12px}
 .card{
-  background:rgba(255,255,255,.96);border:4px solid rgba(255,255,255,.9);
+  width:100%;max-width:100%;min-width:0;background:rgba(255,255,255,.96);border:4px solid rgba(255,255,255,.9);
   border-radius:24px;box-shadow:var(--shadow);padding:14px
 }
 .card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .card-title h2,.card-title h3{margin:0}
 .board-shell{
-  position:relative;border-radius:24px;padding:10px;
+  width:100%;max-width:100%;min-width:0;position:relative;border-radius:24px;padding:10px;
   background:
     radial-gradient(circle at 14% 15%,rgba(255,255,255,.9) 0 6px,transparent 7px),
     radial-gradient(circle at 86% 23%,rgba(255,255,255,.6) 0 11px,transparent 12px),
@@ -81,7 +82,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   overflow:auto;border:3px solid #ebac42;
 }
 .board{
-  width:100%;min-width:690px;aspect-ratio:1.43;
+  width:100%;max-width:100%;min-width:690px;aspect-ratio:1.43;
   display:grid;gap:5px;position:relative;
 }
 .board.mobile-shape{min-width:390px;aspect-ratio:.72}
@@ -293,8 +294,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .hero-actions .btn{flex:1 1 calc(33.333% - 8px);min-width:104px;text-align:center}
   .week-switch{gap:4px;padding:6px}.day-btn{font-size:12px;padding:8px 2px}
   .stats{grid-template-columns:repeat(2,1fr)}.stat-value{font-size:18px}
-  .card{border-radius:19px;padding:9px}.board-shell{padding:5px}
-  .board{min-width:390px}
+  .card{width:100%;max-width:100%;min-width:0;border-radius:19px;padding:9px}
+  .board-shell{width:100%;max-width:100%;min-width:0;padding:5px;overflow:hidden}
+  .board,.board.mobile-shape{width:100%;max-width:100%;min-width:0!important}
   .side-stack{grid-template-columns:1fr}
   .settings-main{grid-template-columns:1fr}.settings-nav{display:flex;overflow:auto;padding:8px}
   .settings-nav button{width:auto;white-space:nowrap;margin:0 4px 0 0}
@@ -383,7 +385,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   <header class="hero">
     <div class="hero-row">
       <div>
-        <h1 id="eventName">夏日環遊模擬器</h1>
+        <h1 id="eventName">卡皮巴拉活動</h1>
         <p>共用活動環境＋可擴充遊戲玩法的模擬器</p>
       </div>
       <div class="hero-actions">
@@ -399,7 +401,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 
 
   <div class="main-grid">
-    <main>
+    <main style="min-width:0;width:100%">
       <section class="card">
         <div class="card-title">
           <div>
@@ -640,8 +642,16 @@ button:disabled{cursor:not-allowed;opacity:.45}
 "use strict";
 
 const DEFAULT_CONFIG = {
-  event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
+  event:{name:"卡皮巴拉活動",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
   gameplay:{type:"monopoly"},
+  gameplaySettings:{
+    monopoly:{
+      gameTokenId:"dice",
+      premiumExchangeId:"dragonFruitJuice",
+      normalExchangeId:"kiwiJuice",
+      pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}]
+    }
+  },
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true,playerIcon:"🐹",startIcon:"🏁",startRewards:[]},
   simulator:{allowInsufficientCost:true},
   strategyFormulaVersion:6,
@@ -805,8 +815,29 @@ let strategyAttemptSimulationRunning=false;
 let lastAutoRollSnapshot=null;
 
 function normalizeFundConfig(cfg){
+  if(!cfg.event)cfg.event={};
+  if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
   if(!cfg.gameplay||typeof cfg.gameplay!=="object")cfg.gameplay={type:"monopoly"};
   if(!cfg.gameplay.type)cfg.gameplay.type="monopoly";
+  if(!cfg.currencies)cfg.currencies={gameTokenId:"dice",premiumExchangeId:"dragonFruitJuice",normalExchangeId:"kiwiJuice",paidCurrencyId:"emerald"};
+  if(!cfg.scoreRules)cfg.scoreRules={pointsPerItemObtained:[],pointsPerLap:10};
+  if(!cfg.gameplaySettings||typeof cfg.gameplaySettings!=="object")cfg.gameplaySettings={};
+  if(!cfg.gameplaySettings.monopoly){
+    cfg.gameplaySettings.monopoly={
+      gameTokenId:cfg.currencies.gameTokenId||"dice",
+      premiumExchangeId:cfg.currencies.premiumExchangeId||"dragonFruitJuice",
+      normalExchangeId:cfg.currencies.normalExchangeId||"kiwiJuice",
+      pointsPerItemObtained:clone(cfg.scoreRules.pointsPerItemObtained||[])
+    }
+  }
+  const activeGameplay=cfg.gameplaySettings[cfg.gameplay.type]||cfg.gameplaySettings.monopoly;
+  if(activeGameplay){
+    if(!Array.isArray(activeGameplay.pointsPerItemObtained))activeGameplay.pointsPerItemObtained=[];
+    cfg.currencies.gameTokenId=activeGameplay.gameTokenId||cfg.currencies.gameTokenId||"dice";
+    cfg.currencies.premiumExchangeId=activeGameplay.premiumExchangeId||cfg.currencies.premiumExchangeId||"dragonFruitJuice";
+    cfg.currencies.normalExchangeId=activeGameplay.normalExchangeId||cfg.currencies.normalExchangeId||"kiwiJuice";
+    cfg.scoreRules.pointsPerItemObtained=clone(activeGameplay.pointsPerItemObtained)
+  }
   if(!cfg.board)cfg.board={};
   if(!Array.isArray(cfg.board.startRewards))cfg.board.startRewards=[];
   if(!cfg.board.playerIcon)cfg.board.playerIcon="🐹";
@@ -4027,13 +4058,13 @@ function renderDistribution(){
 function renderScoreRules(){
   const rows=config.scoreRules.pointsPerItemObtained.map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`);
   rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
-  $("scoreRules").innerHTML=rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
+  $("scoreRules").innerHTML=`<div><strong>目前玩法：大富翁</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 }
 function renderLog(){
   $("logList").innerHTML=state.log.length?state.log.map(x=>`<div>${escapeHtml(x)}</div>`).join(""):`<div>尚無紀錄</div>`
 }
 function render(){
-  $("eventName").textContent=config.event.name+"玩法模擬器";
+  $("eventName").textContent=config.event.name;
   renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
 }
 function save(){
@@ -4078,25 +4109,22 @@ function renderSettings(){
   const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
   sections.basic=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>共用活動基本設定</h2><div class="help">這些設定由所有玩法共用。之後新增其他玩法時，每日進度、禮包、基金、物品與日期都可以直接沿用。</div></div>
+      <div><h2>共用活動基本設定</h2><div class="help">標題、日期、每日進度、禮包、基金、物品與付費貨幣由所有玩法共用；各玩法自己的遊戲代幣與計分規則分開設定。</div></div>
       <span class="badge ok">共用環境</span>
     </div>
     <div class="setting-grid">
-      <div class="field"><label>活動名稱</label>${pathInput("event.name",c.event.name)}</div>
+      <div class="field"><label>標題設定</label>${pathInput("event.name",c.event.name)}</div>
       <div class="field"><label>活動天數</label>${pathInput("event.totalDays",c.event.totalDays,"number",'min="1" max="30"')}</div>
       <div class="field"><label>每日任務最多遊戲代幣</label>${pathInput("dailyMission.maxGameTokens",c.dailyMission.maxGameTokens,"number",'min="0"')}</div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
     </div>
     <h3>每日名稱</h3>
     <div class="setting-grid">${labels.map((x,i)=>`<div class="field"><label>第 ${i+1} 天</label>${pathInput(`event.dayLabels.${i}`,x)}</div>`).join("")}</div>
-    <h3>共用貨幣／物品指定</h3>
+    <h3>共用付費貨幣</h3>
     <div class="setting-grid">
-      ${[["gameTokenId","遊戲代幣"],["premiumExchangeId","高級兌換幣"],["normalExchangeId","普通兌換幣"],["paidCurrencyId","課金代幣"]].map(([key,label])=>`<div class="field"><label>${label}</label><select data-path="currencies.${key}">${itemOptions(c.currencies[key])}</select></div>`).join("")}
+      <div class="field"><label>課金代幣</label><select data-path="currencies.paidCurrencyId">${itemOptions(c.currencies.paidCurrencyId)}</select></div>
     </div>
-    <h3>取得物品的共用計分規則</h3>
-    <div class="editor-card"><div class="help">不論目前使用哪種玩法，只要取得下列物品，就會增加同一套每日進度積分。</div><div class="editor-table">
-      ${c.scoreRules.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="scoreRules.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`scoreRules.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeScoreRule" data-index="${i}">刪除</button></div>`).join("")}
-    </div><button class="btn secondary small" data-settings-action="addScoreRule">＋加入計分物品</button></div>
+    <div class="help">遊戲代幣、高級兌換幣、普通兌換幣與取得物品計分規則改由每一種玩法自行指定。</div>
   </section>`;
 
   sections.monopoly=`<section class="setting-section active">
@@ -4104,6 +4132,21 @@ function renderSettings(){
       <div><h2>🎲 大富翁玩法</h2><div class="help">這一區只控制大富翁本身。共用的每日進度、禮包、基金、物品與日期不會放在這裡。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
+    <div class="editor-card">
+      <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="help">這三種角色是「大富翁玩法」自己的設定；未來其他玩法可以指定完全不同的物品。</div>
+      <div class="setting-grid" style="margin-top:8px">
+        <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.monopoly.gameTokenId">${itemOptions(c.gameplaySettings.monopoly.gameTokenId)}</select></div>
+        <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.monopoly.premiumExchangeId">${itemOptions(c.gameplaySettings.monopoly.premiumExchangeId)}</select></div>
+        <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.monopoly.normalExchangeId">${itemOptions(c.gameplaySettings.monopoly.normalExchangeId)}</select></div>
+      </div>
+      <h3>取得物品的計分規則</h3>
+      <div class="editor-table">
+        ${c.gameplaySettings.monopoly.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.monopoly.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.monopoly.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="monopoly" data-index="${i}">刪除</button></div>`).join("")}
+      </div>
+      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="monopoly">＋加入計分物品</button>
+    </div>
+
     <div class="editor-card">
       <div class="setting-grid">
         <div class="field"><label>目前玩法</label><select data-path="gameplay.type"><option value="monopoly" selected>大富翁</option></select></div>
@@ -4219,8 +4262,15 @@ function settingsAction(btn){
     list.push({itemId:settingsDraft.items[0].id,amount:1,...(btn.dataset.probability?{probability:0}:{})})
   }
   if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
-  if(a==="addScoreRule")settingsDraft.scoreRules.pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0});
-  if(a==="removeScoreRule")settingsDraft.scoreRules.pointsPerItemObtained.splice(Number(btn.dataset.index),1);
+  if(a==="addGameplayScoreRule"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
+    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,pointsPerItemObtained:[]};
+    settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0})
+  }
+  if(a==="removeGameplayScoreRule"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
+    settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.splice(Number(btn.dataset.index),1)
+  }
   if(a==="addStage"){
     const next=Math.max(0,...settingsDraft.progressStages.map(x=>Number(x.stage)))+1;
     settingsDraft.progressStages.push({stage:next,requiredScore:0,rewards:[]})
