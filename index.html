@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠捲軸專用物品版 v34</title>
+<title>活動玩法模擬器｜基金解鎖條件與介面調整版 v35</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -298,12 +298,19 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .board-shell{width:100%;max-width:100%;min-width:0;padding:5px;overflow:hidden}
   .board,.board.mobile-shape{width:100%;max-width:100%;min-width:0!important}
   .side-stack{grid-template-columns:1fr}
-  .settings-main{grid-template-columns:1fr}.settings-nav{display:flex;overflow:auto;padding:8px}
-  .settings-nav button{width:auto;white-space:nowrap;margin:0 4px 0 0}
+  .tabs{flex-wrap:wrap;overflow:visible}
+  .tab-btn{flex:1 1 auto;text-align:center}
+  .settings-main{grid-template-columns:1fr}
+  .settings-nav{display:flex;overflow:visible;padding:8px;gap:6px;flex-wrap:wrap}
+  .settings-nav button{width:auto;white-space:nowrap;margin:0;flex:0 0 auto}
   .settings-nav-title{display:none}
+  .settings-content{padding:12px 12px 90px}
   .setting-grid{grid-template-columns:1fr}
+  .editor-head,.row-top{align-items:flex-start;flex-wrap:wrap}
+  .editor-head > div:last-child,.row-top .form-row{width:100%}
   .editor-row{grid-template-columns:1fr 74px 75px auto;font-size:12px}
   .editor-row.package-reward{grid-template-columns:1fr 90px auto}
+  .field{padding:9px}
 }
 
 
@@ -929,6 +936,7 @@ const DEFAULT_CONFIG = {
   ],
   dailyMission:{maxGameTokens:30},
   fund:{
+    unlockBasis:"laps",
     premiumCost:{itemId:"emerald",amount:1000},
     milestones:[
       {id:"fundLap0",laps:0,freeRewards:[{itemId:"gem",amount:50}],premiumRewards:[{itemId:"immortalGemBox",amount:1}]},
@@ -1203,6 +1211,8 @@ function normalizeFundConfig(cfg){
     if(!["minimum","expected"].includes(cfg.strategyLuck[mode].boxMode))cfg.strategyLuck[mode].boxMode=mode==="africa"?"minimum":"expected"
   });
   if(!cfg.fund)cfg.fund={};
+  if(!cfg.fund.unlockBasis)cfg.fund.unlockBasis="laps";
+  if(!["laps","tokenSpent","normalObtained","premiumObtained"].includes(cfg.fund.unlockBasis))cfg.fund.unlockBasis="laps";
   if(!cfg.fund.premiumCost)cfg.fund.premiumCost={itemId:cfg.currencies?.paidCurrencyId||"emerald",amount:0};
   if(!Array.isArray(cfg.fund.milestones)){
     const legacyLaps=Math.max(0,Number(cfg.fund.plannerUnlockLaps||0));
@@ -1240,7 +1250,7 @@ function loadStoredStrategy(){
 function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,lapsCompleted:0,pinballDrops:0,pinballHiddenRuns:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
 function createState(){
   return{
-    currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
+    currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},obtained:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
     fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
     gameTokenFlow:Array.from({length:config.event.totalDays},()=>({gained:0,spent:0})),
@@ -1288,6 +1298,11 @@ function ensureStateSchema(targetState=state,cfg=config){
     fundMilestones(cfg).forEach(m=>targetState.fundClaims.premium[m.id]=day)
   }
   if(!targetState.resources)targetState.resources={};if(!targetState.spent)targetState.spent={};
+  if(!targetState.obtained||typeof targetState.obtained!=="object")targetState.obtained={};
+  (cfg.items||[]).forEach(it=>{
+    if(!Object.prototype.hasOwnProperty.call(targetState.obtained,it.id))targetState.obtained[it.id]=Math.max(0,Number(targetState.resources[it.id]||0));
+    targetState.obtained[it.id]=Math.max(0,Number(targetState.obtained[it.id]||0))
+  });
   if(!targetState.gameplayStates||typeof targetState.gameplayStates!=="object")targetState.gameplayStates={};
   if(!targetState.gameplayStates.pinball||typeof targetState.gameplayStates.pinball!=="object")targetState.gameplayStates.pinball={};
   const ps=targetState.gameplayStates.pinball;
@@ -1529,6 +1544,7 @@ function addScore(points,reason){
 function addItem(id,amount,reason,scoreEligible=true){
   const value=Number(amount||0);
   state.resources[id]=Number(state.resources[id]||0)+value;
+  state.obtained[id]=Math.max(0,Number(state.obtained[id]||0)+Math.max(0,value));
   if(id===config.currencies.gameTokenId&&value)adjustGameTokenGain(state.currentDay,value);
   if(scoreEligible){
     const points=scorePerItem(id)*value;
@@ -2349,7 +2365,7 @@ function refundDailyClaim(){
 }
 function fundUnlockedUnclaimed(kind,targetState=state,cfg=config){
   ensureStateSchema(targetState,cfg);const claimed=targetState.fundClaims[kind]||{};
-  return fundMilestones(cfg).filter(m=>Number(m.laps)<=Number(targetState.laps||0)&&!Object.prototype.hasOwnProperty.call(claimed,m.id))
+  return fundMilestones(cfg).filter(m=>fundMilestoneUnlockedForState(m,targetState,cfg)&&!Object.prototype.hasOwnProperty.call(claimed,m.id))
 }
 function fundRewardsForMilestones(track,milestones){
   return milestones.flatMap(m=>clone(track==="free"?(m.freeRewards||[]):(m.premiumRewards||[])))
@@ -2368,8 +2384,8 @@ function fundClaimCombined({purchase=false}={}){
   const seq=++state.fundEventSeq,allRewards=[];
   [["free",nowFree],["premium",nowPremium]].forEach(([kind,list])=>{
     if(!list.length)return;const ids=[];
-    list.forEach(m=>{ids.push(m.id);state.fundClaims[kind][m.id]=state.currentDay;const rewards=kind==="free"?m.freeRewards:m.premiumRewards;(rewards||[]).forEach(r=>{allRewards.push({track:kind,milestoneId:m.id,...clone(r)});addItem(r.itemId,r.amount,`${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true)})});
-    const event={seq,day:state.currentDay,laps:Number(state.laps||0),milestoneIds:ids};state.fundClaimEvents[kind].push(event);tracks.push({kind,ids})
+    list.forEach(m=>{ids.push(m.id);state.fundClaims[kind][m.id]=state.currentDay;const rewards=kind==="free"?m.freeRewards:m.premiumRewards;(rewards||[]).forEach(r=>{allRewards.push({track:kind,milestoneId:m.id,...clone(r)});addItem(r.itemId,r.amount,`${kind==="free"?"免費":"進階"}基金・${fundMilestoneLabel(m.laps,state,config)}`,true)})});
+    const event={seq,day:state.currentDay,metricValue:Number(fundUnlockMetricMeta(state,config).value||0),laps:Number(state.laps||0),milestoneIds:ids};state.fundClaimEvents[kind].push(event);tracks.push({kind,ids})
   });
   state.lastFundUndo={seq,purchased:purchase&&!beforePurchased,cost:purchase?clone(config.fund.premiumCost):null,tracks,rewards:allRewards,day:state.currentDay};
   render();toast(`已一次領取免費 ${nowFree.length} 階${state.fundPremiumPurchased?`、進階 ${nowPremium.length} 階`:""}`)
@@ -2524,6 +2540,31 @@ function undoLastBoxOpen(){
 }
 
 function cfgItem(cfg,id){return cfg.items.find(x=>x.id===id)||{id,name:id,unit:"",icon:"❔"}}
+function fundUnlockBasis(cfg=config){normalizeFundConfig(cfg);return cfg.fund?.unlockBasis||"laps"}
+function fundUnlockBasisOptions(cfg=config){
+  const token=cfgItem(cfg,cfg.currencies.gameTokenId),normal=cfgItem(cfg,cfg.currencies.normalExchangeId),premium=cfgItem(cfg,cfg.currencies.premiumExchangeId);
+  return[
+    {value:"laps",label:"累計完成圈數"},
+    {value:"tokenSpent",label:`消耗${token.name}數`},
+    {value:"normalObtained",label:`獲得${normal.name}數`},
+    {value:"premiumObtained",label:`獲得${premium.name}數`}
+  ]
+}
+function fundUnlockMetricMeta(targetState=state,cfg=config){
+  const basis=fundUnlockBasis(cfg),token=cfgItem(cfg,cfg.currencies.gameTokenId),normal=cfgItem(cfg,cfg.currencies.normalExchangeId),premium=cfgItem(cfg,cfg.currencies.premiumExchangeId);
+  if(basis==="tokenSpent")return{basis,label:`消耗${token.name}數`,statusLabel:`目前已消耗 ${token.name}`,tableHeader:`消耗${token.name}數`,fieldLabel:`解鎖消耗${token.name}數`,sectionTitle:`活動基金（依消耗${token.name}數解鎖）`,value:Number(targetState.spent?.[cfg.currencies.gameTokenId]||0),unit:token.unit||"個",icon:token.icon||"🎮"};
+  if(basis==="normalObtained")return{basis,label:`獲得${normal.name}數`,statusLabel:`目前已獲得 ${normal.name}`,tableHeader:`獲得${normal.name}數`,fieldLabel:`解鎖獲得${normal.name}數`,sectionTitle:`活動基金（依獲得${normal.name}數解鎖）`,value:Number(targetState.obtained?.[cfg.currencies.normalExchangeId]||targetState.resources?.[cfg.currencies.normalExchangeId]||0),unit:normal.unit||"個",icon:normal.icon||"🎁"};
+  if(basis==="premiumObtained")return{basis,label:`獲得${premium.name}數`,statusLabel:`目前已獲得 ${premium.name}`,tableHeader:`獲得${premium.name}數`,fieldLabel:`解鎖獲得${premium.name}數`,sectionTitle:`活動基金（依獲得${premium.name}數解鎖）`,value:Number(targetState.obtained?.[cfg.currencies.premiumExchangeId]||targetState.resources?.[cfg.currencies.premiumExchangeId]||0),unit:premium.unit||"個",icon:premium.icon||"🎁"};
+  return{basis:"laps",label:"累計完成圈數",statusLabel:"目前完成",tableHeader:"圈數",fieldLabel:"解鎖累計圈數",sectionTitle:"活動基金（依累計完成圈數解鎖）",value:Number(targetState.laps||0),unit:"圈",icon:"🏁"}
+}
+function fundMilestoneTarget(m){return Math.max(0,Number(m?.laps||0))}
+function fundMilestoneLabel(value,targetState=state,cfg=config){
+  const meta=fundUnlockMetricMeta(targetState,cfg),num=Math.max(0,Number(value||0));
+  return meta.basis==="laps"?`${fmt(num)} 圈`:`${fmt(num)} ${meta.unit}`
+}
+function fundMilestoneUnlockedForState(m,targetState=state,cfg=config){
+  return fundMilestoneTarget(m)<=Number(fundUnlockMetricMeta(targetState,cfg).value)+1e-9
+}
 function cfgScorePerItem(cfg,id){
   return Number(cfg.scoreRules.pointsPerItemObtained.find(x=>x.itemId===id)?.points||0)
 }
@@ -4787,15 +4828,16 @@ function renderDaily(){
     return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-stage="${stage.stage}" ${claimed?"":"disabled"}>退回</button><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div></div>`
   }).join("");
 
-  const milestones=fundMilestones(config),
-        unlocked=milestones.filter(m=>Number(m.laps)<=Number(state.laps)),
+  const fundMeta=fundUnlockMetricMeta(state,config),
+        milestones=fundMilestones(config),
+        unlocked=milestones.filter(m=>fundMilestoneUnlockedForState(m,state,config)),
         freeReady=fundUnlockedUnclaimed("free"),
         premiumReady=state.fundPremiumPurchased?fundUnlockedUnclaimed("premium"):[],
-        nextFund=milestones.find(m=>Number(m.laps)>Number(state.laps));
+        nextFund=milestones.find(m=>!fundMilestoneUnlockedForState(m,state,config));
 
   const trackStatus=(kind,m)=>Object.prototype.hasOwnProperty.call(state.fundClaims[kind]||{},m.id)
     ?`<span class="fund-track-status ok">已領</span>`
-    :Number(m.laps)<=Number(state.laps)
+    :fundMilestoneUnlockedForState(m,state,config)
       ?`<span class="fund-track-status ready">可領</span>`
       :`<span class="fund-track-status lock">未解鎖</span>`;
 
@@ -4811,15 +4853,18 @@ function renderDaily(){
     ...freeReady.flatMap(m=>m.freeRewards||[]),
     ...premiumReady.flatMap(m=>m.premiumRewards||[])
   ];
-  const maxUnlockedLap=unlocked.length?Math.max(...unlocked.map(m=>Number(m.laps))):0;
-  $("fundStatus").textContent=`目前完成 ${fmt(state.laps)} 圈｜已解鎖至 ${fmt(maxUnlockedLap)} 圈${nextFund?`｜下一階 ${fmt(nextFund.laps)} 圈`:"｜全部里程已解鎖"}`;
+  const maxUnlockedTarget=unlocked.length?Math.max(...unlocked.map(m=>fundMilestoneTarget(m))):0;
+  const currentMetricText=fundMeta.basis==="laps"
+    ?`目前完成 ${fmt(fundMeta.value)} 圈`
+    :`${fundMeta.statusLabel} ${fmt(fundMeta.value)} ${fundMeta.unit}`;
+  $("fundStatus").textContent=`${currentMetricText}｜已解鎖至 ${fundMilestoneLabel(maxUnlockedTarget,state,config)}${nextFund?`｜下一階 ${fundMilestoneLabel(fundMilestoneTarget(nextFund),state,config)}`:"｜全部里程已解鎖"}`;
   $("fundClaimPreview").innerHTML=(freeReady.length||premiumReady.length)
     ?`按 <strong>領取基金</strong> 現在可領：<strong>${escapeHtml(aggregateRewardsText(claimRewards,config))}</strong><br>免費 ${freeReady.length} 階${state.fundPremiumPurchased?`＋進階 ${premiumReady.length} 階`:""}`
     :`目前沒有新的基金獎勵可領${state.fundPremiumPurchased?"":"；進階基金尚未購買"}`;
 
-  $("fundList").innerHTML=`<div class="fund-milestones"><table class="fund-table"><thead><tr><th>圈數</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{
-    const cls=Number(m.laps)>Number(state.laps)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&(state.fundPremiumPurchased?Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id):true)?"claimed":"unlocked");
-    return`<tr class="${cls}"><td><strong>${fmt(m.laps)} 圈</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`
+  $("fundList").innerHTML=`<div class="fund-milestones"><table class="fund-table"><thead><tr><th>${escapeHtml(fundMeta.tableHeader)}</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{
+    const cls=!fundMilestoneUnlockedForState(m,state,config)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&(state.fundPremiumPurchased?Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id):true)?"claimed":"unlocked");
+    return`<tr class="${cls}"><td><strong>${fundMilestoneLabel(fundMilestoneTarget(m),state,config)}</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`
   }).join("")}</tbody></table></div>`;
 }
 function renderPackages(){
@@ -5058,21 +5103,31 @@ function renderSettings(){
 
   sections.items=`<section class="setting-section active">
     <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
-    ${c.items.map((x,i)=>`<div class="editor-card"><div class="editor-row" style="grid-template-columns:80px minmax(130px,1fr) 110px minmax(130px,1fr) auto">
-      ${pathInput(`items.${i}.icon`,x.icon)}${pathInput(`items.${i}.name`,x.name)}${pathInput(`items.${i}.unit`,x.unit)}${pathInput(`items.${i}.id`,x.id,"text","readonly")}
-      <button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button>
-    </div></div>`).join("")}
-
+    ${c.items.map((x,i)=>`<div class="editor-card">
+      <div class="setting-grid">
+        <div class="field"><label>圖示</label>${pathInput(`items.${i}.icon`,x.icon)}</div>
+        <div class="field"><label>物品名稱</label>${pathInput(`items.${i}.name`,x.name)}</div>
+        <div class="field"><label>單位</label>${pathInput(`items.${i}.unit`,x.unit)}</div>
+        <div class="field"><label>系統識別碼</label>${pathInput(`items.${i}.id`,x.id,"text","readonly")}</div>
+      </div>
+      <div class="form-row" style="margin-top:8px;justify-content:flex-end"><button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button></div>
+    </div>`).join("")}
 
   </section>`;
 
 
   sections.fund=`<section class="setting-section active">
-    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段；購買進階基金後，免費與進階獎勵會同時領取。</div></div></div>
-    <h3>活動基金（依累計圈數解鎖）</h3>
-    <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需依圈數逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
-    ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fmt(m.laps)} 圈解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
-      <div class="setting-grid"><div class="field"><label>解鎖累計圈數</label>${pathInput(`fund.milestones.${i}.laps`,m.laps,"number",'min="0" step="1"')}</div><div class="field"><label>系統識別碼</label>${pathInput(`fund.milestones.${i}.id`,m.id,"text","readonly")}</div></div>
+    <div class="editor-head"><div><h2>階段基金</h2><div class="help">基金可改為依累計圈數、消耗遊戲代幣數、獲得普通兌換幣數或獲得高級兌換幣數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段；購買進階基金後，免費與進階獎勵會同時領取。</div></div></div>
+    <h3>${escapeHtml(fundUnlockMetricMeta(state,c).sectionTitle)}</h3>
+    <div class="editor-card">
+      <div class="setting-grid">
+        <div class="field"><label>基金解鎖依據</label><select data-path="fund.unlockBasis">${fundUnlockBasisOptions(c).map(opt=>`<option value="${opt.value}" ${fundUnlockBasis(c)===opt.value?"selected":""}>${escapeHtml(opt.label)}</option>`).join("")}</select></div>
+        <div class="field"><label>目前設定說明</label><div class="help">目前基金以「${escapeHtml(fundUnlockMetricMeta(state,c).label)}」作為解鎖條件；下方每個階段的數值會依此判定。</div></div>
+      </div>
+    </div>
+    <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
+    ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fundMilestoneLabel(m.laps,state,c)} 解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
+      <div class="setting-grid"><div class="field"><label>${escapeHtml(fundUnlockMetricMeta(state,c).fieldLabel)}</label>${pathInput(`fund.milestones.${i}.laps`,m.laps,"number",'min="0" step="1"')}</div><div class="field"><label>系統識別碼</label>${pathInput(`fund.milestones.${i}.id`,m.id,"text","readonly")}</div></div>
       <strong>免費基金獎勵</strong><div class="editor-table">${rewardRows(m.freeRewards,`fund.milestones.${i}.freeRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.freeRewards">＋加入免費獎勵</button>
       <hr style="border:0;border-top:1px solid #dce5ed"><strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(m.premiumRewards,`fund.milestones.${i}.premiumRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.premiumRewards">＋加入進階獎勵</button>
     </div>`).join("")}
