@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠連續投放版 v31</title>
+<title>活動玩法模擬器｜特殊模式刷新與動畫版 v32</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -1484,11 +1484,17 @@ function activeGameplaySettings(cfg=config){
 }
 function pinballSettings(cfg=config){normalizeFundConfig(cfg);return cfg.gameplaySettings.pinball}
 function pinballState(targetState=state){ensureStateSchema(targetState,config);return targetState.gameplayStates.pinball}
-function generatePinballSlots(targetState=state,cfg=config){
+function refreshPinballSlotRewards(targetState=state,cfg=config){
   const ps=pinballState(targetState),pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8));
   ps.slots=Array.from({length:count},()=>clone(weightedPick(pc.slotRewardPool)));
+  ps.lastLanding=null;
+  ps.boardVersion=Number(ps.boardVersion||0)+1;
+  return ps
+}
+function generatePinballSlots(targetState=state,cfg=config){
+  const ps=refreshPinballSlotRewards(targetState,cfg),count=Math.max(2,Number(pinballSettings(cfg).slotCount||8));
   ps.targetSlot=Math.floor(Math.random()*count);
-  ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.lastLanding=null;ps.boardVersion=Number(ps.boardVersion||0)+1;
+  ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.lastLanding=null;
   return ps
 }
 function ensurePinballSlots(targetState=state,cfg=config){
@@ -1641,31 +1647,90 @@ function pinballAggregateReward(map,reward){
 async function runPinballHiddenMode({fast=false}={}){
   const ps=ensurePinballSlots(),pc=pinballSettings(),count=Math.max(1,Number(pc.hiddenBalls||200));
   if(!ps.hiddenPending||ps.hiddenActive)return;
-  if(pinballActiveBalls>0)return toast(`還有 ${fmt(pinballActiveBalls)} 顆彈珠尚未落完，請等全部落下後再開始`);
+  if(pinballActiveBalls>0)return toast(`還有 ${fmt(pinballActiveBalls)} 顆普通彈珠尚未落完，請等全部落下後再開始`);
+
   pinballLaunchQueue=0;
-  ps.hiddenPending=false;ps.hiddenActive=true;
+  ps.hiddenPending=false;
+  ps.hiddenActive=true;
+
+  // 進入特殊模式的瞬間先刷新8格獎勵。
+  // 特殊模式期間不顯示4/5目標格，因為這200顆不再累積下一次特殊模式。
+  refreshPinballSlotRewards();
   renderPinballBoard();
+
+  $("rollMessage").textContent=`隱藏模式開始：已刷新 ${fmt(ps.slots.length)} 格獎勵，準備投入 ${fmt(count)} 顆免費彈珠。`;
+
   const tally={};
-  for(let i=0;i<count;i++){
+  let launched=0,completed=0;
+  const activePromises=new Set();
+
+  const finishHiddenBall=(path,slot,reward)=>{
+    pinballAggregateReward(tally,reward);
+    ps.lastLanding=slot;
+    ps.totalDrops++;
+    ps.hiddenDrops++;
+    dayState().pinballDrops=Number(dayState().pinballDrops||0)+1;
+    completed++;
+    const bar=$("pinballHiddenProgress"),status=$("pinballStatus");
+    if(bar)bar.style.width=`${completed/count*100}%`;
+    if(status)status.textContent=`隱藏模式：已落完 ${fmt(completed)}/${fmt(count)} 顆｜場上 ${fmt(pinballActiveBalls)} 顆`;
+  };
+
+  while(launched<count){
+    // 跳過動畫可以在開始前勾選，也可以執行途中勾選；
+    // 一旦勾選，後續尚未投入的彈珠會直接結算。
+    const skipNow=fast||pinballSkipAnimation();
     const path=pinballBouncePath();
     const slot=Math.max(0,Math.min(ps.slots.length-1,path.slot));
-    const reward=ps.slots[slot];
-    pinballAggregateReward(tally,reward);
-    ps.lastLanding=slot;ps.totalDrops++;ps.hiddenDrops++;
-    dayState().pinballDrops=Number(dayState().pinballDrops||0)+1;
-    if(!fast&&(i%20===19||i===count-1)){
-      const bar=$("pinballHiddenProgress"),status=$("pinballStatus");
-      if(bar)bar.style.width=`${(i+1)/count*100}%`;
-      if(status)status.textContent=`隱藏模式 ${i+1}/${count} 顆彈珠落下中…`;
-      await wait(18)
+    const reward=clone(ps.slots[slot]);
+    launched++;
+
+    if(skipNow){
+      finishHiddenBall(path,slot,reward);
+      // 大量快速結算時偶爾讓瀏覽器更新畫面。
+      if(launched%50===0)await wait(0);
+      continue
     }
+
+    pinballActiveBalls++;
+    updatePinballQueueStatus();
+
+    let promise;
+    promise=(async()=>{
+      try{
+        await animatePinballDrop(path,false);
+        finishHiddenBall(path,slot,reward)
+      }finally{
+        pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
+        activePromises.delete(promise);
+        updatePinballQueueStatus()
+      }
+    })();
+
+    activePromises.add(promise);
+
+    // 特殊模式也採連續投放：前一顆尚未落完，下一顆就能進場。
+    // 間隔比普通模式再快一點，200顆完整動畫不會拖太久。
+    await wait(70)
   }
+
+  // 等最後一批仍在場上的彈珠全部落完，再一次結算獎勵。
+  if(activePromises.size)await Promise.all([...activePromises]);
+
   Object.entries(tally).forEach(([itemId,amount])=>addItem(itemId,amount,"彈珠機隱藏模式獎勵",true));
-  ps.hiddenRuns++;dayState().pinballHiddenRuns=Number(dayState().pinballHiddenRuns||0)+1;
-  const rewardText=Object.entries(tally).map(([id,n])=>`${item(id).icon||""}${item(id).name}×${fmt(n)}`).join("、");
+  ps.hiddenRuns++;
+  dayState().pinballHiddenRuns=Number(dayState().pinballHiddenRuns||0)+1;
+
+  const rewardText=Object.entries(tally)
+    .map(([id,n])=>`${item(id).icon||""}${item(id).name}×${fmt(n)}`)
+    .join("、");
+
+  // 特殊模式結束後再刷新一次，建立下一輪普通模式的新8格＋新特殊格。
   generatePinballSlots();
   ps.hiddenActive=false;
-  $("rollMessage").textContent=`隱藏模式完成：${fmt(count)} 顆彈珠結算 ${rewardText||"無獎勵"}；${fmt(ps.slots.length)} 格內容與特殊格已刷新。`;
+
+  $("rollMessage").textContent=
+    `隱藏模式完成：${fmt(count)} 顆彈珠結算 ${rewardText||"無獎勵"}；下一輪普通模式的 ${fmt(ps.slots.length)} 格內容與特殊格已刷新。`;
   render()
 }
 async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
@@ -1857,7 +1922,7 @@ function renderPinballBoard(){
   }
   $("pinballSlots").style.gridTemplateColumns=`repeat(${ps.slots.length},minmax(0,1fr))`;
   $("pinballSlots").innerHTML=ps.slots.map((reward,i)=>{
-    const it=item(reward.itemId),target=i===Number(ps.targetSlot);
+    const it=item(reward.itemId),target=!ps.hiddenActive&&i===Number(ps.targetSlot);
     return `<div class="pinball-slot ${target?"target":""}" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
       ${target?`<span class="pinball-target-tag">${fmt(ps.targetHits)}/${fmt(pc.triggerRequired)}</span>`:""}
       <span class="slot-icon">${escapeHtml(it.icon||"🎁")}</span>
@@ -1880,7 +1945,7 @@ function renderPinballBoard(){
   if(countInput)countInput.disabled=ps.hiddenPending||ps.hiddenActive;
   updatePinballQueueStatus();
   $("pinballStatus").textContent=ps.hiddenActive
-    ?`隱藏模式 ${fmt(pc.hiddenBalls)} 顆彈珠自動落下中…`
+    ?`隱藏模式已刷新槽位，${fmt(pc.hiddenBalls)} 顆免費彈珠連續落下中…`
     :pending
       ?`特殊格 ${fmt(pc.triggerRequired)}/${fmt(pc.triggerRequired)} 已完成。普通投珠暫停，請手動開始隱藏模式。`
       :`特殊格在第 ${Number(ps.targetSlot)+1} 格，目前 ${fmt(ps.targetHits)}/${fmt(pc.triggerRequired)}；集滿後停止普通投珠。`
@@ -4842,7 +4907,7 @@ function renderSettings(){
         <div class="field"><label>特殊格需要進入次數</label>${pathInput("gameplaySettings.pinball.triggerRequired",c.gameplaySettings.pinball.triggerRequired,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式免費彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">普通模式可自訂投入數量；按鈕可連點或長按連續投珠。每顆彈珠都會沿釘子逐排左右彈跳，且前一顆尚未落完時下一顆即可進場。特殊格達標後暫停普通投珠，必須手動開始隱藏模式；可用「跳過動畫」快速結算。</div>
+      <div class="help">普通模式可自訂投入數量；按鈕可連點或長按連續投珠。每顆彈珠都會沿釘子逐排左右彈跳，且前一顆尚未落完時下一顆即可進場。特殊格達標後暫停普通投珠；手動開始隱藏模式時會先刷新槽位，200顆免費彈珠預設同樣播放連續碰釘動畫，只有勾選「跳過動畫」才快速結算。</div>
     </div>
 
     <div class="editor-head"><div><h3>8格刷新獎勵池</h3><div class="help">每次刷新時，每一格都從下列獎勵池獨立抽取；機率合計需為100%。目前先沿用火龍果汁與奇異果汁。</div></div></div>
