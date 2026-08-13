@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠落點與格子權重版 v33</title>
+<title>活動玩法模擬器｜彈珠捲軸專用物品版 v34</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -844,28 +844,28 @@ const DEFAULT_CONFIG = {
       ]
     },
     pinball:{
-      gameTokenId:"dice",
-      premiumExchangeId:"dragonFruitJuice",
-      normalExchangeId:"kiwiJuice",
+      gameTokenId:"pinballBall",
+      premiumExchangeId:"premiumScroll",
+      normalExchangeId:"normalScroll",
       dailyMissionMaxGameTokens:30,
-      pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
+      pointsPerItemObtained:[{itemId:"pinballBall",points:2},{itemId:"premiumScroll",points:0}],
       randomBoxes:[],
       slotCount:8,
       triggerRequired:5,
       hiddenBalls:200,
       landingWeights:[1,7,21,35,35,21,7,1],
       slotTypes:[
-        {id:"kiwiSlot",name:"奇異果汁格",distributionWeight:70,rewards:[
-          {itemId:"kiwiJuice",amount:5,probability:20},
-          {itemId:"kiwiJuice",amount:10,probability:20},
-          {itemId:"kiwiJuice",amount:15,probability:20},
-          {itemId:"kiwiJuice",amount:20,probability:15},
-          {itemId:"kiwiJuice",amount:25,probability:15},
-          {itemId:"kiwiJuice",amount:50,probability:10}
+        {id:"normalScrollSlot",name:"普通捲軸格",distributionWeight:70,rewards:[
+          {itemId:"normalScroll",amount:5,probability:20},
+          {itemId:"normalScroll",amount:10,probability:20},
+          {itemId:"normalScroll",amount:15,probability:20},
+          {itemId:"normalScroll",amount:20,probability:15},
+          {itemId:"normalScroll",amount:25,probability:15},
+          {itemId:"normalScroll",amount:50,probability:10}
         ]},
-        {id:"dragonSlot",name:"火龍果汁格",distributionWeight:30,rewards:[
-          {itemId:"dragonFruitJuice",amount:1,probability:85},
-          {itemId:"dragonFruitJuice",amount:2,probability:15}
+        {id:"premiumScrollSlot",name:"高級捲軸格",distributionWeight:30,rewards:[
+          {itemId:"premiumScroll",amount:1,probability:85},
+          {itemId:"premiumScroll",amount:2,probability:15}
         ]}
       ]
     }
@@ -891,6 +891,9 @@ const DEFAULT_CONFIG = {
     {id:"alchemyReagent",name:"高級煉金試劑",unit:"個",icon:"🧪"},
     {id:"stamina",name:"體力",unit:"點",icon:"⚡"},
     {id:"fortuneBuilding",name:"招財建築",unit:"個",icon:"🏯"},
+    {id:"pinballBall",name:"彈珠",unit:"顆",icon:"🔮"},
+    {id:"normalScroll",name:"普通捲軸",unit:"張",icon:"📜"},
+    {id:"premiumScroll",name:"高級捲軸",unit:"張",icon:"📕"},
     {id:"premiumExchangeBox",name:"高級兌換幣隨機箱",unit:"個",icon:"🎁"},
     {id:"immortalGemBox",name:"隨機不朽寶石箱",unit:"個",icon:"💠"},
     {id:"petArmToken",name:"寵物武裝令牌",unit:"個",icon:"🐾"},
@@ -1044,6 +1047,12 @@ function normalizeFundConfig(cfg){
   if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
   if(!cfg.gameplay||typeof cfg.gameplay!=="object")cfg.gameplay={type:"monopoly"};
   if(!cfg.gameplay.type)cfg.gameplay.type="monopoly";
+  if(!Array.isArray(cfg.items))cfg.items=[];
+  [
+    {id:"pinballBall",name:"彈珠",unit:"顆",icon:"🔮"},
+    {id:"normalScroll",name:"普通捲軸",unit:"張",icon:"📜"},
+    {id:"premiumScroll",name:"高級捲軸",unit:"張",icon:"📕"}
+  ].forEach(it=>{if(!cfg.items.some(x=>x.id===it.id))cfg.items.push(it)});
   if(!cfg.currencies)cfg.currencies={gameTokenId:"dice",premiumExchangeId:"dragonFruitJuice",normalExchangeId:"kiwiJuice",paidCurrencyId:"emerald"};
   if(!cfg.scoreRules)cfg.scoreRules={pointsPerItemObtained:[],pointsPerLap:10};
   if(!cfg.gameplaySettings||typeof cfg.gameplaySettings!=="object")cfg.gameplaySettings={};
@@ -1064,11 +1073,11 @@ function normalizeFundConfig(cfg){
   if(!Array.isArray(mono.randomBoxes))mono.randomBoxes=clone(cfg.randomBoxes||[]);
   if(!cfg.gameplaySettings.pinball){
     cfg.gameplaySettings.pinball={
-      gameTokenId:mono.gameTokenId||"dice",
-      premiumExchangeId:mono.premiumExchangeId||"dragonFruitJuice",
-      normalExchangeId:mono.normalExchangeId||"kiwiJuice",
+      gameTokenId:"pinballBall",
+      premiumExchangeId:"premiumScroll",
+      normalExchangeId:"normalScroll",
       dailyMissionMaxGameTokens:Number(mono.dailyMissionMaxGameTokens||30),
-      pointsPerItemObtained:clone(mono.pointsPerItemObtained||[]),
+      pointsPerItemObtained:[{itemId:"pinballBall",points:2},{itemId:"premiumScroll",points:0}],
       randomBoxes:[],
       slotCount:8,triggerRequired:5,hiddenBalls:200,
       slotRewardPool:[
@@ -1084,6 +1093,34 @@ function normalizeFundConfig(cfg){
     }
   }
   const pin=cfg.gameplaySettings.pinball;
+
+  // v34：彈珠機改為專用的「彈珠／普通捲軸／高級捲軸」。
+  if(pin.gameTokenId==="dice")pin.gameTokenId="pinballBall";
+  if(pin.normalExchangeId==="kiwiJuice")pin.normalExchangeId="normalScroll";
+  if(pin.premiumExchangeId==="dragonFruitJuice")pin.premiumExchangeId="premiumScroll";
+
+  if(Array.isArray(pin.pointsPerItemObtained)){
+    pin.pointsPerItemObtained=pin.pointsPerItemObtained.map(x=>({
+      ...x,
+      itemId:x.itemId==="dice"?"pinballBall":
+             x.itemId==="kiwiJuice"?"normalScroll":
+             x.itemId==="dragonFruitJuice"?"premiumScroll":x.itemId
+    }))
+  }
+
+  if(Array.isArray(pin.slotTypes)){
+    pin.slotTypes.forEach(type=>{
+      if(type.name==="奇異果汁格")type.name="普通捲軸格";
+      if(type.name==="火龍果汁格")type.name="高級捲軸格";
+      if(type.id==="kiwiSlot")type.id="normalScrollSlot";
+      if(type.id==="dragonSlot")type.id="premiumScrollSlot";
+      (type.rewards||[]).forEach(r=>{
+        if(r.itemId==="kiwiJuice")r.itemId="normalScroll";
+        if(r.itemId==="dragonFruitJuice")r.itemId="premiumScroll"
+      })
+    })
+  }
+
   pin.dailyMissionMaxGameTokens=Math.max(0,Number(pin.dailyMissionMaxGameTokens??30));
   pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.slotCount||8))));
   pin.triggerRequired=Math.max(1,Math.floor(Number(pin.triggerRequired||5)));
@@ -1108,17 +1145,17 @@ function normalizeFundConfig(cfg){
     pin.slotTypes=legacy
       ?[{id:"legacySlot",name:"舊版獎勵格",distributionWeight:100,rewards:legacy}]
       :[
-        {id:"kiwiSlot",name:"奇異果汁格",distributionWeight:70,rewards:[
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:5,probability:20},
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:10,probability:20},
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:15,probability:20},
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:20,probability:15},
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:25,probability:15},
-          {itemId:pin.normalExchangeId||"kiwiJuice",amount:50,probability:10}
+        {id:"normalScrollSlot",name:"普通捲軸格",distributionWeight:70,rewards:[
+          {itemId:pin.normalExchangeId||"normalScroll",amount:5,probability:20},
+          {itemId:pin.normalExchangeId||"normalScroll",amount:10,probability:20},
+          {itemId:pin.normalExchangeId||"normalScroll",amount:15,probability:20},
+          {itemId:pin.normalExchangeId||"normalScroll",amount:20,probability:15},
+          {itemId:pin.normalExchangeId||"normalScroll",amount:25,probability:15},
+          {itemId:pin.normalExchangeId||"normalScroll",amount:50,probability:10}
         ]},
-        {id:"dragonSlot",name:"火龍果汁格",distributionWeight:30,rewards:[
-          {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:1,probability:85},
-          {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:2,probability:15}
+        {id:"premiumScrollSlot",name:"高級捲軸格",distributionWeight:30,rewards:[
+          {itemId:pin.premiumExchangeId||"premiumScroll",amount:1,probability:85},
+          {itemId:pin.premiumExchangeId||"premiumScroll",amount:2,probability:15}
         ]}
       ]
   }
@@ -1127,7 +1164,7 @@ function normalizeFundConfig(cfg){
     if(!type.name)type.name=`格子類型 ${i+1}`;
     type.distributionWeight=Math.max(0,Number(type.distributionWeight||0));
     if(!Array.isArray(type.rewards)||!type.rewards.length){
-      type.rewards=[{itemId:pin.normalExchangeId||"kiwiJuice",amount:1,probability:100}]
+      type.rewards=[{itemId:pin.normalExchangeId||"normalScroll",amount:1,probability:100}]
     }
   });
   delete pin.slotRewardPool;
