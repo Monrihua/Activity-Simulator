@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜玩法獨立代幣設定版 v28</title>
+<title>活動玩法模擬器｜彈珠機玩法原型 v29</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -356,6 +356,104 @@ button:disabled{cursor:not-allowed;opacity:.45}
 }
 .multiplier-wrap{align-items:center}
 #rollSelectedBtn{min-width:92px}
+
+.gameplay-switch{
+  display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-end
+}
+.gameplay-switch-btn{
+  border:2px solid #dce6ef;background:#eef4f8;color:#51657a;border-radius:12px;
+  padding:8px 12px;font-weight:1000;box-shadow:0 3px 0 #cbd7df
+}
+.gameplay-switch-btn.active{
+  background:linear-gradient(#ff7aaa,#ef477d);color:#fff;border-color:#ff77a7;box-shadow:0 3px 0 #c53263
+}
+.gameplay-play-area[hidden]{display:none!important}
+
+.pinball-machine{
+  width:100%;max-width:760px;margin:0 auto;border-radius:28px;padding:14px;
+  background:linear-gradient(180deg,#312d41,#171620 72%,#272335);
+  border:5px solid #6c5269;box-shadow:inset 0 0 0 3px #1a1720,0 10px 22px rgba(25,20,35,.24)
+}
+.pinball-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;
+  color:#fff;font-weight:1000
+}
+.pinball-head .pinball-mode{
+  background:#514660;border:2px solid #786b86;border-radius:12px;padding:6px 10px;font-size:13px
+}
+.pinball-field{
+  position:relative;width:100%;aspect-ratio:.78;overflow:hidden;border-radius:22px 22px 10px 10px;
+  background:
+    radial-gradient(circle at 20% 20%,rgba(255,255,255,.025),transparent 28%),
+    linear-gradient(180deg,#242230,#1b1a25);
+  border:4px solid #625568;box-shadow:inset 0 0 30px rgba(0,0,0,.45)
+}
+.pinball-pegs{
+  position:absolute;inset:10% 7% 21%;display:grid;grid-template-columns:repeat(7,1fr);
+  grid-template-rows:repeat(7,1fr);align-items:center;justify-items:center
+}
+.pinball-peg{
+  width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#c7c6e8 45%,#77738f 70%,#4b485b);
+  border:2px solid #454253;box-shadow:0 2px 3px rgba(0,0,0,.6)
+}
+.pinball-peg.offset{transform:translateX(50%)}
+.pinball-ball-layer{position:absolute;inset:0;pointer-events:none;z-index:4}
+.pinball-ball{
+  position:absolute;width:20px;height:20px;border-radius:50%;left:50%;top:4%;
+  margin-left:-10px;background:radial-gradient(circle at 35% 30%,#fff,#f0f0ff 28%,#b4b4d5 68%,#68647e);
+  border:2px solid #555269;box-shadow:0 3px 7px rgba(0,0,0,.65);
+  transition:left .36s cubic-bezier(.4,.05,.55,1),top .36s cubic-bezier(.25,.7,.35,1)
+}
+.pinball-slots{
+  position:absolute;left:2.5%;right:2.5%;bottom:2.5%;height:17%;
+  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;z-index:3
+}
+.pinball-slot{
+  min-width:0;position:relative;border-radius:10px 10px 5px 5px;
+  background:linear-gradient(#796d8f,#454054);border:2px solid #a597ba;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;
+  font-weight:1000;text-shadow:0 2px 2px #292432;box-shadow:inset 0 0 10px rgba(0,0,0,.25)
+}
+.pinball-slot .slot-icon{font-size:clamp(18px,4.2vw,34px);line-height:1}
+.pinball-slot .slot-amount{font-size:clamp(11px,2.6vw,17px);margin-top:2px}
+.pinball-slot.target{
+  border-color:#ff618b;box-shadow:0 0 0 2px rgba(255,74,118,.3),inset 0 0 12px rgba(255,74,118,.22)
+}
+.pinball-target-tag{
+  position:absolute;left:-3px;top:-16px;min-width:42px;padding:3px 6px;border-radius:7px;
+  background:#f43f68;color:#fff;border:2px solid #61152c;font-size:12px;font-weight:1000;
+  text-shadow:none;box-shadow:0 2px 0 #71182f
+}
+.pinball-footer{
+  margin-top:10px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center
+}
+.pinball-progress{
+  height:14px;border-radius:999px;background:#413a4d;border:2px solid #71667e;overflow:hidden
+}
+.pinball-progress>div{height:100%;width:0;background:linear-gradient(90deg,#ffb13b,#ff6c85)}
+.pinball-status{color:#e3dff1;font-size:13px;margin-top:5px;line-height:1.45}
+.pinball-launch{
+  min-width:150px;border:0;border-radius:16px;padding:12px 15px;font-weight:1000;color:#fff;
+  background:linear-gradient(#ffbc3d,#f28c24);box-shadow:0 5px 0 #b8601c
+}
+.pinball-hidden-banner{
+  display:none;margin-top:8px;border-radius:13px;padding:8px 10px;text-align:center;
+  background:linear-gradient(90deg,#7136c8,#d943a0);color:#fff;font-weight:1000
+}
+.pinball-hidden-banner.show{display:block}
+@media(max-width:720px){
+  .gameplay-switch{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .gameplay-switch-btn{width:100%}
+  .pinball-machine{padding:8px;border-radius:20px}
+  .pinball-field{aspect-ratio:.72}
+  .pinball-peg{width:12px;height:12px}
+  .pinball-slots{gap:2px;height:18%}
+  .pinball-slot{border-width:1px;border-radius:6px 6px 3px 3px}
+  .pinball-target-tag{left:-2px;top:-15px;min-width:34px;padding:2px 4px;font-size:10px}
+  .pinball-footer{grid-template-columns:1fr}
+  .pinball-launch{width:100%}
+}
 @media(max-width:720px){
   .daily-dice-stats{grid-template-columns:1fr 1fr}
   .daily-claim-panel{grid-template-columns:1fr;gap:8px}
@@ -405,11 +503,18 @@ button:disabled{cursor:not-allowed;opacity:.45}
       <section class="card">
         <div class="card-title">
           <div>
-            <h2>🎲 大富翁玩法</h2>
+            <h2 id="gameplayTitle">🎲 大富翁玩法</h2>
             <div class="help" id="boardMeta"></div>
           </div>
-          <button class="btn secondary small" id="refreshBoardBtn">刷新地圖</button>
+          <div>
+            <div class="gameplay-switch">
+              <button class="gameplay-switch-btn active" data-gameplay-select="monopoly">🎲 大富翁</button>
+              <button class="gameplay-switch-btn" data-gameplay-select="pinball">🔮 彈珠機</button>
+            </div>
+            <button class="btn secondary small" id="refreshBoardBtn" style="width:100%;margin-top:7px">刷新地圖</button>
+          </div>
         </div>
+        <div class="gameplay-play-area" id="monopolyPlayArea">
         <div class="board-shell">
           <div class="board" id="board">
             <div class="board-center" id="boardCenter">
@@ -423,9 +528,33 @@ button:disabled{cursor:not-allowed;opacity:.45}
             </div>
           </div>
         </div>
+        </div>
+
+        <div class="gameplay-play-area" id="pinballPlayArea" hidden>
+          <div class="pinball-machine">
+            <div class="pinball-head">
+              <span>🔮 哥布林彈珠機原型</span>
+              <span class="pinball-mode" id="pinballModeLabel">普通模式</span>
+            </div>
+            <div class="pinball-field" id="pinballField">
+              <div class="pinball-pegs" id="pinballPegs"></div>
+              <div class="pinball-ball-layer" id="pinballBallLayer"></div>
+              <div class="pinball-slots" id="pinballSlots"></div>
+            </div>
+            <div class="pinball-hidden-banner" id="pinballHiddenBanner">✨ 隱藏模式：200 顆彈珠自動落下中</div>
+            <div class="pinball-footer">
+              <div>
+                <div class="pinball-progress"><div id="pinballHiddenProgress"></div></div>
+                <div class="pinball-status" id="pinballStatus">特殊格累積 0/5。</div>
+              </div>
+              <button class="pinball-launch" id="pinballDropMainBtn">投入 1 顆彈珠</button>
+            </div>
+          </div>
+        </div>
+
         <div class="form-row" style="margin-top:10px;justify-content:space-between">
           <div class="multiplier-wrap">
-            <span class="multiplier-label">每次擲骰</span>
+            <span class="multiplier-label" id="playMultiplierLabel">每次擲骰</span>
             <div class="multiplier-group" id="multiplierGroup">
               <button class="multiplier-btn active" data-roll-count="1">×1</button>
               <button class="multiplier-btn" data-roll-count="3">×3</button>
@@ -597,9 +726,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
       <section class="card">
         <div class="card-title"><h3>操作說明</h3></div>
         <div class="help">
-          週一至週日可隨時切換，每一天會各自保存積分、任務、階段獎勵及禮包購買次數。
-          棋盤位置、圈數與背包資源則是整個活動共用。完成準備後可建立「模擬基準」，
-          重複全砸骰子並統計達標機率；任何一般操作也能使用上方的復原與重做。
+          週一至週日共用同一套每日進度、禮包、基金與背包。上方可切換大富翁／彈珠機玩法；
+          各玩法保留自己的遊戲狀態與代幣設定，但取得的資源與每日積分都回到同一個活動環境。
+          彈珠機特殊格累積達標後會自動執行隱藏模式並刷新8格。
         </div>
       </section>
     </aside>
@@ -622,6 +751,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
         <button data-setting-tab="packages">每日禮包</button>
         <div class="settings-nav-title">遊戲玩法</div>
         <button data-setting-tab="monopoly">🎲 大富翁玩法</button>
+        <button data-setting-tab="pinball">🔮 彈珠機玩法</button>
         <div class="settings-nav-title">系統</div>
         <button data-setting-tab="backup">備份與還原</button>
       </nav>
@@ -649,7 +779,34 @@ const DEFAULT_CONFIG = {
       gameTokenId:"dice",
       premiumExchangeId:"dragonFruitJuice",
       normalExchangeId:"kiwiJuice",
-      pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}]
+      dailyMissionMaxGameTokens:30,
+      pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
+      randomBoxes:[
+        {id:"premiumBox",name:"高級兌換幣隨機箱",boxItemId:"premiumExchangeBox",rewardItemId:"dragonFruitJuice",outcomes:[
+          {amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}
+        ]}
+      ]
+    },
+    pinball:{
+      gameTokenId:"dice",
+      premiumExchangeId:"dragonFruitJuice",
+      normalExchangeId:"kiwiJuice",
+      dailyMissionMaxGameTokens:30,
+      pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
+      randomBoxes:[],
+      slotCount:8,
+      triggerRequired:5,
+      hiddenBalls:200,
+      slotRewardPool:[
+        {itemId:"kiwiJuice",amount:5,probability:12.5},
+        {itemId:"kiwiJuice",amount:10,probability:12.5},
+        {itemId:"kiwiJuice",amount:15,probability:12.5},
+        {itemId:"kiwiJuice",amount:20,probability:12.5},
+        {itemId:"kiwiJuice",amount:25,probability:12.5},
+        {itemId:"kiwiJuice",amount:50,probability:12.5},
+        {itemId:"dragonFruitJuice",amount:1,probability:12.5},
+        {itemId:"dragonFruitJuice",amount:2,probability:12.5}
+      ]
     }
   },
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true,playerIcon:"🐹",startIcon:"🏁",startRewards:[]},
@@ -822,21 +979,64 @@ function normalizeFundConfig(cfg){
   if(!cfg.currencies)cfg.currencies={gameTokenId:"dice",premiumExchangeId:"dragonFruitJuice",normalExchangeId:"kiwiJuice",paidCurrencyId:"emerald"};
   if(!cfg.scoreRules)cfg.scoreRules={pointsPerItemObtained:[],pointsPerLap:10};
   if(!cfg.gameplaySettings||typeof cfg.gameplaySettings!=="object")cfg.gameplaySettings={};
+  if(!cfg.dailyMission)cfg.dailyMission={maxGameTokens:30};
+  if(!Array.isArray(cfg.randomBoxes))cfg.randomBoxes=[];
   if(!cfg.gameplaySettings.monopoly){
     cfg.gameplaySettings.monopoly={
       gameTokenId:cfg.currencies.gameTokenId||"dice",
       premiumExchangeId:cfg.currencies.premiumExchangeId||"dragonFruitJuice",
       normalExchangeId:cfg.currencies.normalExchangeId||"kiwiJuice",
-      pointsPerItemObtained:clone(cfg.scoreRules.pointsPerItemObtained||[])
+      dailyMissionMaxGameTokens:Number(cfg.dailyMission.maxGameTokens||30),
+      pointsPerItemObtained:clone(cfg.scoreRules.pointsPerItemObtained||[]),
+      randomBoxes:clone(cfg.randomBoxes||[])
     }
   }
+  const mono=cfg.gameplaySettings.monopoly;
+  if(!Object.prototype.hasOwnProperty.call(mono,"dailyMissionMaxGameTokens"))mono.dailyMissionMaxGameTokens=Number(cfg.dailyMission.maxGameTokens||30);
+  if(!Array.isArray(mono.randomBoxes))mono.randomBoxes=clone(cfg.randomBoxes||[]);
+  if(!cfg.gameplaySettings.pinball){
+    cfg.gameplaySettings.pinball={
+      gameTokenId:mono.gameTokenId||"dice",
+      premiumExchangeId:mono.premiumExchangeId||"dragonFruitJuice",
+      normalExchangeId:mono.normalExchangeId||"kiwiJuice",
+      dailyMissionMaxGameTokens:Number(mono.dailyMissionMaxGameTokens||30),
+      pointsPerItemObtained:clone(mono.pointsPerItemObtained||[]),
+      randomBoxes:[],
+      slotCount:8,triggerRequired:5,hiddenBalls:200,
+      slotRewardPool:[
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:5,probability:12.5},
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:10,probability:12.5},
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:15,probability:12.5},
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:20,probability:12.5},
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:25,probability:12.5},
+        {itemId:mono.normalExchangeId||"kiwiJuice",amount:50,probability:12.5},
+        {itemId:mono.premiumExchangeId||"dragonFruitJuice",amount:1,probability:12.5},
+        {itemId:mono.premiumExchangeId||"dragonFruitJuice",amount:2,probability:12.5}
+      ]
+    }
+  }
+  const pin=cfg.gameplaySettings.pinball;
+  pin.dailyMissionMaxGameTokens=Math.max(0,Number(pin.dailyMissionMaxGameTokens??30));
+  pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.slotCount||8))));
+  pin.triggerRequired=Math.max(1,Math.floor(Number(pin.triggerRequired||5)));
+  pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
+  if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
+  if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
+  if(!Array.isArray(pin.slotRewardPool)||!pin.slotRewardPool.length)pin.slotRewardPool=[
+    {itemId:pin.normalExchangeId||"kiwiJuice",amount:5,probability:50},
+    {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:1,probability:50}
+  ];
+
   const activeGameplay=cfg.gameplaySettings[cfg.gameplay.type]||cfg.gameplaySettings.monopoly;
   if(activeGameplay){
     if(!Array.isArray(activeGameplay.pointsPerItemObtained))activeGameplay.pointsPerItemObtained=[];
+    if(!Array.isArray(activeGameplay.randomBoxes))activeGameplay.randomBoxes=[];
     cfg.currencies.gameTokenId=activeGameplay.gameTokenId||cfg.currencies.gameTokenId||"dice";
     cfg.currencies.premiumExchangeId=activeGameplay.premiumExchangeId||cfg.currencies.premiumExchangeId||"dragonFruitJuice";
     cfg.currencies.normalExchangeId=activeGameplay.normalExchangeId||cfg.currencies.normalExchangeId||"kiwiJuice";
-    cfg.scoreRules.pointsPerItemObtained=clone(activeGameplay.pointsPerItemObtained)
+    cfg.dailyMission.maxGameTokens=Math.max(0,Number(activeGameplay.dailyMissionMaxGameTokens??30));
+    cfg.scoreRules.pointsPerItemObtained=clone(activeGameplay.pointsPerItemObtained);
+    cfg.randomBoxes=clone(activeGameplay.randomBoxes)
   }
   if(!cfg.board)cfg.board={};
   if(!Array.isArray(cfg.board.startRewards))cfg.board.startRewards=[];
@@ -895,13 +1095,16 @@ function loadStoredStrategy(){
     if(!saved)return null;const parsed=JSON.parse(saved);return Number(parsed.version||0)>=4?parsed:null
   }catch{return null}
 }
-function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,lapsCompleted:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
+function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,lapsCompleted:0,pinballDrops:0,pinballHiddenRuns:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
 function createState(){
   return{
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
     fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
     gameTokenFlow:Array.from({length:config.event.totalDays},()=>({gained:0,spent:0})),
+    gameplayStates:{
+      pinball:{slots:[],targetSlot:0,targetHits:0,hiddenActive:false,hiddenRuns:0,totalDrops:0,normalDrops:0,hiddenDrops:0,boardVersion:0,lastLanding:null}
+    },
     lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
 }
@@ -913,6 +1116,8 @@ function ensureStateSchema(targetState=state,cfg=config){
   targetState.days.forEach(day=>{
     day.score=Number(day.score||0);day.missionClaimed=!!day.missionClaimed;
     day.lapsCompleted=Math.max(0,Number(day.lapsCompleted||0));
+    day.pinballDrops=Math.max(0,Number(day.pinballDrops||0));
+    day.pinballHiddenRuns=Math.max(0,Number(day.pinballHiddenRuns||0));
     if(!Object.prototype.hasOwnProperty.call(day,"freeBundleUndo"))day.freeBundleUndo=null;
     if(!Object.prototype.hasOwnProperty.call(day,"missionAmount"))day.missionAmount=day.missionClaimed?Number(cfg.dailyMission.maxGameTokens||0):0;
     day.missionAmount=Number(day.missionAmount||0);if(!Array.isArray(day.claimedStages))day.claimedStages=[];
@@ -941,6 +1146,19 @@ function ensureStateSchema(targetState=state,cfg=config){
     fundMilestones(cfg).forEach(m=>targetState.fundClaims.premium[m.id]=day)
   }
   if(!targetState.resources)targetState.resources={};if(!targetState.spent)targetState.spent={};
+  if(!targetState.gameplayStates||typeof targetState.gameplayStates!=="object")targetState.gameplayStates={};
+  if(!targetState.gameplayStates.pinball||typeof targetState.gameplayStates.pinball!=="object")targetState.gameplayStates.pinball={};
+  const ps=targetState.gameplayStates.pinball;
+  if(!Array.isArray(ps.slots))ps.slots=[];
+  ps.targetSlot=Math.max(0,Number(ps.targetSlot||0));
+  ps.targetHits=Math.max(0,Number(ps.targetHits||0));
+  ps.hiddenActive=!!ps.hiddenActive;
+  ps.hiddenRuns=Math.max(0,Number(ps.hiddenRuns||0));
+  ps.totalDrops=Math.max(0,Number(ps.totalDrops||0));
+  ps.normalDrops=Math.max(0,Number(ps.normalDrops||0));
+  ps.hiddenDrops=Math.max(0,Number(ps.hiddenDrops||0));
+  ps.boardVersion=Math.max(0,Number(ps.boardVersion||0));
+  if(!Object.prototype.hasOwnProperty.call(ps,"lastLanding"))ps.lastLanding=null;
   if(!Array.isArray(targetState.log))targetState.log=[];if(!Object.prototype.hasOwnProperty.call(targetState,"activeStrategy"))targetState.activeStrategy=null;
   ensureGameTokenFlow(targetState,cfg);
   return targetState
@@ -1196,6 +1414,132 @@ function spend(cost,reason){
   if(reason)log(`${reason}：支出 ${itemText(cost.itemId,amount)}`);
   return true
 }
+function activeGameplaySettings(cfg=config){
+  normalizeFundConfig(cfg);
+  return cfg.gameplaySettings?.[cfg.gameplay?.type]||cfg.gameplaySettings?.monopoly
+}
+function pinballSettings(cfg=config){normalizeFundConfig(cfg);return cfg.gameplaySettings.pinball}
+function pinballState(targetState=state){ensureStateSchema(targetState,config);return targetState.gameplayStates.pinball}
+function generatePinballSlots(targetState=state,cfg=config){
+  const ps=pinballState(targetState),pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8));
+  ps.slots=Array.from({length:count},()=>clone(weightedPick(pc.slotRewardPool)));
+  ps.targetSlot=Math.floor(Math.random()*count);
+  ps.targetHits=0;ps.hiddenActive=false;ps.lastLanding=null;ps.boardVersion=Number(ps.boardVersion||0)+1;
+  return ps
+}
+function ensurePinballSlots(targetState=state,cfg=config){
+  const ps=pinballState(targetState),count=Math.max(2,Number(pinballSettings(cfg).slotCount||8));
+  if(!Array.isArray(ps.slots)||ps.slots.length!==count)generatePinballSlots(targetState,cfg);
+  ps.targetSlot=Math.max(0,Math.min(count-1,Number(ps.targetSlot||0)));
+  return ps
+}
+function switchGameplay(type){
+  if(rolling)return toast("目前遊戲正在執行，請稍候");
+  if(!config.gameplaySettings?.[type])return toast("這個玩法尚未設定");
+  config.gameplay.type=type;
+  normalizeFundConfig(config);
+  ensureStateSchema(state,config);
+  if(type==="pinball")ensurePinballSlots();
+  lastAutoRollSnapshot=null;
+  $("dailyDiceInput").value=config.dailyMission.maxGameTokens;
+  render();
+  toast(`已切換為${type==="pinball"?"彈珠機":"大富翁"}玩法`)
+}
+function pinballRewardText(reward,cfg=config){
+  const it=cfgItem(cfg,reward.itemId);return `${it.icon||"🎁"} ${it.name} ×${fmt(reward.amount)}`
+}
+async function animatePinballDrop(slotIndex,fast=false){
+  if(fast||config.gameplay.type!=="pinball")return;
+  const layer=$("pinballBallLayer");if(!layer)return;
+  const count=Math.max(2,Number(pinballSettings().slotCount||8));
+  const ball=document.createElement("div");ball.className="pinball-ball";layer.appendChild(ball);
+  await wait(20);
+  ball.style.left=`${(slotIndex+.5)/count*100}%`;
+  ball.style.top="79%";
+  await wait(390);
+  ball.remove()
+}
+function pinballAggregateReward(map,reward){
+  const key=reward.itemId;
+  map[key]=Number(map[key]||0)+Number(reward.amount||0)
+}
+async function runPinballHiddenMode({fast=false}={}){
+  const ps=ensurePinballSlots(),pc=pinballSettings(),count=Math.max(1,Number(pc.hiddenBalls||200));
+  ps.hiddenActive=true;
+  renderPinballBoard();
+  const tally={};
+  for(let i=0;i<count;i++){
+    const slot=Math.floor(Math.random()*ps.slots.length);
+    const reward=ps.slots[slot];
+    pinballAggregateReward(tally,reward);
+    ps.lastLanding=slot;ps.totalDrops++;ps.hiddenDrops++;
+    dayState().pinballDrops=Number(dayState().pinballDrops||0)+1;
+    if(!fast&&(i%20===19||i===count-1)){
+      const bar=$("pinballHiddenProgress"),status=$("pinballStatus");
+      if(bar)bar.style.width=`${(i+1)/count*100}%`;
+      if(status)status.textContent=`隱藏模式 ${i+1}/${count} 顆彈珠落下中…`;
+      await wait(18)
+    }
+  }
+  Object.entries(tally).forEach(([itemId,amount])=>addItem(itemId,amount,"彈珠機隱藏模式獎勵",true));
+  ps.hiddenRuns++;dayState().pinballHiddenRuns=Number(dayState().pinballHiddenRuns||0)+1;
+  const rewardText=Object.entries(tally).map(([id,n])=>`${item(id).icon||""}${item(id).name}×${fmt(n)}`).join("、");
+  generatePinballSlots();
+  ps.hiddenActive=false;
+  $("rollMessage").textContent=`隱藏模式完成：200 顆彈珠結算 ${rewardText||"無獎勵"}；8 格內容與特殊格已刷新。`;
+  render()
+}
+async function dropPinballOnce({silent=false,fast=false}={}){
+  if(strategyIsPastReadOnly()){if(!silent)toast("過去日期只能查看，不能使用後來才取得的資源");return null}
+  const token=config.currencies.gameTokenId,ps=ensurePinballSlots(),pc=pinballSettings();
+  if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
+  state.resources[token]-=1;adjustGameTokenSpend(state.currentDay,1);
+  const slot=Math.floor(Math.random()*ps.slots.length),reward=ps.slots[slot];
+
+  rolling=true;
+  $("rollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
+  const main=$("pinballDropMainBtn");if(main)main.disabled=true;
+  await animatePinballDrop(slot,fast);
+
+  addItem(reward.itemId,reward.amount,`彈珠機第 ${slot+1} 格`,true);
+  ps.lastLanding=slot;ps.totalDrops++;ps.normalDrops++;
+  dayState().pinballDrops=Number(dayState().pinballDrops||0)+1;
+
+  let triggered=false;
+  if(slot===Number(ps.targetSlot)){
+    ps.targetHits=Number(ps.targetHits||0)+1;
+    if(ps.targetHits>=Number(pc.triggerRequired||5))triggered=true
+  }
+
+  const result=`落入第 ${slot+1} 格 → ${pinballRewardText(reward)}`;
+  $("rollMessage").textContent=`彈珠落下：${result}${slot===ps.targetSlot?`；特殊格 ${ps.targetHits}/${pc.triggerRequired}`:""}`;
+  rolling=false;
+  $("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;if(main)main.disabled=false;
+  render();
+
+  if(triggered){
+    $("rollMessage").textContent=`特殊格已完成 ${pc.triggerRequired}/${pc.triggerRequired}！暫停普通投珠，進入隱藏模式。`;
+    await wait(fast?0:250);
+    await runPinballHiddenMode({fast})
+  }
+  return{slot,reward,result,triggered}
+}
+async function dropPinballs(count){
+  if(rolling)return;
+  const token=config.currencies.gameTokenId,available=Math.floor(Number(state.resources[token]||0));
+  const actual=Math.min(Math.max(1,Number(count)||1),available);
+  if(actual<1)return toast(`${item(token).name}不足`);
+  recordHistory(`彈珠機投入 ×${actual}`);
+  let done=0,last=null;
+  for(let i=0;i<actual;i++){
+    last=await dropPinballOnce({silent:true,fast:actual>1});
+    if(!last)break;
+    done++;
+    if(i%10===9)await wait(0)
+  }
+  if(last)$("rollMessage").textContent=`連續投入 ${done} 顆彈珠完成；最後${last.result}。`;
+  render()
+}
 function generateBoard(){
   const count=Number(config.board.cellCount);
   const start=Number(config.board.startIndex);
@@ -1234,7 +1578,11 @@ function validateConfig(c){
   if(!Array.isArray(c.items)||!c.items.length)throw new Error("物品清單不可為空");
   const ids=c.items.map(x=>x.id);if(new Set(ids).size!==ids.length)throw new Error("物品 ID 不可重複");
   if(!Array.isArray(c.cellTypes)||!c.cellTypes.length)throw new Error("至少需要一種格子類型");
-  c.cellTypes.forEach(x=>validateProbability(x.rewards,x.name));c.randomBoxes.forEach(x=>validateProbability(x.outcomes,x.name));
+  c.cellTypes.forEach(x=>validateProbability(x.rewards,x.name));
+  Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
+    (g.randomBoxes||[]).forEach(x=>validateProbability(x.outcomes,`${gameplay}・${x.name}`))
+  });
+  validateProbability(c.gameplaySettings.pinball.slotRewardPool,"彈珠機格子獎勵池");
   if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
   const fundIds=fundMilestones(c).map(x=>x.id);if(new Set(fundIds).size!==fundIds.length)throw new Error("基金階段 ID 不可重複");
   fundMilestones(c).forEach((m,i)=>{if(Number(m.laps)<0)throw new Error(`第 ${i+1} 個基金階段圈數不可小於 0`);[...(m.freeRewards||[]),...(m.premiumRewards||[])].forEach(r=>{if(!ids.includes(r.itemId))throw new Error(`基金階段引用不存在的物品：${r.itemId}`)})});
@@ -1248,7 +1596,8 @@ function syncStateToConfig(forceBoard=true){
   state.currentDay=Math.min(state.currentDay,needed-1);
   state.position=((Number(state.position)||0)%Number(config.board.cellCount)+Number(config.board.cellCount))%Number(config.board.cellCount);
   if(Number(config.board.startIndex)>=Number(config.board.cellCount))config.board.startIndex=0;normalizeFundConfig(config);
-  if(forceBoard||!Array.isArray(state.board)||state.board.length!==Number(config.board.cellCount))generateBoard()
+  if(forceBoard||!Array.isArray(state.board)||state.board.length!==Number(config.board.cellCount))generateBoard();
+  ensurePinballSlots(state,config)
 }
 function getGridDimensions(n){
   const target=window.innerWidth<680?.72:1.43;
@@ -1274,7 +1623,7 @@ function perimeterPath(cols,rows){
   for(let c=cols-1;c>startCol;c--)coords.push([c,rows]);
   return coords
 }
-function renderBoard(){
+function renderMonopolyBoard(){
   const board=$("board");
   const dims=getGridDimensions(Number(config.board.cellCount));
   const fullPath=perimeterPath(dims.cols,dims.rows);
@@ -1319,6 +1668,49 @@ function renderBoard(){
   $("centerScore").textContent=`${config.event.dayLabels[state.currentDay]} ${fmt(dayState().score)} 分`;
   $("diceFace").textContent=item(config.currencies.gameTokenId).icon||"🎲"
 }
+function renderPinballBoard(){
+  const ps=ensurePinballSlots(),pc=pinballSettings();
+  $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=false;
+  $("gameplayTitle").textContent="🔮 彈珠機玩法";
+  $("refreshBoardBtn").textContent="刷新槽位";
+  $("boardMeta").textContent=`${ps.slots.length} 格｜特殊格 ${ps.targetHits}/${pc.triggerRequired}｜隱藏模式 ${pc.hiddenBalls} 顆｜第 ${ps.boardVersion} 組`;
+  $("playMultiplierLabel").textContent="每次投入";
+  $("rollSelectedBtn").textContent="投入彈珠";
+  $("autoRollBtn").textContent="自動使用全部彈珠";
+  $("pinballDropMainBtn").textContent=`投入 1 顆${item(config.currencies.gameTokenId).name}`;
+
+  document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="pinball"));
+  const pegs=$("pinballPegs");
+  if(pegs&&!pegs.children.length){
+    pegs.innerHTML=Array.from({length:43},(_,i)=>`<span class="pinball-peg ${Math.floor(i/7)%2?"offset":""}"></span>`).join("")
+  }
+  $("pinballSlots").style.gridTemplateColumns=`repeat(${ps.slots.length},minmax(0,1fr))`;
+  $("pinballSlots").innerHTML=ps.slots.map((reward,i)=>{
+    const it=item(reward.itemId),target=i===Number(ps.targetSlot);
+    return `<div class="pinball-slot ${target?"target":""}" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
+      ${target?`<span class="pinball-target-tag">${fmt(ps.targetHits)}/${fmt(pc.triggerRequired)}</span>`:""}
+      <span class="slot-icon">${escapeHtml(it.icon||"🎁")}</span>
+      <span class="slot-amount">×${fmt(reward.amount)}</span>
+    </div>`
+  }).join("");
+  $("pinballModeLabel").textContent=ps.hiddenActive?"隱藏模式":"普通模式";
+  $("pinballHiddenBanner").classList.toggle("show",ps.hiddenActive);
+  $("pinballHiddenProgress").style.width=ps.hiddenActive?"0%":`${Math.min(100,Number(ps.targetHits||0)/Math.max(1,Number(pc.triggerRequired||5))*100)}%`;
+  $("pinballStatus").textContent=ps.hiddenActive
+    ?`隱藏模式 ${pc.hiddenBalls} 顆彈珠自動落下中…`
+    :`特殊格在第 ${Number(ps.targetSlot)+1} 格，目前 ${fmt(ps.targetHits)}/${fmt(pc.triggerRequired)}；集滿後自動進入隱藏模式。`
+}
+function renderBoard(){
+  if(config.gameplay.type==="pinball"){renderPinballBoard();return}
+  $("monopolyPlayArea").hidden=false;$("pinballPlayArea").hidden=true;
+  $("gameplayTitle").textContent="🎲 大富翁玩法";
+  $("refreshBoardBtn").textContent="刷新地圖";
+  $("playMultiplierLabel").textContent="每次擲骰";
+  $("rollSelectedBtn").textContent="擲骰子";
+  $("autoRollBtn").textContent="自動使用全部骰子";
+  document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="monopoly"));
+  renderMonopolyBoard()
+}
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
 async function rollOnce({silent=false,fast=false}={}){
   if(strategyIsPastReadOnly()){if(!silent)toast("過去日期只能查看，不能使用後來才取得的資源");return null}
@@ -1361,6 +1753,7 @@ async function rollOnce({silent=false,fast=false}={}){
 }
 
 async function rollMultiple(count){
+  if(config.gameplay.type==="pinball")return dropPinballs(count);
   if(rolling)return;
   const token=config.currencies.gameTokenId;
   const available=Math.floor(Number(state.resources[token]||0));
@@ -1383,7 +1776,29 @@ function renderAutoRollControls(){
   $("undoAutoRollBtn").disabled=rolling||!has;
   $("retryAutoRollBtn").disabled=rolling||!has
 }
+async function autoPinball({reuseSnapshot=false}={}){
+  if(rolling)return;
+  const token=config.currencies.gameTokenId,usable=dailyDiceStats().availableToday;
+  if(usable<1)return toast(`本日可用${item(token).name}不足`);
+  if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};
+
+  recordHistory("彈珠機自動使用全部代幣");
+  stopAuto=false;
+  $("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
+  $("undoAutoRollBtn").disabled=true;$("retryAutoRollBtn").disabled=true;
+  const startDrops=Number(pinballState().totalDrops||0);let used=0;
+  while(autoUsableGameTokens()>=1&&!stopAuto){
+    const r=await dropPinballOnce({silent:true,fast:true});
+    if(!r)break;used++;
+    if(used%20===0){render();await wait(0)}
+  }
+  const dropGain=Number(pinballState().totalDrops||0)-startDrops,after=dailyDiceStats();
+  $("rollMessage").textContent=`彈珠機自動結束：消耗 ${fmt(used)} 個${item(token).name}，實際落下 ${fmt(dropGain)} 顆彈珠（含隱藏模式），本日剩餘可用 ${fmt(after.availableToday)} 個。`;
+  rolling=false;$("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;
+  $("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;render()
+}
 async function autoRoll({reuseSnapshot=false}={}){
+  if(config.gameplay.type==="pinball")return autoPinball({reuseSnapshot});
   if(rolling)return;
   const token=config.currencies.gameTokenId;
   const stats=dailyDiceStats();
@@ -1712,6 +2127,7 @@ function refundPackage(groupId,packageId){
 }
 function openBoxes(all){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
+  if(!config.randomBoxes.length)return toast("目前玩法沒有隨機箱");
   const box=config.randomBoxes.find(x=>x.id===$("boxSelect").value)||config.randomBoxes[0];
   if(!box)return toast("尚未設定隨機箱");
   const owned=Math.floor(Number(state.resources[box.boxItemId]||0));
@@ -3954,15 +4370,20 @@ function renderStats(){
         totalStages=stages.length,
         reachedStages=stages.filter(x=>Number(dayState().score)>=Number(x.requiredScore)).length,
         maxScore=totalStages?Number(stages[totalStages-1].requiredScore||0):0,
-        scoreNow=Math.max(0,Number(dayState().score||0));
+        scoreNow=Math.max(0,Number(dayState().score||0)),
+        pin=config.gameplay.type==="pinball",
+        ps=pin?pinballState():null;
+
+  const gameplayStats=pin
+    ?[["本日彈珠落下",fmt(dayState().pinballDrops||0)],["累積彈珠落下",fmt(ps.totalDrops||0)]]
+    :[["本日完成圈數",fmt(dayState().lapsCompleted||0)],["累積完成圈數",fmt(state.laps||0)]];
 
   $("persistentDailyStats").innerHTML=[
-    ["本日獲得骰子",`🎲 ${fmt(s.gainedToday)}`],
-    ["日前剩餘骰子",`🎲 ${fmt(s.previousRemaining)}`],
-    ["本日可用骰子",`🎲 ${fmt(s.availableToday)}`],
-    ["本日已消耗骰子",`🎲 ${fmt(s.spentToday)}`],
-    ["本日完成圈數",fmt(dayState().lapsCompleted||0)],
-    ["累積完成圈數",fmt(state.laps||0)],
+    ["本日獲得代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.gainedToday)}`],
+    ["日前剩餘代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.previousRemaining)}`],
+    ["本日可用代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.availableToday)}`],
+    ["本日已消耗代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.spentToday)}`],
+    ...gameplayStats,
     ["本日進度階段",`${reachedStages}/${totalStages} 階`],
     ["本日積分進度",`${fmt(scoreNow)}/${fmt(maxScore)}`]
   ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")
@@ -4043,22 +4464,34 @@ function renderResources(){
   const spent=config.items.filter(x=>Number(state.spent[x.id]||0)!==0);
   $("spentList").innerHTML=spent.length?spent.map(x=>`<div class="resource-row"><span>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</span><strong>${fmt(state.spent[x.id])} ${escapeHtml(x.unit)}</strong></div>`).join(""):`<div class="empty">尚無支出</div>`;
   const current=$("boxSelect").value;
-  $("boxSelect").innerHTML=config.randomBoxes.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}（持有 ${fmt(state.resources[x.boxItemId])}）</option>`).join("");
+  $("boxSelect").innerHTML=config.randomBoxes.length
+    ?config.randomBoxes.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}（持有 ${fmt(state.resources[x.boxItemId])}）</option>`).join("")
+    :`<option value="">目前玩法沒有隨機箱</option>`;
   if(config.randomBoxes.some(x=>x.id===current))$("boxSelect").value=current;
+  $("openOneBoxBtn").disabled=!config.randomBoxes.length;
+  $("openAllBoxesBtn").disabled=!config.randomBoxes.length;
   $("undoBoxBtn").disabled=!state.lastBoxUndo
 }
 function renderDistribution(){
+  if(config.gameplay.type==="pinball"){
+    const ps=ensurePinballSlots();
+    $("distribution").innerHTML=ps.slots.map((r,i)=>`<div class="resource-row"><span>${i===ps.targetSlot?"🎯 ":""}第 ${i+1} 格・${escapeHtml(item(r.itemId).icon||"")} ${escapeHtml(item(r.itemId).name)}</span><strong>×${fmt(r.amount)}</strong></div>`).join("");
+    const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🔮 本輪彈珠槽位";
+    return
+  }
   const counts={};
   state.board.forEach(x=>counts[x.typeId]=(counts[x.typeId]||0)+1);
   $("distribution").innerHTML=Object.entries(counts).map(([id,n])=>{
     const name=id==="start"?"起點":config.cellTypes.find(x=>x.id===id)?.name||id;
     return `<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${n} 格</strong></div>`
-  }).join("")
+  }).join("");
+  const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🗺️ 本圈格子分布"
 }
 function renderScoreRules(){
   const rows=config.scoreRules.pointsPerItemObtained.map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`);
-  rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
-  $("scoreRules").innerHTML=`<div><strong>目前玩法：大富翁</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
+  if(config.gameplay.type==="monopoly")rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
+  else rows.push(`特殊格 ${fmt(pinballSettings().triggerRequired)} 次後：隱藏模式 ${fmt(pinballSettings().hiddenBalls)} 顆彈珠`);
+  $("scoreRules").innerHTML=`<div><strong>目前玩法：${config.gameplay.type==="pinball"?"彈珠機":"大富翁"}</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 }
 function renderLog(){
   $("logList").innerHTML=state.log.length?state.log.map(x=>`<div>${escapeHtml(x)}</div>`).join(""):`<div>尚無紀錄</div>`
@@ -4086,7 +4519,7 @@ function load(){
 function reset(){
   if(!confirm("確定要重置全部模擬進度嗎？活動設定與模擬基準會保留。"))return;
   recordHistory("重置全部模擬進度");
-  state=createState();lastAutoRollSnapshot=null;generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
+  state=createState();lastAutoRollSnapshot=null;generateBoard();generatePinballSlots();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
 }
 function itemOptions(selected){
   return settingsDraft.items.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===selected?"selected":""}>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</option>`).join("")
@@ -4109,13 +4542,12 @@ function renderSettings(){
   const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
   sections.basic=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>共用活動基本設定</h2><div class="help">標題、日期、每日進度、禮包、基金、物品與付費貨幣由所有玩法共用；各玩法自己的遊戲代幣與計分規則分開設定。</div></div>
+      <div><h2>共用活動基本設定</h2><div class="help">標題、日期、每日進度、禮包、基金、物品與付費貨幣由所有玩法共用；每日任務代幣量、遊戲代幣／兌換幣、隨機箱與計分規則由各玩法自行設定。</div></div>
       <span class="badge ok">共用環境</span>
     </div>
     <div class="setting-grid">
       <div class="field"><label>標題設定</label>${pathInput("event.name",c.event.name)}</div>
       <div class="field"><label>活動天數</label>${pathInput("event.totalDays",c.event.totalDays,"number",'min="1" max="30"')}</div>
-      <div class="field"><label>每日任務最多遊戲代幣</label>${pathInput("dailyMission.maxGameTokens",c.dailyMission.maxGameTokens,"number",'min="0"')}</div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
     </div>
     <h3>每日名稱</h3>
@@ -4139,6 +4571,7 @@ function renderSettings(){
         <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.monopoly.gameTokenId">${itemOptions(c.gameplaySettings.monopoly.gameTokenId)}</select></div>
         <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.monopoly.premiumExchangeId">${itemOptions(c.gameplaySettings.monopoly.premiumExchangeId)}</select></div>
         <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.monopoly.normalExchangeId">${itemOptions(c.gameplaySettings.monopoly.normalExchangeId)}</select></div>
+        <div class="field"><label>每日任務最多獲得代幣</label>${pathInput("gameplaySettings.monopoly.dailyMissionMaxGameTokens",c.gameplaySettings.monopoly.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
       </div>
       <h3>取得物品的計分規則</h3>
       <div class="editor-table">
@@ -4171,7 +4604,61 @@ function renderSettings(){
       <div class="editor-table">${rewardRows(type.rewards,`cellTypes.${i}.rewards`,"probability")}</div>
       <button class="btn secondary small" data-settings-action="addReward" data-base="cellTypes.${i}.rewards" data-probability="1">＋加入獎勵機率</button></div>`
     }).join("")}
+    <div class="editor-head" style="margin-top:18px"><div><h3>隨機箱設定</h3><div class="help">隨機箱屬於大富翁玩法；切換到其他玩法時可使用另一套箱子設定。</div></div></div>
+    ${c.gameplaySettings.monopoly.randomBoxes.map((box,i)=>{
+      const total=box.outcomes.reduce((s,x)=>s+Number(x.probability||0),0);
+      return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span></div>
+        <div class="setting-grid">
+          <div class="field"><label>箱子名稱</label>${pathInput(`gameplaySettings.monopoly.randomBoxes.${i}.name`,box.name)}</div>
+          <div class="field"><label>消耗的箱子物品</label><select data-path="gameplaySettings.monopoly.randomBoxes.${i}.boxItemId">${itemOptions(box.boxItemId)}</select></div>
+          <div class="field"><label>開箱獲得物品</label><select data-path="gameplaySettings.monopoly.randomBoxes.${i}.rewardItemId">${itemOptions(box.rewardItemId)}</select></div>
+        </div>
+        <div class="editor-table">${box.outcomes.map((x,j)=>`<div class="editor-row package-reward">${pathInput(`gameplaySettings.monopoly.randomBoxes.${i}.outcomes.${j}.amount`,x.amount,"number",'step="any"')}${pathInput(`gameplaySettings.monopoly.randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0"')}<button class="btn red small" data-settings-action="removeGameplayBoxOutcome" data-gameplay="monopoly" data-box="${i}" data-index="${j}">刪除</button></div>`).join("")}</div>
+        <button class="btn secondary small" data-settings-action="addGameplayBoxOutcome" data-gameplay="monopoly" data-box="${i}">＋加入開箱結果</button>
+      </div>`
+    }).join("")}
+
   </section>`;
+
+  sections.pinball=`<section class="setting-section active">
+    <div class="editor-head">
+      <div><h2>🔮 彈珠機玩法</h2><div class="help">第一版原型：每次消耗1個玩法代幣，彈珠等機率落入8格；隨機1格為特殊格，累積5顆後自動執行200顆隱藏模式。</div></div>
+      <span class="badge warn">玩法專用</span>
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="setting-grid">
+        <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.pinball.gameTokenId">${itemOptions(c.gameplaySettings.pinball.gameTokenId)}</select></div>
+        <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.pinball.premiumExchangeId">${itemOptions(c.gameplaySettings.pinball.premiumExchangeId)}</select></div>
+        <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.pinball.normalExchangeId">${itemOptions(c.gameplaySettings.pinball.normalExchangeId)}</select></div>
+        <div class="field"><label>每日任務最多獲得代幣</label>${pathInput("gameplaySettings.pinball.dailyMissionMaxGameTokens",c.gameplaySettings.pinball.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+      </div>
+
+      <h3>取得物品的計分規則</h3>
+      <div class="editor-table">
+        ${c.gameplaySettings.pinball.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.pinball.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.pinball.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="pinball" data-index="${i}">刪除</button></div>`).join("")}
+      </div>
+      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="pinball">＋加入計分物品</button>
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">彈珠機規則</h3>
+      <div class="setting-grid">
+        <div class="field"><label>底部格子數</label>${pathInput("gameplaySettings.pinball.slotCount",c.gameplaySettings.pinball.slotCount,"number",'min="2" max="12" step="1"')}</div>
+        <div class="field"><label>特殊格需要進入次數</label>${pathInput("gameplaySettings.pinball.triggerRequired",c.gameplaySettings.pinball.triggerRequired,"number",'min="1" step="1"')}</div>
+        <div class="field"><label>隱藏模式免費彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
+      </div>
+      <div class="help">普通模式每顆彈珠都會立即取得落點格獎勵。特殊格達標後暫停普通投珠，隱藏模式的彈珠不消耗背包代幣，200顆全部結束後一次結算獎勵並刷新格子。</div>
+    </div>
+
+    <div class="editor-head"><div><h3>8格刷新獎勵池</h3><div class="help">每次刷新時，每一格都從下列獎勵池獨立抽取；機率合計需為100%。目前先沿用火龍果汁與奇異果汁。</div></div></div>
+    <div class="editor-card">
+      <div class="editor-table">${rewardRows(c.gameplaySettings.pinball.slotRewardPool,"gameplaySettings.pinball.slotRewardPool","probability")}</div>
+      <button class="btn secondary small" data-settings-action="addReward" data-base="gameplaySettings.pinball.slotRewardPool" data-probability="1">＋加入格子獎勵</button>
+    </div>
+  </section>`;
+
 
   sections.items=`<section class="setting-section active">
     <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
@@ -4180,19 +4667,7 @@ function renderSettings(){
       <button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button>
     </div></div>`).join("")}
 
-    <div class="editor-head" style="margin-top:18px"><div><h2>隨機箱設定</h2><div class="help">隨機箱不屬於大富翁；切換其他玩法時仍可共用。</div></div></div>
-    ${c.randomBoxes.map((box,i)=>{
-      const total=box.outcomes.reduce((s,x)=>s+Number(x.probability||0),0);
-      return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span></div>
-        <div class="setting-grid">
-          <div class="field"><label>箱子名稱</label>${pathInput(`randomBoxes.${i}.name`,box.name)}</div>
-          <div class="field"><label>消耗的箱子物品</label><select data-path="randomBoxes.${i}.boxItemId">${itemOptions(box.boxItemId)}</select></div>
-          <div class="field"><label>開箱獲得物品</label><select data-path="randomBoxes.${i}.rewardItemId">${itemOptions(box.rewardItemId)}</select></div>
-        </div>
-        <div class="editor-table">${box.outcomes.map((x,j)=>`<div class="editor-row package-reward">${pathInput(`randomBoxes.${i}.outcomes.${j}.amount`,x.amount,"number",'step="any"')}${pathInput(`randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0"')}<button class="btn red small" data-settings-action="removeBoxOutcome" data-box="${i}" data-index="${j}">刪除</button></div>`).join("")}</div>
-        <button class="btn secondary small" data-settings-action="addBoxOutcome" data-box="${i}">＋加入開箱結果</button>
-      </div>`
-    }).join("")}
+
   </section>`;
 
 
@@ -4264,7 +4739,7 @@ function settingsAction(btn){
   if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
   if(a==="addGameplayScoreRule"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
-    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,pointsPerItemObtained:[]};
+    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,randomBoxes:[],pointsPerItemObtained:[]};
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0})
   }
   if(a==="removeGameplayScoreRule"){
@@ -4278,8 +4753,14 @@ function settingsAction(btn){
   if(a==="addFundMilestone")settingsDraft.fund.milestones.push({id:uid("fundStage"),laps:0,freeRewards:[],premiumRewards:[]});
   if(a==="removeFundMilestone")settingsDraft.fund.milestones.splice(Number(btn.dataset.index),1);
   if(a==="removeStage")settingsDraft.progressStages.splice(Number(btn.dataset.index),1);
-  if(a==="addBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.push({amount:1,probability:0});
-  if(a==="removeBoxOutcome")settingsDraft.randomBoxes[Number(btn.dataset.box)].outcomes.splice(Number(btn.dataset.index),1);
+  if(a==="addGameplayBoxOutcome"){
+    const gameplay=btn.dataset.gameplay||"monopoly";
+    settingsDraft.gameplaySettings[gameplay].randomBoxes[Number(btn.dataset.box)].outcomes.push({amount:1,probability:0})
+  }
+  if(a==="removeGameplayBoxOutcome"){
+    const gameplay=btn.dataset.gameplay||"monopoly";
+    settingsDraft.gameplaySettings[gameplay].randomBoxes[Number(btn.dataset.box)].outcomes.splice(Number(btn.dataset.index),1)
+  }
   if(a==="addPackageGroup")settingsDraft.packageGroups.push({id:uid("group"),name:"新禮包群組",dailyReset:true,packages:[]});
   if(a==="removePackageGroup")settingsDraft.packageGroups.splice(Number(btn.dataset.group),1);
   if(a==="addPackage"){
@@ -4324,6 +4805,7 @@ document.addEventListener("click",e=>{
   const refundStageBtn=e.target.closest("[data-refund-stage]");if(refundStageBtn)refundStage(refundStageBtn.dataset.refundStage);
   const buy=e.target.closest("[data-buy-package]");if(buy)buyPackage(buy.dataset.buyGroup,buy.dataset.buyPackage);
   const refund=e.target.closest("[data-refund-package]");if(refund)refundPackage(refund.dataset.refundGroup,refund.dataset.refundPackage);
+  const gameplaySelect=e.target.closest("[data-gameplay-select]");if(gameplaySelect)switchGameplay(gameplaySelect.dataset.gameplaySelect);
   const multiplier=e.target.closest("[data-roll-count]");if(multiplier){
     selectedRollCount=Number(multiplier.dataset.rollCount);
     document.querySelectorAll("[data-roll-count]").forEach(x=>x.classList.toggle("active",x===multiplier))
@@ -4338,11 +4820,18 @@ document.addEventListener("click",e=>{
 });
 $("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
 $("rollSelectedBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
+$("pinballDropMainBtn").addEventListener("click",()=>dropPinballs(1));
 $("autoRollBtn").addEventListener("click",autoRoll);
 $("undoAutoRollBtn").addEventListener("click",undoAutoRoll);
 $("retryAutoRollBtn").addEventListener("click",retryAutoRoll);
 $("stopAutoBtn").addEventListener("click",()=>{stopAuto=true});
-$("refreshBoardBtn").addEventListener("click",()=>{recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()});
+$("refreshBoardBtn").addEventListener("click",()=>{
+  if(config.gameplay.type==="pinball"){
+    recordHistory("手動刷新彈珠機槽位");generatePinballSlots();log("手動刷新彈珠機槽位");render()
+  }else{
+    recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()
+  }
+});
 $("claimDailyBtn").addEventListener("click",claimDaily);
 $("refundDailyBtn").addEventListener("click",refundDailyClaim);
 $("claimFreeDailyBtn").addEventListener("click",claimFreeDailyBundle);
@@ -4396,7 +4885,7 @@ window.addEventListener("resize",()=>{clearTimeout(window.__boardResize);window.
 
 try{normalizeFundConfig(config);validateConfig(config)}catch{config=normalizeFundConfig(clone(DEFAULT_CONFIG))}
 strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);
-state=createState();state.activeStrategy=null;ensureStateSchema(state,config);generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
+state=createState();state.activeStrategy=null;ensureStateSchema(state,config);generateBoard();generatePinballSlots();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
 </script>
 </body>
 </html>
