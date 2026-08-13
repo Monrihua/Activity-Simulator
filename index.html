@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜每日無課金與重試版 v24</title>
+<title>活動玩法模擬器｜主操作面板精簡版 v25</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -356,8 +356,6 @@ button:disabled{cursor:not-allowed;opacity:.45}
     </div>
   </header>
 
-  <nav class="week-switch" id="weekSwitch"></nav>
-  <section class="stats" id="stats"></section>
 
   <div class="main-grid">
     <main>
@@ -391,6 +389,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               <button class="multiplier-btn" data-roll-count="5">×5</button>
               <button class="multiplier-btn" data-roll-count="10">×10</button>
             </div>
+            <button class="btn small" id="rollSelectedBtn">擲骰子</button>
           </div>
           <div class="form-row">
             <button class="btn green" id="autoRollBtn" title="只會使用「本日可用骰子」">自動使用全部骰子</button>
@@ -399,6 +398,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <button class="btn secondary" id="stopAutoBtn" disabled>停止自動</button>
           </div>
         </div>
+        <div class="daily-dice-stats" id="persistentDailyStats"></div>
         <div class="roll-message" id="rollMessage">請先領取每日任務或基金骰子。</div>
       </section>
 
@@ -421,11 +421,10 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <label>今日任務完成量</label>
             <input class="input" type="number" id="dailyDiceInput" min="0">
             <button class="btn" id="claimDailyBtn">領取每日骰子</button>
+            <button class="btn secondary" id="refundDailyBtn">退回每日</button>
             <button class="btn green" id="claimFreeDailyBtn">一鍵領無課金</button>
-            <button class="btn secondary" id="refundDailyBtn">退回領取</button>
+            <button class="btn secondary" id="refundFreeDailyBtn">退回無課金</button>
           </div>
-
-          <div class="daily-dice-stats" id="dailyDiceStats"></div>
 
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
           <div class="help" id="progressText"></div>
@@ -814,7 +813,7 @@ function loadStoredStrategy(){
     if(!saved)return null;const parsed=JSON.parse(saved);return Number(parsed.version||0)>=4?parsed:null
   }catch{return null}
 }
-function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,claimedStages:[],packagePurchases:{}}}
+function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,lapsCompleted:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
 function createState(){
   return{
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
@@ -827,13 +826,20 @@ function createState(){
 function ensureStateSchema(targetState=state,cfg=config){
   normalizeFundConfig(cfg);
   if(!Array.isArray(targetState.days))targetState.days=[];
+  const hadDailyLapData=targetState.days.some(day=>Object.prototype.hasOwnProperty.call(day,"lapsCompleted"));
   while(targetState.days.length<Number(cfg.event.totalDays))targetState.days.push(createDayState());
   targetState.days.forEach(day=>{
     day.score=Number(day.score||0);day.missionClaimed=!!day.missionClaimed;
+    day.lapsCompleted=Math.max(0,Number(day.lapsCompleted||0));
+    if(!Object.prototype.hasOwnProperty.call(day,"freeBundleUndo"))day.freeBundleUndo=null;
     if(!Object.prototype.hasOwnProperty.call(day,"missionAmount"))day.missionAmount=day.missionClaimed?Number(cfg.dailyMission.maxGameTokens||0):0;
     day.missionAmount=Number(day.missionAmount||0);if(!Array.isArray(day.claimedStages))day.claimedStages=[];
     if(!day.packagePurchases||typeof day.packagePurchases!=="object")day.packagePurchases={}
   });
+  if(!hadDailyLapData&&Number(targetState.laps||0)>0&&targetState.days.length){
+    const d=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.currentDay||0)));
+    targetState.days[d].lapsCompleted=Number(targetState.laps||0)
+  }
   if(!targetState.fundClaims||typeof targetState.fundClaims!=="object")targetState.fundClaims={free:{},premium:{}};
   if(!targetState.fundClaims.free||typeof targetState.fundClaims.free!=="object")targetState.fundClaims.free={};
   if(!targetState.fundClaims.premium||typeof targetState.fundClaims.premium!=="object")targetState.fundClaims.premium={};
@@ -1239,13 +1245,14 @@ async function rollOnce({silent=false,fast=false}={}){
   if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
   state.resources[token]-=1;adjustGameTokenSpend(state.currentDay,1);
   const roll=Math.floor(Math.random()*Number(config.board.diceSides))+1;
-  rolling=true;$("rollBtn").disabled=true;
+  rolling=true;$("rollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
   $("diceFace").textContent=String(roll);
   const skip=$("skipAnimation").checked||fast;
   for(let step=0;step<roll;step++){
     state.position=(state.position+1)%Number(config.board.cellCount);
     if(state.position===Number(config.board.startIndex)){
       state.laps++;
+      dayState().lapsCompleted=Number(dayState().lapsCompleted||0)+1;
       addScore(Number(config.scoreRules.pointsPerLap),"完成 1 圈");
       grantStartRewardsReal();
       if(config.board.refreshOnLap)generateBoard()
@@ -1266,7 +1273,7 @@ async function rollOnce({silent=false,fast=false}={}){
       ledger.consumed=Number(ledger.consumed||0)+1
     }
   }
-  rolling=false;$("rollBtn").disabled=false;
+  rolling=false;$("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;
   if(!silent)render();
   return{roll,result}
 }
@@ -1308,7 +1315,7 @@ async function autoRoll({reuseSnapshot=false}={}){
   recordHistory("自動使用全部骰子");
   stopAuto=false;
   $("stopAutoBtn").disabled=false;
-  $("autoRollBtn").disabled=true;
+  $("autoRollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
   $("undoAutoRollBtn").disabled=true;
   $("retryAutoRollBtn").disabled=true;
 
@@ -1323,7 +1330,7 @@ async function autoRoll({reuseSnapshot=false}={}){
   const after=dailyDiceStats();
   $("rollMessage").textContent=`自動擲骰結束：本次使用 ${fmt(used)} 個${item(token).name}，完成 ${fmt(Number(state.laps||0)-startLaps)} 圈；本日剩餘可用 ${fmt(after.availableToday)} 個。`;
   rolling=false;
-  $("rollBtn").disabled=false;
+  $("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;
   $("stopAutoBtn").disabled=true;
   $("autoRollBtn").disabled=false;
   render()
@@ -1370,24 +1377,23 @@ function claimDaily(){
 }
 function claimFreeDailyBundle(){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
-  const actions=[];
-  const day=dayState();
-
-  const packages=noPayDicePackages(config);
+  const actions=[],day=dayState(),packages=noPayDicePackages(config);
   const canDoMission=!day.missionClaimed;
   const pending=packages.map(({group,pack})=>{
     const key=`${group.id}:${pack.id}`,bought=Number(day.packagePurchases[key]||0);
     return{group,pack,key,remain:Math.max(0,Number(pack.limit||0)-bought)}
   });
-
   if(!canDoMission&&!pending.some(x=>x.remain>0))return toast("本日無課金骰子已全部領取");
+
   recordHistory(`一鍵領無課金：${noPayDailyBundleLabel(config)}`);
+  const undo={day:state.currentDay,mission:false,missionAmount:0,packages:[]};
 
   if(canDoMission){
     const amount=Number(config.dailyMission.maxGameTokens||0);
     day.missionClaimed=true;day.missionAmount=amount;
     $("dailyDiceInput").value=amount;
     addItem(config.currencies.gameTokenId,amount,"每日任務",true);
+    undo.mission=true;undo.missionAmount=amount;
     actions.push(`每日 ${fmt(amount)}`)
   }
 
@@ -1400,11 +1406,60 @@ function claimFreeDailyBundle(){
       (pack.rewards||[]).forEach(r=>addItem(r.itemId,r.amount,pack.name,true));
       boughtNow++
     }
-    if(boughtNow)actions.push(`${pack.name}×${boughtNow}`)
+    if(boughtNow){
+      undo.packages.push({groupId:group.id,packageId:pack.id,count:boughtNow});
+      actions.push(`${pack.name}×${boughtNow}`)
+    }
   });
 
+  day.freeBundleUndo=(undo.mission||undo.packages.length)?undo:null;
   render();
   toast(actions.length?`已領：${actions.join("、")}`:"目前資源不足，沒有可追加領取的無課金骰子")
+}
+function refundFreeDailyBundle(){
+  const day=dayState(),u=day.freeBundleUndo;
+  if(!u)return toast("沒有可退回的一鍵無課金領取");
+  recordHistory(`退回${config.event.dayLabels[state.currentDay]}一鍵無課金`);
+  let negative=false;
+
+  if(u.mission&&day.missionClaimed){
+    const token=config.currencies.gameTokenId,amount=Number(u.missionAmount||0);
+    state.resources[token]=Number(state.resources[token]||0)-amount;
+    adjustGameTokenGain(state.currentDay,-amount);
+    day.score=Math.max(0,Number(day.score||0)-scorePerItem(token)*amount);
+    day.missionClaimed=false;day.missionAmount=0;
+    if(state.resources[token]<0)negative=true
+  }
+
+  (u.packages||[]).forEach(entry=>{
+    const group=config.packageGroups.find(x=>x.id===entry.groupId);
+    const pack=group?.packages.find(x=>x.id===entry.packageId);
+    if(!pack)return;
+    const key=`${entry.groupId}:${entry.packageId}`;
+    const count=Math.min(Number(entry.count||0),Number(day.packagePurchases[key]||0));
+    if(count<=0)return;
+
+    day.packagePurchases[key]=Number(day.packagePurchases[key]||0)-count;
+    state.spent[pack.cost.itemId]=Math.max(0,Number(state.spent[pack.cost.itemId]||0)-Number(pack.cost.amount||0)*count);
+
+    if(!config.simulator.allowInsufficientCost){
+      state.resources[pack.cost.itemId]=Number(state.resources[pack.cost.itemId]||0)+Number(pack.cost.amount||0)*count;
+      if(pack.cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,-Number(pack.cost.amount||0)*count)
+    }
+
+    (pack.rewards||[]).forEach(r=>{
+      const amount=Number(r.amount||0)*count;
+      state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-amount;
+      if(r.itemId===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-amount);
+      day.score=Math.max(0,Number(day.score||0)-scorePerItem(r.itemId)*amount);
+      if(state.resources[r.itemId]<0)negative=true
+    })
+  });
+
+  day.freeBundleUndo=null;
+  log("退回上次一鍵無課金領取");
+  render();
+  toast(negative?"已退回；部分獎勵已使用，因此資源可能為負數。":"已退回上次一鍵無課金領取")
 }
 function refundDailyClaim(){
   if(!dayState().missionClaimed)return toast("本日尚未領取每日任務");
@@ -1414,6 +1469,11 @@ function refundDailyClaim(){
   adjustGameTokenGain(state.currentDay,-amount);
   dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(token)*amount);
   dayState().missionClaimed=false;dayState().missionAmount=0;
+  if(dayState().freeBundleUndo?.mission){
+    dayState().freeBundleUndo.mission=false;
+    dayState().freeBundleUndo.missionAmount=0;
+    if(!(dayState().freeBundleUndo.packages||[]).length)dayState().freeBundleUndo=null
+  }
   log(`退回每日任務 ${itemText(token,amount)}`);render();
   toast(state.resources[token]<0?"已退回；骰子已使用，因此目前數量為負數。":"已退回每日任務")
 }
@@ -1543,6 +1603,14 @@ function refundPackage(groupId,packageId){
   }
 
   dayState().packagePurchases[key]=Math.max(0,bought-1);
+  if(dayState().freeBundleUndo?.packages){
+    const entry=dayState().freeBundleUndo.packages.find(x=>x.groupId===groupId&&x.packageId===packageId&&Number(x.count||0)>0);
+    if(entry){
+      entry.count=Number(entry.count||0)-1;
+      dayState().freeBundleUndo.packages=dayState().freeBundleUndo.packages.filter(x=>Number(x.count||0)>0);
+      if(!dayState().freeBundleUndo.mission&&!dayState().freeBundleUndo.packages.length)dayState().freeBundleUndo=null
+    }
+  }
   state.spent[pack.cost.itemId]=Math.max(0,Number(state.spent[pack.cost.itemId]||0)-Number(pack.cost.amount||0));
   if(!config.simulator.allowInsufficientCost){
     state.resources[pack.cost.itemId]=Number(state.resources[pack.cost.itemId]||0)+Number(pack.cost.amount||0);
@@ -3796,19 +3864,18 @@ function clearStrategy(){strategyPlan=null;strategyAttemptSnapshots={};strategyD
 
 function renderWeek(){
   const labels=config.event.dayLabels.slice(0,config.event.totalDays);
-  $("weekSwitch").innerHTML=labels.map((label,i)=>`<button class="day-btn ${i===state.currentDay?"active":""}" data-day="${i}">${escapeHtml(label)}</button>`).join("");
   $("miniWeekSwitch").innerHTML=labels.map((label,i)=>`<button class="mini-day-btn ${i===state.currentDay?"active":""}" data-day="${i}">${escapeHtml(label)}</button>`).join("")
 }
 function renderStats(){
-  const ids=[config.currencies.gameTokenId,config.currencies.normalExchangeId,config.currencies.premiumExchangeId];
-  const values=[
-    [config.event.dayLabels[state.currentDay],`第 ${state.currentDay+1}/${config.event.totalDays} 天`],
-    [item(ids[0]).name,`${item(ids[0]).icon} ${fmt(state.resources[ids[0]])}`],
-    ["今日積分",fmt(dayState().score)],["完成圈數",fmt(state.laps)],
-    [item(ids[1]).name,`${item(ids[1]).icon} ${fmt(state.resources[ids[1]])}`],
-    [item(ids[2]).name,`${item(ids[2]).icon} ${fmt(state.resources[ids[2]])}`]
-  ];
-  $("stats").innerHTML=values.map(([a,b])=>`<div class="stat"><div class="stat-label">${escapeHtml(a)}</div><div class="stat-value">${escapeHtml(b)}</div></div>`).join("")
+  const s=dailyDiceStats();
+  $("persistentDailyStats").innerHTML=[
+    ["本日獲得骰子",`🎲 ${fmt(s.gainedToday)}`],
+    ["日前剩餘骰子",`🎲 ${fmt(s.previousRemaining)}`],
+    ["本日可用骰子",`🎲 ${fmt(s.availableToday)}`],
+    ["本日已消耗骰子",`🎲 ${fmt(s.spentToday)}`],
+    ["本日完成圈數",fmt(dayState().lapsCompleted||0)],
+    ["累積完成圈數",fmt(state.laps||0)]
+  ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")
 }
 function renderDaily(){
   $("dailyTitle").textContent=`${config.event.dayLabels[state.currentDay]}進度`;
@@ -3824,14 +3891,7 @@ function renderDaily(){
   });
   $("claimFreeDailyBtn").disabled=dayState().missionClaimed&&!noPayPending;
   $("claimFreeDailyBtn").textContent=`一鍵領無課金（${noPayDailyBundleLabel(config)}）`;
-
-  const diceStats=dailyDiceStats();
-  $("dailyDiceStats").innerHTML=[
-    ["本日獲得骰子",diceStats.gainedToday],
-    ["日前剩餘骰子",diceStats.previousRemaining],
-    ["本日可用骰子",diceStats.availableToday],
-    ["本日已消耗骰子",diceStats.spentToday]
-  ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">🎲 ${fmt(v)}</div></div>`).join("");
+  $("refundFreeDailyBtn").disabled=!dayState().freeBundleUndo;
 
   const max=Math.max(1,...config.progressStages.map(x=>Number(x.requiredScore)));
   $("progressFill").style.width=`${Math.min(100,dayState().score/max*100)}%`;
@@ -4148,6 +4208,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("#advanceStrategyDayBtn"))advanceStrategyDay()
 });
 $("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
+$("rollSelectedBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
 $("autoRollBtn").addEventListener("click",autoRoll);
 $("undoAutoRollBtn").addEventListener("click",undoAutoRoll);
 $("retryAutoRollBtn").addEventListener("click",retryAutoRoll);
@@ -4156,6 +4217,7 @@ $("refreshBoardBtn").addEventListener("click",()=>{recordHistory("手動刷新�
 $("claimDailyBtn").addEventListener("click",claimDaily);
 $("refundDailyBtn").addEventListener("click",refundDailyClaim);
 $("claimFreeDailyBtn").addEventListener("click",claimFreeDailyBundle);
+$("refundFreeDailyBtn").addEventListener("click",refundFreeDailyBundle);
 $("claimFundBtn").addEventListener("click",claimAllFund);
 $("purchaseFundBtn").addEventListener("click",purchasePremiumFund);
 $("undoFundBtn").addEventListener("click",undoLastFundAction);
