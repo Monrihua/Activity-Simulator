@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠碰釘與手動隱藏版 v30</title>
+<title>活動玩法模擬器｜彈珠連續投放版 v31</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -449,6 +449,38 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:linear-gradient(90deg,#7136c8,#d943a0);color:#fff;font-weight:1000
 }
 .pinball-hidden-banner.show{display:block}
+
+.pinball-controls{
+  margin-top:10px;display:grid;grid-template-columns:minmax(110px,.65fr) minmax(160px,1fr) auto;gap:8px;align-items:end
+}
+.pinball-control-field{display:flex;flex-direction:column;gap:5px}
+.pinball-control-field label{font-size:12px;color:#d6cfe2;font-weight:1000}
+.pinball-control-field input{
+  width:100%;height:44px;border-radius:12px;border:2px solid #71667e;background:#211f2c;color:#fff;
+  padding:0 12px;font-weight:1000;font-size:18px;text-align:center
+}
+.pinball-hold-btn{
+  width:100%;height:48px;border:0;border-radius:14px;padding:9px 12px;
+  color:#fff;font-weight:1000;font-size:16px;
+  background:linear-gradient(#ffbc3d,#f28c24);box-shadow:0 5px 0 #b8601c;
+  touch-action:none;user-select:none;-webkit-user-select:none
+}
+.pinball-hold-btn:active,.pinball-hold-btn.holding{transform:translateY(2px);box-shadow:0 3px 0 #b8601c}
+.pinball-skip{
+  display:flex;align-items:center;gap:7px;height:44px;padding:0 11px;border-radius:12px;
+  background:#2a2737;border:2px solid #61596d;color:#ece8f4;font-weight:900;white-space:nowrap
+}
+.pinball-skip input{width:20px;height:20px}
+.pinball-queue-status{
+  margin-top:7px;color:#cfc8da;font-size:12px;line-height:1.45
+}
+.pinball-ball{will-change:left,top,transform}
+@media(max-width:720px){
+  .pinball-controls{grid-template-columns:105px 1fr;gap:7px}
+  .pinball-skip{grid-column:1/-1;justify-content:center}
+  .pinball-hold-btn{height:50px}
+}
+
 .pinball-hidden-start{
   display:none;width:100%;margin-top:8px;border:0;border-radius:14px;padding:11px 14px;
   font-weight:1000;color:#fff;background:linear-gradient(90deg,#7042d4,#d947a9);
@@ -563,13 +595,21 @@ button:disabled{cursor:not-allowed;opacity:.45}
                 <div class="pinball-progress"><div id="pinballHiddenProgress"></div></div>
                 <div class="pinball-status" id="pinballStatus">特殊格累積 0/5。</div>
               </div>
-              <button class="pinball-launch" id="pinballDropMainBtn">投入 1 顆彈珠</button>
             </div>
+            <div class="pinball-controls">
+              <div class="pinball-control-field">
+                <label>投入數量</label>
+                <input type="number" id="pinballDropCountInput" min="1" step="1" value="1">
+              </div>
+              <button class="pinball-hold-btn" id="pinballDropMainBtn">投入彈珠（可連點／長按）</button>
+              <label class="pinball-skip"><input type="checkbox" id="pinballSkipAnimation"> 跳過動畫</label>
+            </div>
+            <div class="pinball-queue-status" id="pinballQueueStatus">待投入 0 顆｜場上 0 顆</div>
           </div>
         </div>
 
         <div class="form-row" style="margin-top:10px;justify-content:space-between">
-          <div class="multiplier-wrap">
+          <div class="multiplier-wrap" id="multiplierWrap">
             <span class="multiplier-label" id="playMultiplierLabel">每次擲骰</span>
             <div class="multiplier-group" id="multiplierGroup">
               <button class="multiplier-btn active" data-roll-count="1">×1</button>
@@ -986,6 +1026,13 @@ let strategyAttemptSnapshots={};
 let strategyDaySimulationStats={};
 let strategyAttemptSimulationRunning=false;
 let lastAutoRollSnapshot=null;
+let pinballLaunchQueue=0;
+let pinballActiveBalls=0;
+let pinballQueueRunning=false;
+let pinballHoldTimer=null;
+let pinballHoldInterval=null;
+let pinballHoldActive=false;
+
 
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
@@ -1507,6 +1554,86 @@ async function animatePinballDrop(path,fast=false){
   ball.classList.remove("hit-left","hit-right");ball.style.left=`${landingX}%`;ball.style.top="80%";await wait(150);
   ball.style.top="88%";await wait(90);ball.remove()
 }
+function pinballSkipAnimation(){
+  return !!$("pinballSkipAnimation")?.checked
+}
+function pinballRequestedCount(){
+  return Math.max(1,Math.floor(Number($("pinballDropCountInput")?.value||1)))
+}
+function updatePinballQueueStatus(){
+  const el=$("pinballQueueStatus");
+  if(!el)return;
+  el.textContent=`待投入 ${fmt(pinballLaunchQueue)} 顆｜場上 ${fmt(pinballActiveBalls)} 顆`;
+}
+function enqueuePinballs(count){
+  const ps=ensurePinballSlots();
+  if(ps.hiddenPending)return toast("隱藏模式已解鎖，請先開始隱藏模式");
+  if(ps.hiddenActive)return toast("隱藏模式執行中");
+  const token=config.currencies.gameTokenId;
+  const available=Math.max(0,Math.floor(Number(state.resources[token]||0)));
+  const reserved=pinballLaunchQueue+pinballActiveBalls;
+  const add=Math.min(Math.max(1,Math.floor(Number(count||1))),Math.max(0,available-reserved));
+  if(add<1)return toast(`${item(token).name}不足`);
+  pinballLaunchQueue+=add;
+  updatePinballQueueStatus();
+  if(!pinballQueueRunning)processPinballQueue()
+}
+async function processPinballQueue(){
+  if(pinballQueueRunning)return;
+  pinballQueueRunning=true;
+  try{
+    while(pinballLaunchQueue>0){
+      const ps=ensurePinballSlots();
+      if(ps.hiddenPending||ps.hiddenActive)break;
+      if(autoUsableGameTokens()<1&&Number(state.resources[config.currencies.gameTokenId]||0)<1)break;
+
+      pinballLaunchQueue--;
+      pinballActiveBalls++;
+      updatePinballQueueStatus();
+
+      // Start each ball independently; do not await completion before launching the next.
+      const fast=pinballSkipAnimation();
+      dropPinballOnce({silent:true,fast,concurrent:true}).finally(()=>{
+        pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
+        updatePinballQueueStatus()
+      });
+
+      // Normal animation: small launch gap so several balls can coexist on board.
+      // Skip animation: near-immediate throughput.
+      await wait(fast?0:125);
+
+      // If the previous ball triggered hidden pending, dropPinballOnce will set it;
+      // we stop feeding more normal balls after the state becomes pending.
+      if(pinballState().hiddenPending)break
+    }
+  }finally{
+    pinballQueueRunning=false;
+    updatePinballQueueStatus()
+  }
+}
+function startPinballHold(){
+  if(pinballHoldActive)return;
+  pinballHoldActive=true;
+  const btn=$("pinballDropMainBtn");if(btn)btn.classList.add("holding");
+
+  // Single press action fires immediately.
+  enqueuePinballs(pinballRequestedCount());
+
+  // Long press begins repeating after a short delay.
+  pinballHoldTimer=setTimeout(()=>{
+    if(!pinballHoldActive)return;
+    pinballHoldInterval=setInterval(()=>{
+      if(!pinballHoldActive)return;
+      enqueuePinballs(pinballRequestedCount())
+    },180)
+  },360)
+}
+function stopPinballHold(){
+  pinballHoldActive=false;
+  if(pinballHoldTimer){clearTimeout(pinballHoldTimer);pinballHoldTimer=null}
+  if(pinballHoldInterval){clearInterval(pinballHoldInterval);pinballHoldInterval=null}
+  const btn=$("pinballDropMainBtn");if(btn)btn.classList.remove("holding")
+}
 function pinballAggregateReward(map,reward){
   const key=reward.itemId;
   map[key]=Number(map[key]||0)+Number(reward.amount||0)
@@ -1514,6 +1641,8 @@ function pinballAggregateReward(map,reward){
 async function runPinballHiddenMode({fast=false}={}){
   const ps=ensurePinballSlots(),pc=pinballSettings(),count=Math.max(1,Number(pc.hiddenBalls||200));
   if(!ps.hiddenPending||ps.hiddenActive)return;
+  if(pinballActiveBalls>0)return toast(`還有 ${fmt(pinballActiveBalls)} 顆彈珠尚未落完，請等全部落下後再開始`);
+  pinballLaunchQueue=0;
   ps.hiddenPending=false;ps.hiddenActive=true;
   renderPinballBoard();
   const tally={};
@@ -1539,7 +1668,7 @@ async function runPinballHiddenMode({fast=false}={}){
   $("rollMessage").textContent=`隱藏模式完成：${fmt(count)} 顆彈珠結算 ${rewardText||"無獎勵"}；${fmt(ps.slots.length)} 格內容與特殊格已刷新。`;
   render()
 }
-async function dropPinballOnce({silent=false,fast=false}={}){
+async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
   if(strategyIsPastReadOnly()){if(!silent)toast("過去日期只能查看，不能使用後來才取得的資源");return null}
   const token=config.currencies.gameTokenId,ps=ensurePinballSlots(),pc=pinballSettings();
   if(ps.hiddenPending){if(!silent)toast("隱藏模式已解鎖，請先按「開始隱藏模式」");return null}
@@ -1549,9 +1678,8 @@ async function dropPinballOnce({silent=false,fast=false}={}){
   const path=pinballBouncePath();
   const slot=Math.max(0,Math.min(ps.slots.length-1,path.slot)),reward=ps.slots[slot];
 
-  rolling=true;
-  $("rollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
-  const main=$("pinballDropMainBtn");if(main)main.disabled=true;
+  const main=$("pinballDropMainBtn");
+  if(!concurrent){rolling=true;$("rollBtn").disabled=true;$("rollSelectedBtn").disabled=true}
   await animatePinballDrop(path,fast);
 
   addItem(reward.itemId,reward.amount,`彈珠機第 ${slot+1} 格`,true);
@@ -1566,8 +1694,9 @@ async function dropPinballOnce({silent=false,fast=false}={}){
 
   const result=`落入第 ${slot+1} 格 → ${pinballRewardText(reward)}`;
   $("rollMessage").textContent=`彈珠落下：${result}${slot===ps.targetSlot?`；特殊格 ${ps.targetHits}/${pc.triggerRequired}`:""}`;
-  rolling=false;
-  $("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;if(main)main.disabled=false;
+  if(!concurrent){
+    rolling=false;$("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false
+  }
   render();
 
   if(triggered){
@@ -1578,21 +1707,7 @@ async function dropPinballOnce({silent=false,fast=false}={}){
   return{slot,reward,result,triggered}
 }
 async function dropPinballs(count){
-  if(rolling)return;
-  const token=config.currencies.gameTokenId,available=Math.floor(Number(state.resources[token]||0));
-  const actual=Math.min(Math.max(1,Number(count)||1),available);
-  if(actual<1)return toast(`${item(token).name}不足`);
-  recordHistory(`彈珠機投入 ×${actual}`);
-  let done=0,last=null;
-  for(let i=0;i<actual;i++){
-    last=await dropPinballOnce({silent:true,fast:actual>1});
-    if(!last)break;
-    done++;
-    if(pinballState().hiddenPending)break;
-    if(i%10===9)await wait(0)
-  }
-  if(last)$("rollMessage").textContent=`連續投入 ${done} 顆彈珠完成；最後${last.result}。`;
-  render()
+  enqueuePinballs(count)
 }
 function generateBoard(){
   const count=Number(config.board.cellCount);
@@ -1728,10 +1843,9 @@ function renderPinballBoard(){
   $("gameplayTitle").textContent="🔮 彈珠機玩法";
   $("refreshBoardBtn").textContent="刷新槽位";
   $("boardMeta").textContent=`${ps.slots.length} 格｜特殊格 ${ps.targetHits}/${pc.triggerRequired}｜隱藏模式 ${pc.hiddenBalls} 顆｜第 ${ps.boardVersion} 組`;
-  $("playMultiplierLabel").textContent="每次投入";
-  $("rollSelectedBtn").textContent="投入彈珠";
+  $("multiplierWrap").style.display="none";
   $("autoRollBtn").textContent="自動使用全部彈珠";
-  $("pinballDropMainBtn").textContent=`投入 1 顆${item(config.currencies.gameTokenId).name}`;
+  $("pinballDropMainBtn").textContent="投入彈珠（可連點／長按）";
 
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="pinball"));
   const pegs=$("pinballPegs");
@@ -1762,6 +1876,9 @@ function renderPinballBoard(){
   $("pinballHiddenStartBtn").textContent=`開始隱藏模式（${fmt(pc.hiddenBalls)} 顆）`;
   $("pinballDropMainBtn").disabled=pending||ps.hiddenActive;
   $("pinballHiddenProgress").style.width=ps.hiddenActive?"0%":`${Math.min(100,Number(ps.targetHits||0)/Math.max(1,Number(pc.triggerRequired||5))*100)}%`;
+  const countInput=$("pinballDropCountInput");
+  if(countInput)countInput.disabled=ps.hiddenPending||ps.hiddenActive;
+  updatePinballQueueStatus();
   $("pinballStatus").textContent=ps.hiddenActive
     ?`隱藏模式 ${fmt(pc.hiddenBalls)} 顆彈珠自動落下中…`
     :pending
@@ -1773,6 +1890,7 @@ function renderBoard(){
   $("monopolyPlayArea").hidden=false;$("pinballPlayArea").hidden=true;
   $("gameplayTitle").textContent="🎲 大富翁玩法";
   $("refreshBoardBtn").textContent="刷新地圖";
+  $("multiplierWrap").style.display="";
   $("playMultiplierLabel").textContent="每次擲骰";
   $("rollSelectedBtn").textContent="擲骰子";
   $("autoRollBtn").textContent="自動使用全部骰子";
@@ -1845,26 +1963,33 @@ function renderAutoRollControls(){
   $("retryAutoRollBtn").disabled=rolling||!has
 }
 async function autoPinball({reuseSnapshot=false}={}){
-  if(rolling)return;
+  if(pinballState().hiddenPending)return toast("隱藏模式已解鎖，請先開始隱藏模式");
+  if(pinballState().hiddenActive)return toast("隱藏模式執行中");
   const token=config.currencies.gameTokenId,usable=dailyDiceStats().availableToday;
   if(usable<1)return toast(`本日可用${item(token).name}不足`);
   if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};
 
   recordHistory("彈珠機自動使用全部代幣");
   stopAuto=false;
-  $("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;$("rollSelectedBtn").disabled=true;
+  $("stopAutoBtn").disabled=false;
+  $("autoRollBtn").disabled=true;
   $("undoAutoRollBtn").disabled=true;$("retryAutoRollBtn").disabled=true;
-  const startDrops=Number(pinballState().totalDrops||0);let used=0;
-  while(autoUsableGameTokens()>=1&&!stopAuto){
-    const r=await dropPinballOnce({silent:true,fast:true});
-    if(!r)break;used++;
+
+  enqueuePinballs(usable);
+
+  // Wait until queue drains or hidden pending interrupts.
+  while((pinballQueueRunning||pinballLaunchQueue>0||pinballActiveBalls>0)&&!stopAuto){
     if(pinballState().hiddenPending)break;
-    if(used%20===0){render();await wait(0)}
+    await wait(50)
   }
-  const dropGain=Number(pinballState().totalDrops||0)-startDrops,after=dailyDiceStats();
-  $("rollMessage").textContent=`彈珠機自動結束：消耗 ${fmt(used)} 個${item(token).name}，實際落下 ${fmt(dropGain)} 顆彈珠（含隱藏模式），本日剩餘可用 ${fmt(after.availableToday)} 個。`;
-  rolling=false;$("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false;
-  $("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;render()
+
+  if(stopAuto)pinballLaunchQueue=0;
+  const after=dailyDiceStats();
+  $("rollMessage").textContent=pinballState().hiddenPending
+    ?`普通投珠已在特殊格完成時暫停；請先開始隱藏模式。`
+    :`彈珠機自動結束：本日剩餘可用 ${fmt(after.availableToday)} 個${item(token).name}。`;
+  $("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;
+  render()
 }
 async function autoRoll({reuseSnapshot=false}={}){
   if(config.gameplay.type==="pinball")return autoPinball({reuseSnapshot});
@@ -4717,7 +4842,7 @@ function renderSettings(){
         <div class="field"><label>特殊格需要進入次數</label>${pathInput("gameplaySettings.pinball.triggerRequired",c.gameplaySettings.pinball.triggerRequired,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式免費彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">普通模式每顆彈珠會沿釘子逐排左右彈跳並立即取得落點格獎勵。特殊格達標後暫停普通投珠，必須手動按開始；隱藏模式不消耗背包代幣，全部結束後一次結算獎勵並刷新格子。</div>
+      <div class="help">普通模式可自訂投入數量；按鈕可連點或長按連續投珠。每顆彈珠都會沿釘子逐排左右彈跳，且前一顆尚未落完時下一顆即可進場。特殊格達標後暫停普通投珠，必須手動開始隱藏模式；可用「跳過動畫」快速結算。</div>
     </div>
 
     <div class="editor-head"><div><h3>8格刷新獎勵池</h3><div class="help">每次刷新時，每一格都從下列獎勵池獨立抽取；機率合計需為100%。目前先沿用火龍果汁與奇異果汁。</div></div></div>
@@ -4888,8 +5013,14 @@ document.addEventListener("click",e=>{
 });
 $("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
 $("rollSelectedBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
-$("pinballDropMainBtn").addEventListener("click",()=>dropPinballs(1));
-$("pinballHiddenStartBtn").addEventListener("click",()=>runPinballHiddenMode({fast:false}));
+const pinballHoldBtn=$("pinballDropMainBtn");
+pinballHoldBtn.addEventListener("pointerdown",e=>{e.preventDefault();startPinballHold()});
+["pointerup","pointercancel","pointerleave"].forEach(name=>pinballHoldBtn.addEventListener(name,stopPinballHold));
+pinballHoldBtn.addEventListener("contextmenu",e=>e.preventDefault());
+$("pinballDropCountInput").addEventListener("change",e=>{e.target.value=Math.max(1,Math.floor(Number(e.target.value||1)))});
+
+
+$("pinballHiddenStartBtn").addEventListener("click",()=>runPinballHiddenMode({fast:pinballSkipAnimation()}));
 $("autoRollBtn").addEventListener("click",autoRoll);
 $("undoAutoRollBtn").addEventListener("click",undoAutoRoll);
 $("retryAutoRollBtn").addEventListener("click",retryAutoRoll);
