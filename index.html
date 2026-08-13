@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜統計與手機對齊版 v26</title>
+<title>活動玩法模擬器｜共用環境與大富翁玩法版 v27</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -14,7 +14,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{
-  margin:0;color:var(--ink);
+  margin:0;color:var(--ink);overflow-x:hidden;
   font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
   background:
     radial-gradient(circle at 12% 7%,rgba(255,255,255,.8) 0 45px,transparent 46px),
@@ -24,16 +24,16 @@ body{
 button,input,select{font:inherit}
 button{cursor:pointer}
 button:disabled{cursor:not-allowed;opacity:.45}
-.app{max-width:1440px;margin:auto;padding:16px}
+.app{width:100%;max-width:1440px;margin:0 auto;padding:16px;min-width:0}
 .hero{
-  position:relative;overflow:hidden;background:linear-gradient(135deg,#fff7db,#fff);
+  width:100%;max-width:none;min-width:0;position:relative;overflow:hidden;background:linear-gradient(135deg,#fff7db,#fff);
   border:4px solid rgba(255,255,255,.8);border-radius:28px;padding:18px 20px;
   box-shadow:var(--shadow);margin-bottom:12px;
 }
 .hero:before,.hero:after{content:"";position:absolute;border-radius:50%;opacity:.18}
 .hero:before{width:180px;height:180px;background:#ff9c65;right:-50px;top:-80px}
 .hero:after{width:110px;height:110px;background:#37bce3;right:130px;bottom:-75px}
-.hero-row{display:flex;align-items:center;justify-content:space-between;gap:14px;position:relative;z-index:1}
+.hero-row{width:100%;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:14px;position:relative;z-index:1}.hero-row>div:first-child{min-width:0}
 .hero h1{font-size:clamp(25px,4vw,42px);margin:0 0 4px;color:#154d70;text-shadow:0 2px #fff}
 .hero p{margin:0;color:#577185}
 .hero-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -65,7 +65,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 }
 .stat-label{font-size:12px;color:var(--muted);font-weight:800}
 .stat-value{font-size:20px;font-weight:1000;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.main-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.55fr);gap:12px}
+.main-grid{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,.55fr);gap:12px}
 .card{
   background:rgba(255,255,255,.96);border:4px solid rgba(255,255,255,.9);
   border-radius:24px;box-shadow:var(--shadow);padding:14px
@@ -178,6 +178,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   width:100%;border:0;background:transparent;text-align:left;padding:11px;border-radius:11px;color:#526174;font-weight:900;margin-bottom:5px
 }
 .settings-nav button.active{background:#fff;color:#2078bd;box-shadow:0 3px 10px rgba(60,90,120,.12)}
+.settings-nav-title{padding:10px 10px 5px;color:#8a98a8;font-size:11px;font-weight:1000;letter-spacing:.08em}
 .settings-content{padding:15px;overflow:auto}
 .setting-section{display:none}.setting-section.active{display:block}
 .setting-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
@@ -287,8 +288,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .stats{grid-template-columns:repeat(3,1fr)}
 }
 @media(max-width:720px){
-  .app{padding:8px}.hero{border-radius:20px;padding:14px}
-  .hero-row{align-items:flex-start;flex-direction:column}.hero-actions{justify-content:flex-start}
+  .app{width:100%;padding:8px}.hero{width:100%;margin-left:0;margin-right:0;border-radius:20px;padding:14px}
+  .hero-row{width:100%;align-items:stretch;flex-direction:column}.hero-actions{width:100%;justify-content:flex-start}
+  .hero-actions .btn{flex:1 1 calc(33.333% - 8px);min-width:104px;text-align:center}
   .week-switch{gap:4px;padding:6px}.day-btn{font-size:12px;padding:8px 2px}
   .stats{grid-template-columns:repeat(2,1fr)}.stat-value{font-size:18px}
   .card{border-radius:19px;padding:9px}.board-shell{padding:5px}
@@ -296,6 +298,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .side-stack{grid-template-columns:1fr}
   .settings-main{grid-template-columns:1fr}.settings-nav{display:flex;overflow:auto;padding:8px}
   .settings-nav button{width:auto;white-space:nowrap;margin:0 4px 0 0}
+  .settings-nav-title{display:none}
   .setting-grid{grid-template-columns:1fr}
   .editor-row{grid-template-columns:1fr 74px 75px auto;font-size:12px}
   .editor-row.package-reward{grid-template-columns:1fr 90px auto}
@@ -381,7 +384,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
     <div class="hero-row">
       <div>
         <h1 id="eventName">夏日環遊模擬器</h1>
-        <p>遊戲式棋盤、每日切換與圖形化設定清單</p>
+        <p>共用活動環境＋可擴充遊戲玩法的模擬器</p>
       </div>
       <div class="hero-actions">
         <button class="btn secondary" id="undoBtn" disabled>↶ 復原上一步</button>
@@ -400,7 +403,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
       <section class="card">
         <div class="card-title">
           <div>
-            <h2>🏝️ 大富翁地圖</h2>
+            <h2>🎲 大富翁玩法</h2>
             <div class="help" id="boardMeta"></div>
           </div>
           <button class="btn secondary small" id="refreshBoardBtn">刷新地圖</button>
@@ -604,17 +607,20 @@ button:disabled{cursor:not-allowed;opacity:.45}
 <div class="settings-modal" id="settingsModal">
   <div class="settings-window">
     <div class="settings-head">
-      <div><strong style="font-size:20px">⚙️ 活動設定清單</strong><div class="help">直接輸入或增刪，不需要編寫 JSON。</div></div>
+      <div><strong style="font-size:20px">⚙️ 活動環境與玩法設定</strong><div class="help">每日進度、禮包、基金等屬於共用活動環境；不同玩法只更換自己的遊戲規則。</div></div>
       <button class="btn secondary small" id="closeSettingsBtn">關閉</button>
     </div>
     <div class="settings-main">
       <nav class="settings-nav" id="settingsNav">
-        <button class="active" data-setting-tab="basic">基本設定</button>
-        <button data-setting-tab="items">物品名稱</button>
-        <button data-setting-tab="cells">格子與機率</button>
-        <button data-setting-tab="fund">階段基金</button>
-        <button data-setting-tab="stages">進度獎勵</button>
-        <button data-setting-tab="packages">禮包清單</button>
+        <div class="settings-nav-title">共用活動環境</div>
+        <button class="active" data-setting-tab="basic">活動基本設定</button>
+        <button data-setting-tab="items">物品與箱子</button>
+        <button data-setting-tab="fund">活動基金</button>
+        <button data-setting-tab="stages">每日進度獎勵</button>
+        <button data-setting-tab="packages">每日禮包</button>
+        <div class="settings-nav-title">遊戲玩法</div>
+        <button data-setting-tab="monopoly">🎲 大富翁玩法</button>
+        <div class="settings-nav-title">系統</div>
         <button data-setting-tab="backup">備份與還原</button>
       </nav>
       <div class="settings-content" id="settingsContent"></div>
@@ -635,6 +641,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 
 const DEFAULT_CONFIG = {
   event:{name:"夏日環遊",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
+  gameplay:{type:"monopoly"},
   board:{cellCount:30,startIndex:0,diceSides:6,refreshOnLap:true,playerIcon:"🐹",startIcon:"🏁",startRewards:[]},
   simulator:{allowInsufficientCost:true},
   strategyFormulaVersion:6,
@@ -798,6 +805,8 @@ let strategyAttemptSimulationRunning=false;
 let lastAutoRollSnapshot=null;
 
 function normalizeFundConfig(cfg){
+  if(!cfg.gameplay||typeof cfg.gameplay!=="object")cfg.gameplay={type:"monopoly"};
+  if(!cfg.gameplay.type)cfg.gameplay.type="monopoly";
   if(!cfg.board)cfg.board={};
   if(!Array.isArray(cfg.board.startRewards))cfg.board.startRewards=[];
   if(!cfg.board.playerIcon)cfg.board.playerIcon="🐹";
@@ -4068,60 +4077,67 @@ function renderSettings(){
   const sections={};
   const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
   sections.basic=`<section class="setting-section active">
-    <h2>基本設定</h2>
+    <div class="editor-head">
+      <div><h2>共用活動基本設定</h2><div class="help">這些設定由所有玩法共用。之後新增其他玩法時，每日進度、禮包、基金、物品與日期都可以直接沿用。</div></div>
+      <span class="badge ok">共用環境</span>
+    </div>
     <div class="setting-grid">
       <div class="field"><label>活動名稱</label>${pathInput("event.name",c.event.name)}</div>
       <div class="field"><label>活動天數</label>${pathInput("event.totalDays",c.event.totalDays,"number",'min="1" max="30"')}</div>
-      <div class="field"><label>大富翁格數</label>${pathInput("board.cellCount",c.board.cellCount,"number",'min="8" max="100"')}</div>
-      <div class="field"><label>骰子面數</label>${pathInput("board.diceSides",c.board.diceSides,"number",'min="2" max="100"')}</div>
-      <div class="field"><label>起點格編號（從 0 開始）</label>${pathInput("board.startIndex",c.board.startIndex,"number",'min="0"')}</div>
-      <div class="field"><label>移動棋子圖示</label>${pathInput("board.playerIcon",c.board.playerIcon||"🐹")}</div>
-      <div class="field"><label>起點圖示</label>${pathInput("board.startIcon",c.board.startIcon||"🏁")}</div>
-      <div class="field"><label>每日任務最多骰子</label>${pathInput("dailyMission.maxGameTokens",c.dailyMission.maxGameTokens,"number",'min="0"')}</div>
-      <div class="field"><label>每完成一圈積分</label>${pathInput("scoreRules.pointsPerLap",c.scoreRules.pointsPerLap,"number",'step="any"')}</div>
-      <div class="field"><label>地圖設定</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
+      <div class="field"><label>每日任務最多遊戲代幣</label>${pathInput("dailyMission.maxGameTokens",c.dailyMission.maxGameTokens,"number",'min="0"')}</div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
     </div>
-    <h3>起點獎勵</h3>
-    <div class="editor-card"><div class="help">每次完成一圈、棋子經過起點時取得。初始站在起點不會自動領取。</div><div class="editor-table">${rewardRows(c.board.startRewards||[],"board.startRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="board.startRewards">＋加入起點獎勵</button></div>
     <h3>每日名稱</h3>
     <div class="setting-grid">${labels.map((x,i)=>`<div class="field"><label>第 ${i+1} 天</label>${pathInput(`event.dayLabels.${i}`,x)}</div>`).join("")}</div>
-    <h3>貨幣指定</h3>
+    <h3>共用貨幣／物品指定</h3>
     <div class="setting-grid">
       ${[["gameTokenId","遊戲代幣"],["premiumExchangeId","高級兌換幣"],["normalExchangeId","普通兌換幣"],["paidCurrencyId","課金代幣"]].map(([key,label])=>`<div class="field"><label>${label}</label><select data-path="currencies.${key}">${itemOptions(c.currencies[key])}</select></div>`).join("")}
     </div>
-    <h3>獲得物品的計分規則</h3>
-    <div class="editor-card"><div class="editor-table">
+    <h3>取得物品的共用計分規則</h3>
+    <div class="editor-card"><div class="help">不論目前使用哪種玩法，只要取得下列物品，就會增加同一套每日進度積分。</div><div class="editor-table">
       ${c.scoreRules.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="scoreRules.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`scoreRules.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeScoreRule" data-index="${i}">刪除</button></div>`).join("")}
     </div><button class="btn secondary small" data-settings-action="addScoreRule">＋加入計分物品</button></div>
   </section>`;
 
-  sections.fund=`<section class="setting-section active">
-    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段；購買進階基金後，免費與進階獎勵會同時領取。</div></div></div>
-    <h3>活動基金（依累計圈數解鎖）</h3>
-    <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需依圈數逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
-    ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fmt(m.laps)} 圈解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
-      <div class="setting-grid"><div class="field"><label>解鎖累計圈數</label>${pathInput(`fund.milestones.${i}.laps`,m.laps,"number",'min="0" step="1"')}</div><div class="field"><label>系統識別碼</label>${pathInput(`fund.milestones.${i}.id`,m.id,"text","readonly")}</div></div>
-      <strong>免費基金獎勵</strong><div class="editor-table">${rewardRows(m.freeRewards,`fund.milestones.${i}.freeRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.freeRewards">＋加入免費獎勵</button>
-      <hr style="border:0;border-top:1px solid #dce5ed"><strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(m.premiumRewards,`fund.milestones.${i}.premiumRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.premiumRewards">＋加入進階獎勵</button>
-    </div>`).join("")}
-  </section>`;
+  sections.monopoly=`<section class="setting-section active">
+    <div class="editor-head">
+      <div><h2>🎲 大富翁玩法</h2><div class="help">這一區只控制大富翁本身。共用的每日進度、禮包、基金、物品與日期不會放在這裡。</div></div>
+      <span class="badge warn">玩法專用</span>
+    </div>
+    <div class="editor-card">
+      <div class="setting-grid">
+        <div class="field"><label>目前玩法</label><select data-path="gameplay.type"><option value="monopoly" selected>大富翁</option></select></div>
+        <div class="field"><label>大富翁格數</label>${pathInput("board.cellCount",c.board.cellCount,"number",'min="8" max="100"')}</div>
+        <div class="field"><label>骰子面數</label>${pathInput("board.diceSides",c.board.diceSides,"number",'min="2" max="100"')}</div>
+        <div class="field"><label>起點格編號（從 0 開始）</label>${pathInput("board.startIndex",c.board.startIndex,"number",'min="0"')}</div>
+        <div class="field"><label>移動棋子圖示</label>${pathInput("board.playerIcon",c.board.playerIcon||"🐹")}</div>
+        <div class="field"><label>起點圖示</label>${pathInput("board.startIcon",c.board.startIcon||"🏁")}</div>
+        <div class="field"><label>每完成一圈積分</label>${pathInput("scoreRules.pointsPerLap",c.scoreRules.pointsPerLap,"number",'step="any"')}</div>
+        <div class="field"><label>地圖刷新</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
+      </div>
+    </div>
 
-  sections.items=`<section class="setting-section active"><div class="editor-head"><div><h2>物品名稱清單</h2><div class="help">可修改顯示名稱、單位與圖示。ID 是系統辨識碼，建立後建議不要修改。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
-    ${c.items.map((x,i)=>`<div class="editor-card"><div class="editor-row" style="grid-template-columns:80px minmax(130px,1fr) 110px minmax(130px,1fr) auto">
-      ${pathInput(`items.${i}.icon`,x.icon)}${pathInput(`items.${i}.name`,x.name)}${pathInput(`items.${i}.unit`,x.unit)}${pathInput(`items.${i}.id`,x.id,"text","readonly")}
-      <button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button>
-    </div></div>`).join("")}</section>`;
+    <h3>起點獎勵</h3>
+    <div class="editor-card"><div class="help">每次完成一圈、棋子經過起點時取得；初始站在起點不會自動領取。</div><div class="editor-table">${rewardRows(c.board.startRewards||[],"board.startRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="board.startRewards">＋加入起點獎勵</button></div>
 
-  sections.cells=`<section class="setting-section active"><div class="editor-head"><div><h2>格子與獎勵機率</h2><div class="help">每一種格子的機率合計必須為 100%。權重相同時會平均分配。</div></div><button class="btn green small" data-settings-action="addCellType">＋新增格子類型</button></div>
+    <div class="editor-head"><div><h3>格子與獎勵機率</h3><div class="help">每一種格子的獎勵機率合計必須為 100%。格子類型依分配權重放入地圖。</div></div><button class="btn green small" data-settings-action="addCellType">＋新增格子類型</button></div>
     ${c.cellTypes.map((type,i)=>{
       const total=type.rewards.reduce((s,x)=>s+Number(x.probability||0),0);
       return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(type.name)}</h3><div><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span> <button class="btn red small" data-settings-action="removeCellType" data-index="${i}">刪除類型</button></div></div>
-      <div class="setting-grid"><div class="field"><label>格子名稱</label>${pathInput(`cellTypes.${i}.name`,type.name)}</div><div class="field"><label>平均分配權重</label>${pathInput(`cellTypes.${i}.distributionWeight`,type.distributionWeight,"number",'step="any" min="0"')}</div></div>
+      <div class="setting-grid"><div class="field"><label>格子名稱</label>${pathInput(`cellTypes.${i}.name`,type.name)}</div><div class="field"><label>地圖分配權重</label>${pathInput(`cellTypes.${i}.distributionWeight`,type.distributionWeight,"number",'step="any" min="0"')}</div></div>
       <div class="editor-table">${rewardRows(type.rewards,`cellTypes.${i}.rewards`,"probability")}</div>
       <button class="btn secondary small" data-settings-action="addReward" data-base="cellTypes.${i}.rewards" data-probability="1">＋加入獎勵機率</button></div>`
     }).join("")}
-    <h2>高級兌換幣隨機箱</h2>
+  </section>`;
+
+  sections.items=`<section class="setting-section active">
+    <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
+    ${c.items.map((x,i)=>`<div class="editor-card"><div class="editor-row" style="grid-template-columns:80px minmax(130px,1fr) 110px minmax(130px,1fr) auto">
+      ${pathInput(`items.${i}.icon`,x.icon)}${pathInput(`items.${i}.name`,x.name)}${pathInput(`items.${i}.unit`,x.unit)}${pathInput(`items.${i}.id`,x.id,"text","readonly")}
+      <button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button>
+    </div></div>`).join("")}
+
+    <div class="editor-head" style="margin-top:18px"><div><h2>隨機箱設定</h2><div class="help">隨機箱不屬於大富翁；切換其他玩法時仍可共用。</div></div></div>
     ${c.randomBoxes.map((box,i)=>{
       const total=box.outcomes.reduce((s,x)=>s+Number(x.probability||0),0);
       return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span></div>
@@ -4134,6 +4150,18 @@ function renderSettings(){
         <button class="btn secondary small" data-settings-action="addBoxOutcome" data-box="${i}">＋加入開箱結果</button>
       </div>`
     }).join("")}
+  </section>`;
+
+
+  sections.fund=`<section class="setting-section active">
+    <div class="editor-head"><div><h2>階段基金</h2><div class="help">依累計圈數解鎖。每次領取會一次取得當下所有已解鎖且尚未領取的階段；購買進階基金後，免費與進階獎勵會同時領取。</div></div></div>
+    <h3>活動基金（依累計圈數解鎖）</h3>
+    <div class="editor-card"><div class="editor-head"><div><strong>進階基金購買成本</strong><div class="help">購買後仍需依圈數逐階解鎖；每次領取會取得當下所有已解鎖未領階段。</div></div><button class="btn green small" data-settings-action="addFundMilestone">＋新增基金階段</button></div><div class="editor-row package-reward"><select data-path="fund.premiumCost.itemId">${itemOptions(c.fund.premiumCost.itemId)}</select>${pathInput("fund.premiumCost.amount",c.fund.premiumCost.amount,"number",'step="any"')}<span></span></div></div>
+    ${fundMilestones(c).map((m,i)=>`<div class="editor-card fund-setting-stage"><div class="editor-head"><h3>${fmt(m.laps)} 圈解鎖</h3><button class="btn red small" data-settings-action="removeFundMilestone" data-index="${i}">刪除階段</button></div>
+      <div class="setting-grid"><div class="field"><label>解鎖累計圈數</label>${pathInput(`fund.milestones.${i}.laps`,m.laps,"number",'min="0" step="1"')}</div><div class="field"><label>系統識別碼</label>${pathInput(`fund.milestones.${i}.id`,m.id,"text","readonly")}</div></div>
+      <strong>免費基金獎勵</strong><div class="editor-table">${rewardRows(m.freeRewards,`fund.milestones.${i}.freeRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.freeRewards">＋加入免費獎勵</button>
+      <hr style="border:0;border-top:1px solid #dce5ed"><strong>進階基金獎勵</strong><div class="editor-table">${rewardRows(m.premiumRewards,`fund.milestones.${i}.premiumRewards`,"package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="fund.milestones.${i}.premiumRewards">＋加入進階獎勵</button>
+    </div>`).join("")}
   </section>`;
 
   sections.stages=`<section class="setting-section active"><div class="editor-head"><div><h2>每日進度獎勵</h2><div class="help">可增加或刪除階段，不限制只能五階。</div></div><button class="btn green small" data-settings-action="addStage">＋新增階段</button></div>
@@ -4158,7 +4186,7 @@ function renderSettings(){
     </div>`).join("")}</section>`;
 
   sections.backup=`<section class="setting-section active"><h2>備份與還原</h2>
-    <div class="editor-card"><h3>活動設定備份</h3><p class="help">匯出的檔案可在其他電腦匯入，不需要閱讀內容。</p>
+    <div class="editor-card"><h3>活動設定備份</h3><p class="help">備份包含共用活動環境與目前玩法設定；之後可以在同一環境加入其他玩法。</p>
       <div class="form-row"><button class="btn" data-settings-action="exportConfig">匯出活動設定</button><button class="btn secondary" data-settings-action="importConfig">匯入活動設定</button></div>
     </div>
     <div class="editor-card"><h3>恢復本版預設設定</h3><p class="help">只會把設定清單改回預設值，按下「套用設定」後才生效。</p><button class="btn red" data-settings-action="restoreDefault">恢復預設設定</button></div>
