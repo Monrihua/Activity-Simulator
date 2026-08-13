@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜主操作面板精簡版 v25</title>
+<title>活動玩法模擬器｜統計與手機對齊版 v26</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -326,8 +326,46 @@ button:disabled{cursor:not-allowed;opacity:.45}
   margin-top:8px;border:2px solid #bfe1cd;background:#effaf3;border-radius:13px;padding:9px 11px;
   font-size:13px;line-height:1.55;color:#456250
 }
+.daily-claim-panel{
+  display:grid;grid-template-columns:minmax(220px,.8fr) minmax(420px,1.6fr);gap:10px;align-items:end
+}
+.daily-mission-input{
+  display:grid;grid-template-columns:auto minmax(90px,1fr);gap:8px;align-items:center
+}
+.daily-mission-input label{white-space:nowrap;font-weight:800}
+.daily-claim-actions{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px
+}
+.daily-claim-actions .btn,
+.fund-action-grid .btn,
+.auto-action-grid .btn{
+  width:100%;min-width:0;height:44px;display:flex;align-items:center;justify-content:center;
+  text-align:center;white-space:nowrap
+}
+.auto-action-grid{
+  display:grid;grid-template-columns:minmax(150px,1.45fr) repeat(3,minmax(85px,1fr));gap:8px;width:100%
+}
+.fund-toolbar{align-items:center}
+.fund-action-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:8px;min-width:360px
+}
+.multiplier-wrap{align-items:center}
+#rollSelectedBtn{min-width:92px}
 @media(max-width:720px){
   .daily-dice-stats{grid-template-columns:1fr 1fr}
+  .daily-claim-panel{grid-template-columns:1fr;gap:8px}
+  .daily-mission-input{grid-template-columns:minmax(0,1fr) 120px}
+  .daily-claim-actions{grid-template-columns:1fr 1fr}
+  .daily-claim-actions .btn{height:48px;white-space:normal;line-height:1.15;padding:8px 6px}
+  .auto-action-grid{grid-template-columns:1fr 1fr}
+  .auto-action-grid .btn{height:48px}
+  .fund-toolbar{display:block}
+  .fund-toolbar>div:first-child{margin-bottom:8px}
+  .fund-action-grid{grid-template-columns:repeat(3,1fr);min-width:0;width:100%}
+  .fund-action-grid .btn{height:46px;white-space:normal;line-height:1.15;padding:7px 5px}
+  .multiplier-wrap{display:grid;grid-template-columns:auto 1fr auto;gap:8px}
+  .multiplier-group{min-width:0}
+  #rollSelectedBtn{min-width:82px}
 }
 
 /* v22：僅停用攻略規劃 UI，保留其他模擬器功能 */
@@ -391,7 +429,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             </div>
             <button class="btn small" id="rollSelectedBtn">擲骰子</button>
           </div>
-          <div class="form-row">
+          <div class="auto-action-grid">
             <button class="btn green" id="autoRollBtn" title="只會使用「本日可用骰子」">自動使用全部骰子</button>
             <button class="btn secondary" id="undoAutoRollBtn" disabled>退回</button>
             <button class="btn secondary" id="retryAutoRollBtn" disabled>重試</button>
@@ -417,13 +455,17 @@ button:disabled{cursor:not-allowed;opacity:.45}
         <div class="tab-panel active" id="tab-daily">
           <div class="card-title"><h3 id="dailyTitle">週一進度</h3></div>
           <div id="activeStrategyCard"></div>
-          <div class="form-row">
-            <label>今日任務完成量</label>
-            <input class="input" type="number" id="dailyDiceInput" min="0">
-            <button class="btn" id="claimDailyBtn">領取每日骰子</button>
-            <button class="btn secondary" id="refundDailyBtn">退回每日</button>
-            <button class="btn green" id="claimFreeDailyBtn">一鍵領無課金</button>
-            <button class="btn secondary" id="refundFreeDailyBtn">退回無課金</button>
+          <div class="daily-claim-panel">
+            <div class="daily-mission-input">
+              <label>今日任務完成量</label>
+              <input class="input" type="number" id="dailyDiceInput" min="0">
+            </div>
+            <div class="daily-claim-actions">
+              <button class="btn" id="claimDailyBtn">領取每日骰子</button>
+              <button class="btn secondary" id="refundDailyBtn">退回每日</button>
+              <button class="btn green" id="claimFreeDailyBtn">一鍵領無課金</button>
+              <button class="btn secondary" id="refundFreeDailyBtn">退回無課金</button>
+            </div>
           </div>
 
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
@@ -432,12 +474,12 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <h3>🎁 每日進度獎勵</h3>
           <div class="list" id="stageList"></div>
 
-          <div class="card-title" style="margin-top:16px;margin-bottom:8px">
+          <div class="card-title fund-toolbar" style="margin-top:16px;margin-bottom:8px">
             <div>
               <h3 style="margin:0">🎟️ 活動基金</h3>
               <div class="help" id="fundStatus"></div>
             </div>
-            <div class="form-row">
+            <div class="fund-action-grid">
               <button class="btn small" id="claimFundBtn">領取基金</button>
               <button class="btn gold small" id="purchaseFundBtn">購買基金</button>
               <button class="btn secondary small" id="undoFundBtn">退回</button>
@@ -3867,14 +3909,22 @@ function renderWeek(){
   $("miniWeekSwitch").innerHTML=labels.map((label,i)=>`<button class="mini-day-btn ${i===state.currentDay?"active":""}" data-day="${i}">${escapeHtml(label)}</button>`).join("")
 }
 function renderStats(){
-  const s=dailyDiceStats();
+  const s=dailyDiceStats(),
+        stages=[...config.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)),
+        totalStages=stages.length,
+        reachedStages=stages.filter(x=>Number(dayState().score)>=Number(x.requiredScore)).length,
+        maxScore=totalStages?Number(stages[totalStages-1].requiredScore||0):0,
+        scoreNow=Math.max(0,Number(dayState().score||0));
+
   $("persistentDailyStats").innerHTML=[
     ["本日獲得骰子",`🎲 ${fmt(s.gainedToday)}`],
     ["日前剩餘骰子",`🎲 ${fmt(s.previousRemaining)}`],
     ["本日可用骰子",`🎲 ${fmt(s.availableToday)}`],
     ["本日已消耗骰子",`🎲 ${fmt(s.spentToday)}`],
     ["本日完成圈數",fmt(dayState().lapsCompleted||0)],
-    ["累積完成圈數",fmt(state.laps||0)]
+    ["累積完成圈數",fmt(state.laps||0)],
+    ["本日進度階段",`${reachedStages}/${totalStages} 階`],
+    ["本日積分進度",`${fmt(scoreNow)}/${fmt(maxScore)}`]
   ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")
 }
 function renderDaily(){
@@ -3917,9 +3967,10 @@ function renderDaily(){
 
   $("claimFundBtn").disabled=!(freeReady.length||premiumReady.length);
   $("purchaseFundBtn").disabled=state.fundPremiumPurchased;
-  $("purchaseFundBtn").textContent=state.fundPremiumPurchased
-    ?"基金已購買"
-    :`購買基金（${itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount)}）`;
+  $("purchaseFundBtn").textContent=state.fundPremiumPurchased?"已購買":"購買基金";
+  $("purchaseFundBtn").title=state.fundPremiumPurchased
+    ?"進階基金已購買"
+    :`購買進階基金：${itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount)}`;
   $("undoFundBtn").disabled=!state.lastFundUndo;
 
   const claimRewards=[
