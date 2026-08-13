@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜特殊模式刷新與動畫版 v32</title>
+<title>活動玩法模擬器｜彈珠落點與格子權重版 v33</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -853,15 +853,20 @@ const DEFAULT_CONFIG = {
       slotCount:8,
       triggerRequired:5,
       hiddenBalls:200,
-      slotRewardPool:[
-        {itemId:"kiwiJuice",amount:5,probability:12.5},
-        {itemId:"kiwiJuice",amount:10,probability:12.5},
-        {itemId:"kiwiJuice",amount:15,probability:12.5},
-        {itemId:"kiwiJuice",amount:20,probability:12.5},
-        {itemId:"kiwiJuice",amount:25,probability:12.5},
-        {itemId:"kiwiJuice",amount:50,probability:12.5},
-        {itemId:"dragonFruitJuice",amount:1,probability:12.5},
-        {itemId:"dragonFruitJuice",amount:2,probability:12.5}
+      landingWeights:[1,7,21,35,35,21,7,1],
+      slotTypes:[
+        {id:"kiwiSlot",name:"奇異果汁格",distributionWeight:70,rewards:[
+          {itemId:"kiwiJuice",amount:5,probability:20},
+          {itemId:"kiwiJuice",amount:10,probability:20},
+          {itemId:"kiwiJuice",amount:15,probability:20},
+          {itemId:"kiwiJuice",amount:20,probability:15},
+          {itemId:"kiwiJuice",amount:25,probability:15},
+          {itemId:"kiwiJuice",amount:50,probability:10}
+        ]},
+        {id:"dragonSlot",name:"火龍果汁格",distributionWeight:30,rewards:[
+          {itemId:"dragonFruitJuice",amount:1,probability:85},
+          {itemId:"dragonFruitJuice",amount:2,probability:15}
+        ]}
       ]
     }
   },
@@ -1085,10 +1090,47 @@ function normalizeFundConfig(cfg){
   pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
   if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
   if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
-  if(!Array.isArray(pin.slotRewardPool)||!pin.slotRewardPool.length)pin.slotRewardPool=[
-    {itemId:pin.normalExchangeId||"kiwiJuice",amount:5,probability:50},
-    {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:1,probability:50}
-  ];
+  // 落點權重：舊版7次公平左右碰撞的自然分布是 1:7:21:35:35:21:7:1。
+  if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==pin.slotCount){
+    const steps=Math.max(1,pin.slotCount-1);
+    pin.landingWeights=Array.from({length:pin.slotCount},(_,k)=>{
+      let c=1;
+      for(let i=1;i<=k;i++)c=c*(steps-k+i)/i;
+      return c
+    })
+  }
+  pin.landingWeights=pin.landingWeights.map(x=>Math.max(0,Number(x||0)));
+  if(!pin.landingWeights.some(x=>x>0))pin.landingWeights=pin.landingWeights.map(()=>1);
+
+  // 格子類型：每次刷新先依 distributionWeight 抽類型，再抽該類型內的獎勵。
+  if(!Array.isArray(pin.slotTypes)||!pin.slotTypes.length){
+    const legacy=Array.isArray(pin.slotRewardPool)&&pin.slotRewardPool.length?clone(pin.slotRewardPool):null;
+    pin.slotTypes=legacy
+      ?[{id:"legacySlot",name:"舊版獎勵格",distributionWeight:100,rewards:legacy}]
+      :[
+        {id:"kiwiSlot",name:"奇異果汁格",distributionWeight:70,rewards:[
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:5,probability:20},
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:10,probability:20},
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:15,probability:20},
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:20,probability:15},
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:25,probability:15},
+          {itemId:pin.normalExchangeId||"kiwiJuice",amount:50,probability:10}
+        ]},
+        {id:"dragonSlot",name:"火龍果汁格",distributionWeight:30,rewards:[
+          {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:1,probability:85},
+          {itemId:pin.premiumExchangeId||"dragonFruitJuice",amount:2,probability:15}
+        ]}
+      ]
+  }
+  pin.slotTypes.forEach((type,i)=>{
+    if(!type.id)type.id=`slotType${i+1}`;
+    if(!type.name)type.name=`格子類型 ${i+1}`;
+    type.distributionWeight=Math.max(0,Number(type.distributionWeight||0));
+    if(!Array.isArray(type.rewards)||!type.rewards.length){
+      type.rewards=[{itemId:pin.normalExchangeId||"kiwiJuice",amount:1,probability:100}]
+    }
+  });
+  delete pin.slotRewardPool;
 
   const activeGameplay=cfg.gameplaySettings[cfg.gameplay.type]||cfg.gameplaySettings.monopoly;
   if(activeGameplay){
@@ -1483,10 +1525,35 @@ function activeGameplaySettings(cfg=config){
   return cfg.gameplaySettings?.[cfg.gameplay?.type]||cfg.gameplaySettings?.monopoly
 }
 function pinballSettings(cfg=config){normalizeFundConfig(cfg);return cfg.gameplaySettings.pinball}
+function weightedIndex(weights){
+  const safe=(weights||[]).map(x=>Math.max(0,Number(x||0)));
+  const total=safe.reduce((s,x)=>s+x,0);
+  if(total<=0)return Math.floor(Math.random()*Math.max(1,safe.length));
+  let r=Math.random()*total;
+  for(let i=0;i<safe.length;i++){
+    r-=safe[i];
+    if(r<=0)return i
+  }
+  return Math.max(0,safe.length-1)
+}
+function pinballLandingPercentages(cfg=config){
+  const w=pinballSettings(cfg).landingWeights||[],total=w.reduce((s,x)=>s+Math.max(0,Number(x||0)),0);
+  return w.map(x=>total>0?Math.max(0,Number(x||0))/total*100:100/Math.max(1,w.length))
+}
+function pickPinballSlotType(cfg=config){
+  const types=pinballSettings(cfg).slotTypes||[];
+  if(!types.length)return null;
+  return types[weightedIndex(types.map(x=>x.distributionWeight))]||types[0]
+}
+
 function pinballState(targetState=state){ensureStateSchema(targetState,config);return targetState.gameplayStates.pinball}
 function refreshPinballSlotRewards(targetState=state,cfg=config){
   const ps=pinballState(targetState),pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8));
-  ps.slots=Array.from({length:count},()=>clone(weightedPick(pc.slotRewardPool)));
+  ps.slots=Array.from({length:count},()=>{
+    const type=pickPinballSlotType(cfg);
+    const reward=clone(weightedPick(type?.rewards||[]));
+    return{...reward,slotTypeId:type?.id||"",slotTypeName:type?.name||"獎勵格"}
+  });
   ps.lastLanding=null;
   ps.boardVersion=Number(ps.boardVersion||0)+1;
   return ps
@@ -1519,14 +1586,20 @@ function pinballRewardText(reward,cfg=config){
   const it=cfgItem(cfg,reward.itemId);return `${it.icon||"🎁"} ${it.name} ×${fmt(reward.amount)}`
 }
 function pinballBouncePath(cfg=config){
-  // 7排釘子，每碰一排隨機往左/右；向右次數 0~7 對應底部8格。
-  const decisions=[];let rights=0;
-  for(let row=0;row<7;row++){
-    const right=Math.random()<.5;
-    decisions.push(right?1:-1);
-    if(right)rights++
+  const pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8)),steps=count-1;
+  const slot=weightedIndex(pc.landingWeights||Array.from({length:count},()=>1));
+
+  // 第 slot 格需要在 steps 次碰撞中恰好向右 slot 次。
+  // 左右決策會洗牌，所以同一落點仍有許多不同的視覺路徑。
+  const decisions=[
+    ...Array.from({length:slot},()=>1),
+    ...Array.from({length:steps-slot},()=>-1)
+  ];
+  for(let i=decisions.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [decisions[i],decisions[j]]=[decisions[j],decisions[i]]
   }
-  return{decisions,slot:rights}
+  return{decisions,slot}
 }
 function pinballNearestPeg(row,xPercent){
   const field=$("pinballField");if(!field)return null;
@@ -1816,7 +1889,8 @@ function validateConfig(c){
   Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
     (g.randomBoxes||[]).forEach(x=>validateProbability(x.outcomes,`${gameplay}・${x.name}`))
   });
-  validateProbability(c.gameplaySettings.pinball.slotRewardPool,"彈珠機格子獎勵池");
+  (c.gameplaySettings.pinball.slotTypes||[]).forEach(type=>validateProbability(type.rewards,`彈珠機・${type.name}`));
+  if(!(c.gameplaySettings.pinball.landingWeights||[]).some(x=>Number(x)>0))throw new Error("彈珠機落點權重至少要有一格大於 0");
   if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
   const fundIds=fundMilestones(c).map(x=>x.id);if(new Set(fundIds).size!==fundIds.length)throw new Error("基金階段 ID 不可重複");
   fundMilestones(c).forEach((m,i)=>{if(Number(m.laps)<0)throw new Error(`第 ${i+1} 個基金階段圈數不可小於 0`);[...(m.freeRewards||[]),...(m.premiumRewards||[])].forEach(r=>{if(!ids.includes(r.itemId))throw new Error(`基金階段引用不存在的物品：${r.itemId}`)})});
@@ -1913,17 +1987,20 @@ function renderPinballBoard(){
   $("pinballDropMainBtn").textContent="投入彈珠（可連點／長按）";
 
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="pinball"));
-  const pegs=$("pinballPegs");
-  if(pegs&&!pegs.children.length){
-    pegs.innerHTML=Array.from({length:49},(_,i)=>{
-      const row=Math.floor(i/7),col=i%7;
+  const pegs=$("pinballPegs"),rows=Math.max(1,ps.slots.length-1),cols=Math.max(2,ps.slots.length-1);
+  if(pegs&&Number(pegs.dataset.rows)!==rows){
+    pegs.dataset.rows=rows;
+    pegs.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+    pegs.style.gridTemplateRows=`repeat(${rows},1fr)`;
+    pegs.innerHTML=Array.from({length:rows*cols},(_,i)=>{
+      const row=Math.floor(i/cols),col=i%cols;
       return `<span class="pinball-peg ${row%2?"offset":""}" data-peg-row="${row}" data-peg-col="${col}"></span>`
     }).join("")
   }
   $("pinballSlots").style.gridTemplateColumns=`repeat(${ps.slots.length},minmax(0,1fr))`;
   $("pinballSlots").innerHTML=ps.slots.map((reward,i)=>{
-    const it=item(reward.itemId),target=!ps.hiddenActive&&i===Number(ps.targetSlot);
-    return `<div class="pinball-slot ${target?"target":""}" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
+    const it=item(reward.itemId),target=!ps.hiddenActive&&i===Number(ps.targetSlot),landingPct=pinballLandingPercentages()[i]||0;
+    return `<div class="pinball-slot ${target?"target":""}" title="${escapeHtml(reward.slotTypeName||"獎勵格")}｜落點約 ${fmt(landingPct)}%" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
       ${target?`<span class="pinball-target-tag">${fmt(ps.targetHits)}/${fmt(pc.triggerRequired)}</span>`:""}
       <span class="slot-icon">${escapeHtml(it.icon||"🎁")}</span>
       <span class="slot-amount">×${fmt(reward.amount)}</span>
@@ -4734,7 +4811,8 @@ function renderResources(){
 function renderDistribution(){
   if(config.gameplay.type==="pinball"){
     const ps=ensurePinballSlots();
-    $("distribution").innerHTML=ps.slots.map((r,i)=>`<div class="resource-row"><span>${i===ps.targetSlot?"🎯 ":""}第 ${i+1} 格・${escapeHtml(item(r.itemId).icon||"")} ${escapeHtml(item(r.itemId).name)}</span><strong>×${fmt(r.amount)}</strong></div>`).join("");
+    const landingPct=pinballLandingPercentages();
+    $("distribution").innerHTML=ps.slots.map((r,i)=>`<div class="resource-row"><span>${i===ps.targetSlot?"🎯 ":""}第 ${i+1} 格・${escapeHtml(r.slotTypeName||"獎勵格")}・${escapeHtml(item(r.itemId).icon||"")} ${escapeHtml(item(r.itemId).name)}</span><strong>×${fmt(r.amount)}｜${fmt(landingPct[i]||0)}%</strong></div>`).join("");
     const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🔮 本輪彈珠槽位";
     return
   }
@@ -4880,7 +4958,7 @@ function renderSettings(){
 
   sections.pinball=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🔮 彈珠機玩法</h2><div class="help">彈珠會逐排碰撞釘子並隨機向左／右偏移，最後落入8格之一；隨機1格為特殊格，累積5顆後停止普通投珠，需手動開始200顆隱藏模式。</div></div>
+      <div><h2>🔮 彈珠機玩法</h2><div class="help">彈珠會逐排碰撞釘子左右偏移；最終落點可由各位置權重控制。槽位內容則由可設定的格子類型與刷新權重產生；特殊格累積5顆後停止普通投珠，需手動開始隱藏模式。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
 
@@ -4910,11 +4988,34 @@ function renderSettings(){
       <div class="help">普通模式可自訂投入數量；按鈕可連點或長按連續投珠。每顆彈珠都會沿釘子逐排左右彈跳，且前一顆尚未落完時下一顆即可進場。特殊格達標後暫停普通投珠；手動開始隱藏模式時會先刷新槽位，200顆免費彈珠預設同樣播放連續碰釘動畫，只有勾選「跳過動畫」才快速結算。</div>
     </div>
 
-    <div class="editor-head"><div><h3>8格刷新獎勵池</h3><div class="help">每次刷新時，每一格都從下列獎勵池獨立抽取；機率合計需為100%。目前先沿用火龍果汁與奇異果汁。</div></div></div>
+    <div class="editor-head"><div><h3>落點位置權重</h3><div class="help">直接控制彈珠最後落入各位置的機率。動畫會依抽中的格子，自動產生一條真的能走到該格的左右碰釘路徑。</div></div></div>
     <div class="editor-card">
-      <div class="editor-table">${rewardRows(c.gameplaySettings.pinball.slotRewardPool,"gameplaySettings.pinball.slotRewardPool","probability")}</div>
-      <button class="btn secondary small" data-settings-action="addReward" data-base="gameplaySettings.pinball.slotRewardPool" data-probability="1">＋加入格子獎勵</button>
+      <div class="setting-grid">
+        ${c.gameplaySettings.pinball.landingWeights.map((w,i)=>{
+          const pct=pinballLandingPercentages(c)[i]||0;
+          return `<div class="field"><label>第 ${i+1} 格權重（約 ${fmt(pct)}%）</label>${pathInput(`gameplaySettings.pinball.landingWeights.${i}`,w,"number",'min="0" step="any"')}</div>`
+        }).join("")}
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <button class="btn secondary small" data-settings-action="equalPinballLandingWeights">設為全部位置平均</button>
+        <button class="btn secondary small" data-settings-action="naturalPinballLandingWeights">恢復自然碰釘分布</button>
+      </div>
     </div>
+
+    <div class="editor-head"><div><h3>槽位格子類型</h3><div class="help">和大富翁格子類型相同：先依「刷新權重」決定這個槽位是哪一種類型，再從該類型自己的獎勵機率抽出內容。</div></div><button class="btn green small" data-settings-action="addPinballSlotType">＋新增格子類型</button></div>
+    ${c.gameplaySettings.pinball.slotTypes.map((type,i)=>{
+      const total=(type.rewards||[]).reduce((s,x)=>s+Number(x.probability||0),0);
+      return `<div class="editor-card">
+        <div class="editor-head"><h3>${escapeHtml(type.name)}</h3><div><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">獎勵機率 ${fmt(total)}%</span> <button class="btn red small" data-settings-action="removePinballSlotType" data-index="${i}">刪除類型</button></div></div>
+        <div class="setting-grid">
+          <div class="field"><label>格子類型名稱</label>${pathInput(`gameplaySettings.pinball.slotTypes.${i}.name`,type.name)}</div>
+          <div class="field"><label>刷新權重</label>${pathInput(`gameplaySettings.pinball.slotTypes.${i}.distributionWeight`,type.distributionWeight,"number",'min="0" step="any"')}</div>
+        </div>
+        <div class="editor-table">${rewardRows(type.rewards,`gameplaySettings.pinball.slotTypes.${i}.rewards`,"probability")}</div>
+        <button class="btn secondary small" data-settings-action="addReward" data-base="gameplaySettings.pinball.slotTypes.${i}.rewards" data-probability="1">＋加入獎勵</button>
+      </div>`
+    }).join("")}
+
   </section>`;
 
 
@@ -5004,6 +5105,33 @@ function settingsAction(btn){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.splice(Number(btn.dataset.index),1)
   }
+  if(a==="equalPinballLandingWeights"){
+    const n=Math.max(2,Number(settingsDraft.gameplaySettings.pinball.slotCount||8));
+    settingsDraft.gameplaySettings.pinball.landingWeights=Array.from({length:n},()=>1)
+  }
+  if(a==="naturalPinballLandingWeights"){
+    const n=Math.max(2,Number(settingsDraft.gameplaySettings.pinball.slotCount||8)),steps=n-1;
+    settingsDraft.gameplaySettings.pinball.landingWeights=Array.from({length:n},(_,k)=>{
+      let c=1;
+      for(let i=1;i<=k;i++)c=c*(steps-k+i)/i;
+      return c
+    })
+  }
+  if(a==="addPinballSlotType"){
+    const p=settingsDraft.gameplaySettings.pinball;
+    p.slotTypes.push({
+      id:`slotType${Date.now()}`,
+      name:`格子類型 ${p.slotTypes.length+1}`,
+      distributionWeight:10,
+      rewards:[{itemId:p.normalExchangeId||settingsDraft.items[0].id,amount:1,probability:100}]
+    })
+  }
+  if(a==="removePinballSlotType"){
+    const p=settingsDraft.gameplaySettings.pinball;
+    if(p.slotTypes.length<=1)return toast("至少保留一種彈珠格子類型");
+    p.slotTypes.splice(Number(btn.dataset.index),1)
+  }
+
   if(a==="addStage"){
     const next=Math.max(0,...settingsDraft.progressStages.map(x=>Number(x.stage)))+1;
     settingsDraft.progressStages.push({stage:next,requiredScore:0,rewards:[]})
