@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜低成本主線條件補救版 v16</title>
+<title>活動玩法模擬器｜每日無課金與重試版 v24</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -300,6 +300,41 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .editor-row{grid-template-columns:1fr 74px 75px auto;font-size:12px}
   .editor-row.package-reward{grid-template-columns:1fr 90px auto}
 }
+
+
+.daily-dice-stats{
+  display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px;margin:10px 0 12px
+}
+.daily-dice-stat{
+  border:2px solid #dce8f1;border-radius:14px;background:linear-gradient(#fff,#f7fbfe);padding:9px 10px
+}
+.daily-dice-stat .k{font-size:12px;color:#718096;font-weight:900}
+.daily-dice-stat .v{font-size:20px;font-weight:1000;margin-top:3px}
+.badge.free{background:#e5f8e9;color:#277b3f}
+.fund-details{
+  margin-top:9px;border:2px solid #dfe7ee;border-radius:14px;background:#f8fbfd;overflow:hidden
+}
+.fund-details>summary{
+  cursor:pointer;list-style:none;padding:10px 12px;font-weight:1000;color:#40566d;
+  display:flex;align-items:center;justify-content:space-between;gap:8px
+}
+.fund-details>summary::-webkit-details-marker{display:none}
+.fund-details>summary:after{content:"展開";font-size:12px;color:#718096}
+.fund-details[open]>summary:after{content:"收合"}
+.fund-details-body{padding:0 10px 10px}
+.fund-preview{
+  margin-top:8px;border:2px solid #bfe1cd;background:#effaf3;border-radius:13px;padding:9px 11px;
+  font-size:13px;line-height:1.55;color:#456250
+}
+@media(max-width:720px){
+  .daily-dice-stats{grid-template-columns:1fr 1fr}
+}
+
+/* v22：僅停用攻略規劃 UI，保留其他模擬器功能 */
+#tab-strategy,
+#activeStrategyCard {
+  display: none !important;
+}
 </style>
 </head>
 <body>
@@ -358,7 +393,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
             </div>
           </div>
           <div class="form-row">
-            <button class="btn green" id="autoRollBtn">自動使用全部骰子</button>
+            <button class="btn green" id="autoRollBtn" title="只會使用「本日可用骰子」">自動使用全部骰子</button>
+            <button class="btn secondary" id="undoAutoRollBtn" disabled>退回</button>
+            <button class="btn secondary" id="retryAutoRollBtn" disabled>重試</button>
             <button class="btn secondary" id="stopAutoBtn" disabled>停止自動</button>
           </div>
         </div>
@@ -370,7 +407,6 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <div class="tabs">
             <button class="tab-btn active" data-tab="daily">每日進度</button>
             <button class="tab-btn" data-tab="packages">每日禮包</button>
-            <button class="tab-btn" data-tab="strategy">攻略規劃</button>
             <button class="tab-btn" data-tab="simulation">批次模擬</button>
             <button class="tab-btn" data-tab="inventory">背包與箱子</button>
             <button class="tab-btn" data-tab="log">模擬紀錄</button>
@@ -385,16 +421,36 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <label>今日任務完成量</label>
             <input class="input" type="number" id="dailyDiceInput" min="0">
             <button class="btn" id="claimDailyBtn">領取每日骰子</button>
+            <button class="btn green" id="claimFreeDailyBtn">一鍵領無課金</button>
             <button class="btn secondary" id="refundDailyBtn">退回領取</button>
           </div>
+
+          <div class="daily-dice-stats" id="dailyDiceStats"></div>
+
           <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
           <div class="help" id="progressText"></div>
 
-          <h3>🎟️ 活動基金</h3>
-          <div class="list" id="fundList"></div>
-
           <h3>🎁 每日進度獎勵</h3>
           <div class="list" id="stageList"></div>
+
+          <div class="card-title" style="margin-top:16px;margin-bottom:8px">
+            <div>
+              <h3 style="margin:0">🎟️ 活動基金</h3>
+              <div class="help" id="fundStatus"></div>
+            </div>
+            <div class="form-row">
+              <button class="btn small" id="claimFundBtn">領取基金</button>
+              <button class="btn gold small" id="purchaseFundBtn">購買基金</button>
+              <button class="btn secondary small" id="undoFundBtn">退回</button>
+            </div>
+          </div>
+          <div class="fund-preview" id="fundClaimPreview"></div>
+          <details class="fund-details" id="fundDetails">
+            <summary>基金里程列表</summary>
+            <div class="fund-details-body">
+              <div class="list" id="fundList"></div>
+            </div>
+          </details>
         </div>
 
         <div class="tab-panel" id="tab-packages">
@@ -415,7 +471,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <div class="field"><label>固定攻略</label><button class="btn green" id="generateStrategyBtn" style="width:100%">依固定公式產生</button></div>
             <div class="field"><label>選配驗證</label><button class="btn secondary" id="validateStrategyBtn" style="width:100%" disabled>驗證目前攻略</button></div>
           </div>
-          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>主線＋補救：</strong>基本方案以3.5格與隨機箱期望值找「正常情況最省」的主流程，不會因為箱子保底差1個就先強迫多花500。產生主線後，再只針對最後一天搜尋條件式補救：主線做得到就不花，實際骰運不足才依救援梯加購。<br><strong>固定分數模型：</strong>非洲／歐洲依「本次實際使用骰子數 N」自動收斂；骰子越多，平均越接近3.5。非洲箱子保底仍保留作風險參考，但不拿來淘汰高期望值的基本主線。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
+          <div class="help" style="margin-top:8px"><strong>三套固定攻略：</strong>產生時完全不擲隨機數，並同時列出基本、非洲、歐洲三套完整流程；相同設定與目標，每次結果都相同。先把直接高級兌換幣禮包換算成「每1個需要多少翡翠石」，再比較購買骰子衝每日進度箱是否更便宜。<br><strong>主線＋補救：</strong>先找最低成本與足夠箱數，再把同一組階段往後重排。基金採精準圈數領取：到指定圈數立刻按領取，不能拖到當日終點再領。像1/3/1/1/4/1/3與1/1/1/1/3/3/4若箱數相同，會優先後者，避免前面太早硬衝高階。產生主線後，再只針對最後一天搜尋條件式補救：主線做得到就不花，實際骰運不足才依救援梯加購。<br><strong>固定分數模型：</strong>非洲／歐洲依「本次實際使用骰子數 N」自動收斂；骰子越多，平均越接近3.5。非洲箱子保底仍保留作風險參考，但不拿來淘汰高期望值的基本主線。<br><strong>實玩方式：</strong>攻略只指定每天要達到第幾階；達階就停手。運氣好省下的骰子留給後面，運氣差再依非洲補救欄購買。<br><strong>套用後驗證：</strong>每天可從相同的執行前狀態模擬成功率、一鍵執行，或完整退回骰子、圈數、基金與進度獎勵後重骰一次。</div>
           <div class="sim-progress"><div id="strategyProgress"></div></div>
           <div class="help" id="strategyProgressText" style="margin-top:5px"></div>
           <div id="strategyWarning"></div>
@@ -666,7 +722,7 @@ const DEFAULT_CONFIG = {
 const STORAGE_STATE="monopolySimulatorStateV8";
 const STORAGE_CONFIG="monopolySimulatorConfigV8";
 const STORAGE_BASELINE="monopolySimulatorBaselineV8";
-const STORAGE_STRATEGY="monopolySimulatorStrategyV16";
+const STORAGE_STRATEGY="monopolySimulatorStrategyV20";
 const LEGACY_STATE="monopolySimulatorStateV7";
 const LEGACY_CONFIG="monopolySimulatorConfigV7";
 const LEGACY_BASELINE="monopolySimulatorBaselineV7";
@@ -698,6 +754,7 @@ let strategySchedulePrecision="fast";
 let strategyAttemptSnapshots={};
 let strategyDaySimulationStats={};
 let strategyAttemptSimulationRunning=false;
+let lastAutoRollSnapshot=null;
 
 function normalizeFundConfig(cfg){
   if(!cfg.board)cfg.board={};
@@ -763,6 +820,7 @@ function createState(){
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
     fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
+    gameTokenFlow:Array.from({length:config.event.totalDays},()=>({gained:0,spent:0})),
     lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
 }
@@ -796,6 +854,7 @@ function ensureStateSchema(targetState=state,cfg=config){
   }
   if(!targetState.resources)targetState.resources={};if(!targetState.spent)targetState.spent={};
   if(!Array.isArray(targetState.log))targetState.log=[];if(!Object.prototype.hasOwnProperty.call(targetState,"activeStrategy"))targetState.activeStrategy=null;
+  ensureGameTokenFlow(targetState,cfg);
   return targetState
 }
 function deterministicLedger(targetState,cfg){
@@ -840,6 +899,124 @@ function reconcileAppliedConfiguration(targetState,oldCfg,newCfg){
   return changes
 }
 function dayState(targetState=state){return targetState.days[targetState.currentDay]}
+function rebuildGameTokenFlow(targetState=state,cfg=config){
+  const token=cfg.currencies.gameTokenId;
+  const flow=Array.from({length:targetState.days.length},()=>({gained:0,spent:0}));
+  const gain=(d,n)=>{d=Math.max(0,Math.min(flow.length-1,Number(d||0)));flow[d].gained+=Number(n||0)};
+  const use=(d,n)=>{d=Math.max(0,Math.min(flow.length-1,Number(d||0)));flow[d].spent+=Number(n||0)};
+  let latestActivity=0;
+
+  targetState.days.forEach((day,d)=>{
+    let active=false;
+    if(day.missionClaimed){
+      gain(d,day.missionAmount);
+      active=true
+    }
+    (day.claimedStages||[]).forEach(stageNo=>{
+      const stage=cfg.progressStages.find(x=>Number(x.stage)===Number(stageNo));
+      (stage?.rewards||[]).forEach(r=>{if(r.itemId===token)gain(d,r.amount)});
+      active=true
+    });
+    cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{
+      const n=Number(day.packagePurchases?.[`${group.id}:${pack.id}`]||0);
+      if(!n)return;
+      (pack.rewards||[]).forEach(r=>{if(r.itemId===token)gain(d,Number(r.amount)*n)});
+      if(!cfg.simulator.allowInsufficientCost&&pack.cost.itemId===token)use(d,Number(pack.cost.amount)*n);
+      active=true
+    }));
+    if(active)latestActivity=Math.max(latestActivity,d)
+  });
+
+  ["free","premium"].forEach(kind=>{
+    Object.entries(targetState.fundClaims?.[kind]||{}).forEach(([id,d])=>{
+      const milestone=fundMilestoneById(cfg,id);if(!milestone)return;
+      const rewards=kind==="free"?milestone.freeRewards:milestone.premiumRewards;
+      (rewards||[]).forEach(r=>{if(r.itemId===token)gain(d,r.amount)});
+      latestActivity=Math.max(latestActivity,Number(d||0))
+    })
+  });
+
+  if(targetState.fundPremiumPurchased&&!cfg.simulator.allowInsufficientCost&&cfg.fund.premiumCost.itemId===token){
+    const claimDays=Object.values(targetState.fundClaims?.premium||{}).map(Number).filter(Number.isFinite);
+    const d=claimDays.length?Math.min(...claimDays):latestActivity;
+    use(d,cfg.fund.premiumCost.amount)
+  }
+
+  const knownNet=flow.reduce((s,x)=>s+Number(x.gained||0)-Number(x.spent||0),0);
+  const actual=Number(targetState.resources?.[token]||0);
+  const delta=actual-knownNet;
+
+  // 舊存檔沒有完整的擲骰歷史：多出來的未知骰子保守歸到「最近有操作的日期」；
+  // 缺少的部分視為較早已消耗，避免回到前一天時誤用未來資源。
+  if(delta>0)gain(latestActivity,delta);
+  else if(delta<0)use(0,-delta);
+
+  targetState.gameTokenFlow=flow
+}
+function ensureGameTokenFlow(targetState=state,cfg=config){
+  if(!Array.isArray(targetState.gameTokenFlow)){
+    rebuildGameTokenFlow(targetState,cfg);
+    return targetState.gameTokenFlow
+  }
+  while(targetState.gameTokenFlow.length<targetState.days.length)targetState.gameTokenFlow.push({gained:0,spent:0});
+  targetState.gameTokenFlow=targetState.gameTokenFlow.slice(0,targetState.days.length);
+  targetState.gameTokenFlow.forEach(x=>{
+    x.gained=Number(x.gained||0);x.spent=Number(x.spent||0)
+  });
+  return targetState.gameTokenFlow
+}
+function adjustGameTokenGain(day,amount,targetState=state,cfg=config){
+  const flow=ensureGameTokenFlow(targetState,cfg);
+  const d=Math.max(0,Math.min(flow.length-1,Number(day||0)));
+  flow[d].gained=Number(flow[d].gained||0)+Number(amount||0)
+}
+function adjustGameTokenSpend(day,amount,targetState=state,cfg=config){
+  const flow=ensureGameTokenFlow(targetState,cfg);
+  const d=Math.max(0,Math.min(flow.length-1,Number(day||0)));
+  flow[d].spent=Number(flow[d].spent||0)+Number(amount||0)
+}
+function futureProtectedGameTokens(targetState=state,cfg=config){
+  const token=cfg.currencies.gameTokenId,flow=ensureGameTokenFlow(targetState,cfg);
+  let protectedCount=0;
+  for(let d=Number(targetState.currentDay)+1;d<flow.length;d++){
+    protectedCount+=Math.max(0,Number(flow[d].gained||0)-Number(flow[d].spent||0))
+  }
+  return Math.min(Math.max(0,Number(targetState.resources[token]||0)),Math.max(0,protectedCount))
+}
+function autoUsableGameTokens(targetState=state,cfg=config){
+  return dailyDiceStats(targetState,cfg,targetState.currentDay).availableToday
+}
+function dailyDiceStats(targetState=state,cfg=config,day=targetState.currentDay){
+  const flow=ensureGameTokenFlow(targetState,cfg),d=Math.max(0,Math.min(flow.length-1,Number(day||0)));
+  let previousRemaining=0;
+  for(let i=0;i<d;i++){
+    previousRemaining+=Number(flow[i].gained||0)-Number(flow[i].spent||0)
+  }
+  previousRemaining=Math.max(0,previousRemaining);
+  const gainedToday=Math.max(0,Number(flow[d]?.gained||0));
+  const spentToday=Math.max(0,Number(flow[d]?.spent||0));
+  const ledgerAvailable=Math.max(0,Math.floor(previousRemaining+gainedToday-spentToday+1e-9));
+  const actualHeld=Math.max(0,Math.floor(Number(targetState.resources?.[cfg.currencies.gameTokenId]||0)+1e-9));
+  const availableToday=Math.min(ledgerAvailable,actualHeld);
+  return{previousRemaining,gainedToday,spentToday,availableToday}
+}
+function noPayDicePackages(cfg=config){
+  const group=cfg.packageGroups.find(g=>g.id==="dicePackages");
+  if(!group)return[];
+  return ["adDice","gemDice"].map(id=>group.packages.find(p=>p.id===id)).filter(Boolean).map(pack=>({group,pack}))
+}
+function noPayDailyBundleLabel(cfg=config){
+  const parts=[`每日 ${fmt(cfg.dailyMission.maxGameTokens)}`];
+  noPayDicePackages(cfg).forEach(({pack})=>parts.push(`${pack.name.replace("骰子禮包","")}×${fmt(pack.limit)}`));
+  return parts.join("＋")
+}
+function aggregateRewardsText(rewards,cfg=config){
+  const map=new Map();
+  (rewards||[]).forEach(r=>map.set(r.itemId,Number(map.get(r.itemId)||0)+Number(r.amount||0)));
+  if(!map.size)return"目前沒有可領獎勵";
+  return [...map.entries()].map(([id,amount])=>`${cfgItem(cfg,id).icon||""}${cfgItem(cfg,id).name} ×${fmt(amount)}`).join("、")
+}
+
 function recordHistory(label){
   undoStack.push({label,state:clone(state),config:clone(config)});
   if(undoStack.length>120)undoStack.shift();
@@ -903,6 +1080,7 @@ function addScore(points,reason){
 function addItem(id,amount,reason,scoreEligible=true){
   const value=Number(amount||0);
   state.resources[id]=Number(state.resources[id]||0)+value;
+  if(id===config.currencies.gameTokenId&&value)adjustGameTokenGain(state.currentDay,value);
   if(scoreEligible){
     const points=scorePerItem(id)*value;
     if(points)addScore(points,`獲得 ${itemText(id,value)}`)
@@ -923,7 +1101,10 @@ function spend(cost,reason){
   if(!canSpend(cost))return false;
   const amount=Number(cost.amount||0);
   state.spent[cost.itemId]=Number(state.spent[cost.itemId]||0)+amount;
-  if(!config.simulator.allowInsufficientCost)state.resources[cost.itemId]=Number(state.resources[cost.itemId]||0)-amount;
+  if(!config.simulator.allowInsufficientCost){
+    state.resources[cost.itemId]=Number(state.resources[cost.itemId]||0)-amount;
+    if(cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,amount)
+  }
   if(reason)log(`${reason}：支出 ${itemText(cost.itemId,amount)}`);
   return true
 }
@@ -1056,7 +1237,7 @@ async function rollOnce({silent=false,fast=false}={}){
   if(rolling&&!silent)return null;
   const token=config.currencies.gameTokenId;
   if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
-  state.resources[token]-=1;
+  state.resources[token]-=1;adjustGameTokenSpend(state.currentDay,1);
   const roll=Math.floor(Math.random()*Number(config.board.diceSides))+1;
   rolling=true;$("rollBtn").disabled=true;
   $("diceFace").textContent=String(roll);
@@ -1108,21 +1289,65 @@ async function rollMultiple(count){
     :`連續擲骰 ×${actual} 完成，最後停在第 ${state.position} 格，本次完成 ${state.laps-startLaps} 圈。`;
   render()
 }
-async function autoRoll(){
+function renderAutoRollControls(){
+  const has=!!lastAutoRollSnapshot;
+  $("undoAutoRollBtn").disabled=rolling||!has;
+  $("retryAutoRollBtn").disabled=rolling||!has
+}
+async function autoRoll({reuseSnapshot=false}={}){
   if(rolling)return;
   const token=config.currencies.gameTokenId;
-  if(Number(state.resources[token]||0)<1)return toast(`${item(token).name}不足`);
+  const stats=dailyDiceStats();
+  const usable=stats.availableToday;
+  if(usable<1)return toast(`本日可用${item(token).name}不足`);
+
+  if(!reuseSnapshot){
+    lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay}
+  }
+
   recordHistory("自動使用全部骰子");
-  stopAuto=false;$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;
-  const startCount=Math.floor(Number(state.resources[token]||0));
-  const startLaps=state.laps;
+  stopAuto=false;
+  $("stopAutoBtn").disabled=false;
+  $("autoRollBtn").disabled=true;
+  $("undoAutoRollBtn").disabled=true;
+  $("retryAutoRollBtn").disabled=true;
+
+  const startLaps=Number(state.laps||0);
   let used=0;
-  while(Number(state.resources[token]||0)>=1&&!stopAuto){
-    await rollOnce({silent:true,fast:true});used++;
+  while(autoUsableGameTokens()>=1&&!stopAuto){
+    await rollOnce({silent:true,fast:true});
+    used++;
     if(used%20===0){render();await wait(0)}
   }
-  $("rollMessage").textContent=`自動擲骰結束：使用 ${used} 個${item(token).name}，完成 ${state.laps-startLaps} 圈。`;
-  rolling=false;$("rollBtn").disabled=false;$("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;render()
+
+  const after=dailyDiceStats();
+  $("rollMessage").textContent=`自動擲骰結束：本次使用 ${fmt(used)} 個${item(token).name}，完成 ${fmt(Number(state.laps||0)-startLaps)} 圈；本日剩餘可用 ${fmt(after.availableToday)} 個。`;
+  rolling=false;
+  $("rollBtn").disabled=false;
+  $("stopAutoBtn").disabled=true;
+  $("autoRollBtn").disabled=false;
+  render()
+}
+function undoAutoRoll(){
+  if(rolling||!lastAutoRollSnapshot)return toast("沒有可退回的自動擲骰");
+  recordHistory("退回上次自動使用全部骰子");
+  config=clone(lastAutoRollSnapshot.config);
+  state=clone(lastAutoRollSnapshot.state);
+  syncStateToConfig(false);
+  render();
+  toast("已退回到自動使用全部骰子之前")
+}
+async function retryAutoRoll(){
+  if(rolling||!lastAutoRollSnapshot)return toast("沒有可重試的自動擲骰");
+  const snap={state:clone(lastAutoRollSnapshot.state),config:clone(lastAutoRollSnapshot.config),createdAt:lastAutoRollSnapshot.createdAt,day:lastAutoRollSnapshot.day};
+  recordHistory("重試自動使用全部骰子");
+  config=clone(snap.config);
+  state=clone(snap.state);
+  syncStateToConfig(false);
+  lastAutoRollSnapshot=snap;
+  render();
+  await wait(0);
+  await autoRoll({reuseSnapshot:true})
 }
 function switchDay(index){
   if(rolling)return toast("移動中，請稍候");
@@ -1143,11 +1368,50 @@ function claimDaily(){
   dayState().missionClaimed=true;dayState().missionAmount=amount;
   addItem(config.currencies.gameTokenId,amount,"每日任務",true);render()
 }
+function claimFreeDailyBundle(){
+  if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
+  const actions=[];
+  const day=dayState();
+
+  const packages=noPayDicePackages(config);
+  const canDoMission=!day.missionClaimed;
+  const pending=packages.map(({group,pack})=>{
+    const key=`${group.id}:${pack.id}`,bought=Number(day.packagePurchases[key]||0);
+    return{group,pack,key,remain:Math.max(0,Number(pack.limit||0)-bought)}
+  });
+
+  if(!canDoMission&&!pending.some(x=>x.remain>0))return toast("本日無課金骰子已全部領取");
+  recordHistory(`一鍵領無課金：${noPayDailyBundleLabel(config)}`);
+
+  if(canDoMission){
+    const amount=Number(config.dailyMission.maxGameTokens||0);
+    day.missionClaimed=true;day.missionAmount=amount;
+    $("dailyDiceInput").value=amount;
+    addItem(config.currencies.gameTokenId,amount,"每日任務",true);
+    actions.push(`每日 ${fmt(amount)}`)
+  }
+
+  pending.forEach(({group,pack,key,remain})=>{
+    let boughtNow=0;
+    for(let n=0;n<remain;n++){
+      if(!canSpend(pack.cost))break;
+      spend(pack.cost,`一鍵領無課金・${pack.name}`);
+      day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;
+      (pack.rewards||[]).forEach(r=>addItem(r.itemId,r.amount,pack.name,true));
+      boughtNow++
+    }
+    if(boughtNow)actions.push(`${pack.name}×${boughtNow}`)
+  });
+
+  render();
+  toast(actions.length?`已領：${actions.join("、")}`:"目前資源不足，沒有可追加領取的無課金骰子")
+}
 function refundDailyClaim(){
   if(!dayState().missionClaimed)return toast("本日尚未領取每日任務");
   const amount=Number(dayState().missionAmount||0),token=config.currencies.gameTokenId;
   recordHistory(`退回${config.event.dayLabels[state.currentDay]}每日任務`);
   state.resources[token]=Number(state.resources[token]||0)-amount;
+  adjustGameTokenGain(state.currentDay,-amount);
   dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(token)*amount);
   dayState().missionClaimed=false;dayState().missionAmount=0;
   log(`退回每日任務 ${itemText(token,amount)}`);render();
@@ -1180,7 +1444,21 @@ function fundClaimCombined({purchase=false}={}){
   state.lastFundUndo={seq,purchased:purchase&&!beforePurchased,cost:purchase?clone(config.fund.premiumCost):null,tracks,rewards:allRewards,day:state.currentDay};
   render();toast(`已一次領取免費 ${nowFree.length} 階${state.fundPremiumPurchased?`、進階 ${nowPremium.length} 階`:""}`)
 }
-function purchasePremiumFund(){return fundClaimCombined({purchase:true})}
+function purchasePremiumFund(){
+  if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
+  if(state.fundPremiumPurchased)return toast("進階基金已購買");
+  if(!canSpend(config.fund.premiumCost))return toast(`${item(config.fund.premiumCost.itemId).name}不足`);
+  recordHistory("購買進階基金");
+  spend(config.fund.premiumCost,"購買進階基金");
+  state.fundPremiumPurchased=true;
+  const seq=++state.fundEventSeq;
+  state.lastFundUndo={
+    seq,purchased:true,cost:clone(config.fund.premiumCost),
+    tracks:[],rewards:[],day:state.currentDay
+  };
+  render();toast("已購買進階基金；尚未領取任何基金獎勵")
+}
+function claimAllFund(){return fundClaimCombined({purchase:false})}
 function claimFund(kind){
   if(kind==="premium"&&!state.fundPremiumPurchased)return purchasePremiumFund();
   return fundClaimCombined({purchase:false})
@@ -1188,9 +1466,9 @@ function claimFund(kind){
 function undoLastFundAction(){
   const u=state.lastFundUndo;if(!u)return toast("沒有可退回的基金操作");
   recordHistory("退回上次基金操作");let negative=false;
-  (u.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(state.resources[r.itemId]<0)negative=true;dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(r.itemId)*Number(r.amount||0));delete state.fundClaims[r.track][r.milestoneId]});
+  (u.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(r.itemId===config.currencies.gameTokenId)adjustGameTokenGain(u.day,-Number(r.amount||0));if(state.resources[r.itemId]<0)negative=true;dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(r.itemId)*Number(r.amount||0));delete state.fundClaims[r.track][r.milestoneId]});
   ["free","premium"].forEach(kind=>state.fundClaimEvents[kind]=(state.fundClaimEvents[kind]||[]).filter(e=>Number(e.seq)!==Number(u.seq)));
-  if(u.purchased){state.fundPremiumPurchased=false;const c=u.cost;state.spent[c.itemId]=Math.max(0,Number(state.spent[c.itemId]||0)-Number(c.amount||0));if(!config.simulator.allowInsufficientCost)state.resources[c.itemId]=Number(state.resources[c.itemId]||0)+Number(c.amount||0)}
+  if(u.purchased){state.fundPremiumPurchased=false;const c=u.cost;state.spent[c.itemId]=Math.max(0,Number(state.spent[c.itemId]||0)-Number(c.amount||0));if(!config.simulator.allowInsufficientCost){state.resources[c.itemId]=Number(state.resources[c.itemId]||0)+Number(c.amount||0);if(c.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(u.day,-Number(c.amount||0))}}
   state.lastFundUndo=null;log("退回上次基金領取／購買");render();toast(negative?"已退回；部分基金獎勵已使用，因此資源可能為負數。":"已退回上次基金操作")
 }
 function dayStateForIndex(index){return state.days[Math.max(0,Math.min(state.days.length-1,Number(index||0)))]}
@@ -1207,7 +1485,7 @@ function refundStage(stageNo){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
   const stage=config.progressStages.find(x=>Number(x.stage)===Number(stageNo));if(!stage||!dayState().claimedStages.includes(stage.stage))return toast("此階段尚未領取");
   recordHistory(`退回第 ${stage.stage} 階獎勵`);dayState().claimedStages=dayState().claimedStages.filter(x=>Number(x)!==Number(stage.stage));let negative=false;
-  (stage.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(state.resources[r.itemId]<0)negative=true;dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(r.itemId)*Number(r.amount||0))});
+  (stage.rewards||[]).forEach(r=>{state.resources[r.itemId]=Number(state.resources[r.itemId]||0)-Number(r.amount||0);if(r.itemId===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-Number(r.amount||0));if(state.resources[r.itemId]<0)negative=true;dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(r.itemId)*Number(r.amount||0))});
   log(`退回第 ${stage.stage} 階獎勵：${rewardsText(stage.rewards)}`);render();toast(negative?"已退回；部分獎勵已使用，因此資源可能為負數。":"已退回階段獎勵")
 }
 
@@ -1267,11 +1545,13 @@ function refundPackage(groupId,packageId){
   dayState().packagePurchases[key]=Math.max(0,bought-1);
   state.spent[pack.cost.itemId]=Math.max(0,Number(state.spent[pack.cost.itemId]||0)-Number(pack.cost.amount||0));
   if(!config.simulator.allowInsufficientCost){
-    state.resources[pack.cost.itemId]=Number(state.resources[pack.cost.itemId]||0)+Number(pack.cost.amount||0)
+    state.resources[pack.cost.itemId]=Number(state.resources[pack.cost.itemId]||0)+Number(pack.cost.amount||0);
+    if(pack.cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,-Number(pack.cost.amount||0))
   }
   let negative=false;
   pack.rewards.forEach(x=>{
     state.resources[x.itemId]=Number(state.resources[x.itemId]||0)-Number(x.amount||0);
+    if(x.itemId===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-Number(x.amount||0));
     if(state.resources[x.itemId]<0)negative=true;
     dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(x.itemId)*Number(x.amount||0))
   });
@@ -1288,7 +1568,7 @@ function openBoxes(all){
   const count=all?owned:Math.min(1,owned);
   if(count<1)return toast(`沒有${item(box.boxItemId).name}`);
   recordHistory(`開啟 ${count} 個${box.name}`);
-  state.resources[box.boxItemId]-=count;
+  state.resources[box.boxItemId]-=count;if(box.boxItemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,count);
   let total=0;const detail={};
   for(let i=0;i<count;i++){const result=weightedPick(box.outcomes);total+=Number(result.amount);detail[result.amount]=(detail[result.amount]||0)+1}
   addItem(box.rewardItemId,total,`開啟 ${count} 個${box.name}`,true);
@@ -1298,6 +1578,8 @@ function openBoxes(all){
 function undoLastBoxOpen(){
   const u=state.lastBoxUndo;if(!u)return toast("沒有可退回的開箱結果");
   recordHistory("退回上次開箱");state.resources[u.boxItemId]=Number(state.resources[u.boxItemId]||0)+Number(u.count||0);state.resources[u.rewardItemId]=Number(state.resources[u.rewardItemId]||0)-Number(u.total||0);
+  if(u.boxItemId===config.currencies.gameTokenId)adjustGameTokenSpend(u.day,-Number(u.count||0));
+  if(u.rewardItemId===config.currencies.gameTokenId)adjustGameTokenGain(u.day,-Number(u.total||0));
   dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(u.rewardItemId)*Number(u.total||0));
   const negative=state.resources[u.rewardItemId]<0;state.lastBoxUndo=null;log(`退回上次開箱：返還 ${itemText(u.boxItemId,u.count)}，扣回 ${itemText(u.rewardItemId,u.total)}`);render();toast(negative?"已退回；開箱獎勵已使用，因此資源可能為負數。":"已退回上次開箱")
 }
@@ -1510,7 +1792,8 @@ function strategyNormalizePlan(plan,cfg=plan?.config||config){
     d.day=i;d.missionAmount=Number(d.missionAmount||0);if(!d.purchases)d.purchases={};
     d.rolls=Number(d.rolls||0);d.expectedRolls=Number(d.expectedRolls??d.rolls??0);d.expectedLaps=Number(d.expectedLaps||0);
     d.fundFreeDice=Number(d.fundFreeDice||0);d.fundPremiumDice=Number(d.fundPremiumDice||0);
-    if(!Array.isArray(d.fundFreeMilestoneIds))d.fundFreeMilestoneIds=[];if(!Array.isArray(d.fundPremiumMilestoneIds))d.fundPremiumMilestoneIds=[]
+    if(!Array.isArray(d.fundFreeMilestoneIds))d.fundFreeMilestoneIds=[];if(!Array.isArray(d.fundPremiumMilestoneIds))d.fundPremiumMilestoneIds=[];
+    d.fundClaimAt=(d.fundClaimAt===null||d.fundClaimAt===undefined||d.fundClaimAt==="")?null:Number(d.fundClaimAt)
   });
   if(!plan.optimization)plan.optimization={notes:[]};if(!Array.isArray(plan.optimization.notes))plan.optimization.notes=[];
   return plan
@@ -1628,6 +1911,22 @@ function strategyActualStage(score,cfg){
   let stage=0;cfg.progressStages.forEach(x=>{if(Number(score)>=Number(x.requiredScore))stage=Math.max(stage,Number(x.stage))});return stage
 }
 function strategyFundRewards(cfg,which){return fundMilestones(cfg).flatMap(m=>clone(which==="free"?(m.freeRewards||[]):(m.premiumRewards||[])))}
+function strategyFundClaimPoint(plan,day){
+  const pd=plan?.days?.[day];
+  if(!pd)return null;
+  if(pd.fundClaimAt!==null&&pd.fundClaimAt!==undefined&&Number.isFinite(Number(pd.fundClaimAt)))return Number(pd.fundClaimAt);
+  const ids=[...(pd.fundFreeMilestoneIds||[]),...(pd.fundPremiumMilestoneIds||[])];
+  const laps=ids.map(id=>Number(fundMilestoneById(plan.config||config,id)?.laps)).filter(Number.isFinite);
+  return laps.length?Math.max(...laps):null
+}
+function strategyHasFundActionOnDay(plan,day){
+  const pd=plan?.days?.[day];
+  return !!pd&&((pd.fundFreeMilestoneIds||[]).length>0||(pd.fundPremiumMilestoneIds||[]).length>0)
+}
+function strategyPremiumFundPurchaseLap(plan){
+  const d=strategyPremiumFundPurchaseDay(plan);
+  return d===null?null:strategyFundClaimPoint(plan,d)
+}
 function strategyPremiumFundPurchaseDay(plan){
   if(!plan?.usePremiumFund)return null;
   if(Number.isInteger(Number(plan.premiumFundPurchaseDay))&&Number(plan.premiumFundPurchaseDay)>=0)return Math.min(plan.days.length-1,Number(plan.premiumFundPurchaseDay));
@@ -1641,9 +1940,7 @@ function strategyChronologyCheck(plan,cfg){
   const days=plan.days.map((pd,d)=>{
     const startStock=stock,baseDice=Math.max(0,Math.round(Number(fixedNoFund.days[d].dice||0)));
     stock+=baseDice;
-    const ids=[...(pd.fundFreeMilestoneIds||[]),...(pd.fundPremiumMilestoneIds||[])];
-    const claimLaps=ids.map(id=>Number(fundMilestoneById(cfg,id)?.laps)).filter(Number.isFinite);
-    const claimAt=claimLaps.length?Math.max(...claimLaps):null,preClaimLaps=claimAt==null?0:Math.max(0,claimAt-previousExpectedLaps);
+    const claimAt=strategyFundClaimPoint(plan,d),preClaimLaps=claimAt==null?0:Math.max(0,claimAt-previousExpectedLaps);
     const preClaimRolls=claimAt==null?0:Math.ceil(strategyInitialDiceNeededForLaps(preClaimLaps,dpl,startDicePerLap)-1e-9);
     const canReachFund=claimAt==null||stock>=preClaimRolls;
     const fundDice=Number(pd.fundFreeDice||0)+Number(pd.fundPremiumDice||0),dayStartDice=Math.max(0,Number(pd.expectedLaps||0))*startDicePerLap;
@@ -1772,10 +2069,346 @@ function strategyPruneStates(states,beamWidth=80){
 }
 function strategySetFundSchedule(plan,cfg,choices){
   plan.days.forEach((d,i)=>{
-    const c=choices[i]||{},freeIds=c.freeIds||[],premiumIds=c.premiumIds||[];d.fundFreeMilestoneIds=[...freeIds];d.fundPremiumMilestoneIds=[...premiumIds];
+    const c=choices[i]||{},freeIds=c.freeIds||[],premiumIds=c.premiumIds||[];
+    d.fundFreeMilestoneIds=[...freeIds];d.fundPremiumMilestoneIds=[...premiumIds];
+    d.fundClaimAt=(c.claimAt===null||c.claimAt===undefined)?null:Number(c.claimAt);
     d.fundFreeDice=freeIds.reduce((s,id)=>s+(fundMilestoneById(cfg,id)?.freeRewards||[]).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((a,r)=>a+Number(r.amount||0),0),0);
     d.fundPremiumDice=premiumIds.reduce((s,id)=>s+(fundMilestoneById(cfg,id)?.premiumRewards||[]).filter(r=>r.itemId===cfg.currencies.gameTokenId).reduce((a,r)=>a+Number(r.amount||0),0),0)
   })
+}
+
+function strategyClaimedFundDice(cfg,t){
+  const token=cfg.currencies.gameTokenId,free=new Set(t.freeIds||[]),premium=new Set(t.premiumIds||[]);
+  return [...new Set([...(t.freeIds||[]),...(t.premiumIds||[])])].reduce((sum,id)=>{
+    const m=fundMilestoneById(cfg,id);let n=0;
+    if(free.has(id))n+=(m?.freeRewards||[]).filter(r=>r.itemId===token).reduce((s,r)=>s+Number(r.amount||0),0);
+    if(premium.has(id))n+=(m?.premiumRewards||[]).filter(r=>r.itemId===token).reduce((s,r)=>s+Number(r.amount||0),0);
+    return sum+n
+  },0)
+}
+function strategyPreferredPatternPrune(states,width=120){
+  const byKey=new Map();
+  states.forEach(s=>{
+    const key=`${s.totalLaps}|${s.freeClaimed}|${s.premiumClaimed}|${Math.round(Number(s.carry||0)*10)/10}`;
+    const old=byKey.get(key);
+    const better=!old||
+      Number(s.prefinalEffort||0)<Number(old.prefinalEffort||0)-1e-9||
+      (Math.abs(Number(s.prefinalEffort||0)-Number(old.prefinalEffort||0))<1e-9&&Number(s.carry||0)>Number(old.carry||0)+1e-9);
+    if(better)byKey.set(key,s)
+  });
+  const vals=[...byKey.values()];
+  vals.sort((a,b)=>
+    Number(a.prefinalEffort||0)-Number(b.prefinalEffort||0)||
+    Number(b.carry||0)-Number(a.carry||0)||
+    Number(b.targetValue||0)-Number(a.targetValue||0)
+  );
+  return vals.slice(0,width)
+}
+function strategyOptimizePreferredPattern(plan,cfg,preferredStages){
+  strategyNormalizePlan(plan,cfg);
+  if(!Array.isArray(preferredStages)||preferredStages.length!==plan.days.length)return null;
+
+  plan.days.forEach(d=>{
+    d.fundFreeMilestoneIds=[];d.fundPremiumMilestoneIds=[];
+    d.fundFreeDice=0;d.fundPremiumDice=0;
+    d.rolls=0;d.expectedRolls=0;d.expectedLaps=0
+  });
+
+  const kind=strategyTargetKind(plan),
+        rollStats=strategyExpectedRollStats(cfg),
+        startSummary=strategyStartRewardSummary(cfg,kind),
+        lapPoints=Number(cfg.scoreRules.pointsPerLap||0),
+        candidateLapPoints=lapPoints+Number(startSummary.score||0),
+        dpl=Number(rollStats.dicePerLap||Infinity),
+        perRollTarget=kind==="premium"?Number(rollStats.premiumPerRoll||0):Number(rollStats.normalPerRoll||0),
+        last=plan.days.length-1;
+
+  const scorePerDie=Math.max(0,cfgScorePerItem(cfg,cfg.currencies.gameTokenId)),
+        deferralFactor=lapPoints>0?scorePerDie*dpl/lapPoints:0,
+        base=strategyFixedInfo(plan,cfg,false),
+        targetAmount=Number(plan.targets?.amount||0);
+
+  let states=[{
+    carry:0,totalLaps:0,freeClaimed:0,premiumClaimed:0,
+    targetValue:0,prefinalEffort:0,totalRolls:0,choices:[]
+  }];
+
+  for(let d=0;d<=last;d++){
+    const map=[],
+          baseDice=Number(base.days[d].dice||0),
+          baseScore=Number(base.days[d].score||0),
+          baseRewards=Object.entries(base.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),
+          baseDirect=strategyRewardYield(baseRewards,cfg,kind).value,
+          desired=Number(preferredStages[d]||0),
+          desiredScore=Number(cfg.progressStages.find(x=>Number(x.stage)===desired)?.requiredScore||0);
+
+    states.forEach(entry=>{
+      const kOptions=strategyCandidateLaps(
+        entry,baseDice,baseScore,cfg,kind,dpl,plan.usePremiumFund,candidateLapPoints
+      );
+
+      for(const k of kOptions){
+        const transitions=strategyTransitionsForLaps(
+          entry,baseDice,k,cfg,kind,dpl,plan.usePremiumFund
+        );
+
+        for(const tr of transitions){
+          const scoredLaps=strategyScoredLaps(
+            k,cfg,strategyLuckContext,d===last,Number(tr.rolls||0)
+          );
+          const luckDelta=scoredLaps-k;
+          const score=
+            baseScore+
+            Number(tr.summary.score||0)+
+            k*lapPoints+
+            luckDelta*(lapPoints+Number(startSummary.score||0));
+
+          const resolved=strategyResolveStage(score,cfg,kind);
+          if(Number(resolved.stage||0)!==desired)continue;
+
+          const dayTarget=
+            baseDirect+
+            Number(tr.summary.targetValue||0)+
+            Number(tr.rolls||0)*perRollTarget+
+            luckDelta*Number(startSummary.targetValue||0)+
+            resolved.value;
+
+          const baselineScore=baseScore+Number(tr.summary.score||0)+k*lapPoints;
+          const fundDice=strategyClaimedFundDice(cfg,tr);
+
+          // 提前領基金骰子雖然能少走幾顆，但也會把「骰子取得 +2分」
+          // 提前消耗在前一天。換算成之後為補回同等積分需要多走的骰子，
+          // 與目前實戰中「能少領就留到後面」的價值一致。
+          const prefinalEffort=
+            Number(entry.prefinalEffort||0)+
+            (d<last
+              ?Number(tr.rolls||0)+fundDice*deferralFactor
+              :0);
+
+          map.push({
+            carry:tr.carry,
+            totalLaps:Number(entry.totalLaps||0)+k,
+            freeClaimed:tr.freeClaimed,
+            premiumClaimed:tr.premiumClaimed,
+            targetValue:Number(entry.targetValue||0)+dayTarget,
+            prefinalEffort,
+            finalBaselineDeficit:d===last?Math.max(0,desiredScore-baselineScore):0,
+            totalRolls:Number(entry.totalRolls||0)+Number(tr.rolls||0),
+            choices:[
+              ...entry.choices,
+              {laps:k,scoredLaps,expectedRolls:tr.rolls,score,resolved,baselineScore,...tr}
+            ]
+          })
+        }
+      }
+    });
+
+    if(!map.length)return null;
+    if(d===last){states=map;break}
+    states=strategyPreferredPatternPrune(map,120)
+  }
+
+  let hits=states.filter(s=>Number(s.targetValue||0)+1e-9>=targetAmount);
+  if(!hits.length)return null;
+
+  // 最後一天允許承擔主要隨機性，但仍優先：
+  // 1. 3.5格基準下不要缺分
+  // 2. 前六天少消耗／少提前吃掉基金骰子的計分價值
+  // 3. 整週少擲
+  hits.sort((a,b)=>
+    Number(a.finalBaselineDeficit||0)-Number(b.finalBaselineDeficit||0)||
+    Number(a.prefinalEffort||0)-Number(b.prefinalEffort||0)||
+    Number(a.totalRolls||0)-Number(b.totalRolls||0)||
+    Number(b.carry||0)-Number(a.carry||0)
+  );
+
+  const best=hits[0];
+  strategySetFundSchedule(plan,cfg,best.choices);
+
+  plan.days.forEach((d,i)=>{
+    d.expectedLaps=Number(best.choices[i]?.laps||0);
+    d.expectedRolls=Number(best.choices[i]?.expectedRolls||0)
+  });
+
+  plan.premiumFundPurchaseDay=plan.usePremiumFund
+    ?Math.max(0,plan.days.findIndex(d=>(d.fundPremiumMilestoneIds||[]).length>0))
+    :null;
+
+  const fixed=strategyFixedInfo(plan,cfg,true),
+        startDicePerLap=Number(strategyRewardSummary(startRewards(cfg),cfg,kind).dice||0);
+
+  let integerCarry=0,usedInteger=0,totalStartDice=0;
+
+  plan.days.forEach((d,i)=>{
+    integerCarry+=Math.max(0,Math.round(Number(fixed.days[i].dice||0)));
+
+    const expectedStartDice=
+      Math.max(0,Number(best.choices[i]?.laps||0))*startDicePerLap;
+
+    integerCarry+=expectedStartDice;
+    totalStartDice+=expectedStartDice;
+
+    // 穩定主線不再強迫最後一天「全部骰光」。
+    // 達到指定階段就停，留下的骰子就是實際安全餘量。
+    const rolls=Math.min(
+      integerCarry,
+      Math.max(0,Math.round(Number(d.expectedRolls||0)))
+    );
+
+    d.rolls=rolls;
+    integerCarry-=rolls;
+    usedInteger+=rolls
+  });
+
+  const dayEstimates=[];
+  let cumNormal=0,cumPremium=0,expectedBoxes=0;
+
+  plan.days.forEach((pd,d)=>{
+    const choice=best.choices[d],
+          score=Number(choice.score||0),
+          premiumStage=strategyResolveStage(score,cfg,"premium"),
+          normalStage=strategyResolveStage(score,cfg,"normal"),
+          rolls=Number(pd.rolls||0),
+          fixedRewards=Object.entries(fixed.days[d].grants||{}).map(([itemId,amount])=>({itemId,amount})),
+          fixedNormalYield=strategyRewardYield(fixedRewards,cfg,"normal"),
+          fixedPremiumYield=strategyRewardYield(fixedRewards,cfg,"premium"),
+          normalStart=strategyStartRewardSummary(cfg,"normal"),
+          premiumStart=strategyStartRewardSummary(cfg,"premium"),
+          scoredLaps=Number(choice.scoredLaps||0);
+
+    const dayNormal=
+      fixedNormalYield.value+
+      rolls*Number(rollStats.normalPerRoll||0)+
+      scoredLaps*Number(normalStart.targetValue||0)+
+      normalStage.value;
+
+    const dayPremium=
+      fixedPremiumYield.value+
+      rolls*Number(rollStats.premiumPerRoll||0)+
+      scoredLaps*Number(premiumStart.targetValue||0)+
+      premiumStage.value;
+
+    cumNormal+=dayNormal;
+    cumPremium+=dayPremium;
+    expectedBoxes+=premiumStage.boxes+fixedPremiumYield.boxes;
+
+    pd.targetStage=Number(choice.resolved.stage||0);
+    pd.targetScore=Number(
+      cfg.progressStages.find(x=>Number(x.stage)===Number(pd.targetStage))?.requiredScore||0
+    );
+    pd.targetBoxes=Number(premiumStage.boxes||0);
+
+    dayEstimates.push({
+      fixedScore:Number(fixed.days[d].score||0),
+      expectedScore:score,
+      stage:choice.resolved.stage,
+      targetStage:pd.targetStage,
+      targetScore:pd.targetScore,
+      boxes:premiumStage.boxes,
+      targetStageValue:choice.resolved.value,
+      dayNormal,dayPremium,cumNormal,cumPremium,
+      acquiredDice:Number(fixed.days[d].dice||0),
+      expectedLaps:Number(choice.laps||0),
+      scoredLaps,
+      expectedRolls:Number(choice.expectedRolls||0),
+      actualRolls:rolls,
+      overflow:Number(choice.resolved.overflow||0),
+      gap:Number(choice.resolved.gap||0),
+      fundFreeDice:Number(pd.fundFreeDice||0),
+      fundPremiumDice:Number(pd.fundPremiumDice||0),
+      fundFreeMilestoneIds:[...(pd.fundFreeMilestoneIds||[])],
+      fundPremiumMilestoneIds:[...(pd.fundPremiumMilestoneIds||[])]
+    })
+  });
+
+  return{
+    fixed,rollStats,dayEstimates,
+    totalDice:fixed.totals.dice+totalStartDice,
+    expectedNormal:cumNormal,
+    expectedPremium:cumPremium,
+    expectedBoxes,
+    targetExpected:kind==="premium"?cumPremium:cumNormal,
+    costs:fixed.totals.costs,
+    scheduleMeta:{
+      activeDays:best.choices.filter(x=>Number(x.expectedRolls||0)>0).length,
+      totalOverflow:best.choices.reduce((s,x)=>s+Number(x.resolved?.overflow||0),0),
+      completedLaps:Number(best.totalLaps||0),
+      integerRolls:usedInteger,
+      freeFundClaimed:best.freeClaimed,
+      premiumFundClaimed:best.premiumClaimed,
+      totalFundStages:fundMilestones(cfg).length,
+      stablePattern:true,
+      prefinalEffort:Number(best.prefinalEffort||0),
+      finalBaselineDeficit:Number(best.finalBaselineDeficit||0),
+      leftoverDice:integerCarry
+    }
+  }
+}
+function strategyLateStagePatterns(stages){
+  const original=[...stages].map(Number),history=[original.slice()],seen=new Set([original.join(",")]);
+  let cur=original.slice(),guard=0;
+
+  // 用泡沫方式逐步把較高階段往右推。
+  // reverse 後會從「延後最多」一路退回較接近原方案，
+  // 若完全排序不可行，仍有較溫和的備選。
+  while(guard++<100){
+    let changed=false;
+    for(let i=0;i<cur.length-1;i++){
+      if(cur[i]>cur[i+1]){
+        [cur[i],cur[i+1]]=[cur[i+1],cur[i]];
+        changed=true
+      }
+    }
+    const key=cur.join(",");
+    if(!seen.has(key)){seen.add(key);history.push(cur.slice())}
+    if(!changed)break
+  }
+
+  return history.reverse().slice(0,8)
+}
+function strategyRefineStableSchedule(plan,cfg,amount){
+  if(strategyTargetKind(plan)!=="premium")return plan;
+
+  const before=plan.days.map((_,i)=>strategyDayTargetStage(plan,cfg,i));
+  if(!before.some((v,i)=>i>0&&before[i-1]>v))return plan;
+
+  const oldMode=strategyLuckContext,oldCfg=strategyLuckConfigContext;
+  strategyLuckContext=plan.targets?.luckMode||"baseline";
+  strategyLuckConfigContext=cfg;
+
+  try{
+    for(const pattern of strategyLateStagePatterns(before)){
+      if(pattern.join(",")===before.join(","))continue;
+
+      const candidate=clone(plan);
+      const estimate=strategyOptimizePreferredPattern(candidate,cfg,pattern);
+      if(!estimate)continue;
+
+      candidate.estimate=estimate;
+      candidate.chronology=strategyChronologyCheck(candidate,cfg);
+
+      if(
+        Number(candidate.estimate.targetExpected||0)+1e-9>=Number(amount||0)&&
+        candidate.chronology.ok
+      ){
+        candidate.optimization=candidate.optimization||{notes:[]};
+        candidate.optimization.stableStagePattern=[...pattern];
+        candidate.optimization.stableRefine={
+          before:[...before],
+          after:[...pattern]
+        };
+        candidate.optimization.notes=candidate.optimization.notes||[];
+        candidate.optimization.notes.push(
+          `同成本達標後進行穩定化：每日階段由 ${before.join("/")} 延後重排為 ${pattern.join("/")}；高階段優先往後放，並重新安排基金領取時機`
+        );
+        return candidate
+      }
+    }
+    return plan
+  }finally{
+    strategyLuckContext=oldMode;
+    strategyLuckConfigContext=oldCfg
+  }
 }
 function strategyOptimizeSchedule(plan,cfg){
   strategyNormalizePlan(plan,cfg);plan.days.forEach(d=>{d.fundFreeMilestoneIds=[];d.fundPremiumMilestoneIds=[];d.fundFreeDice=0;d.fundPremiumDice=0;d.rolls=0;d.expectedRolls=0;d.expectedLaps=0});
@@ -1825,8 +2458,19 @@ function strategyOptimizeSchedule(plan,cfg){
   return{fixed,rollStats,dayEstimates,totalDice:fixed.totals.dice+totalStartDice,expectedNormal:cumNormal,expectedPremium:cumPremium,expectedBoxes,targetExpected:kind==="premium"?cumPremium:cumNormal,costs:fixed.totals.costs,scheduleMeta:{activeDays:best.activeDays,totalOverflow:best.overflow,completedLaps:Number(best.totalLaps||0),integerRolls:usedInteger,freeFundClaimed:best.freeClaimed,premiumFundClaimed:best.premiumClaimed,totalFundStages:fundMilestones(cfg).length}}
 }
 function strategyAllocateRolls(plan,cfg){
-  const oldMode=strategyLuckContext,oldCfg=strategyLuckConfigContext;strategyLuckContext=plan.targets?.luckMode||"europe";strategyLuckConfigContext=cfg;
-  try{return strategyOptimizeSchedule(plan,cfg)}finally{strategyLuckContext=oldMode;strategyLuckConfigContext=oldCfg}
+  const oldMode=strategyLuckContext,oldCfg=strategyLuckConfigContext;
+  strategyLuckContext=plan.targets?.luckMode||"europe";
+  strategyLuckConfigContext=cfg;
+  try{
+    if(Array.isArray(plan.optimization?.stableStagePattern)){
+      const stable=strategyOptimizePreferredPattern(plan,cfg,plan.optimization.stableStagePattern);
+      if(stable)return stable
+    }
+    return strategyOptimizeSchedule(plan,cfg)
+  }finally{
+    strategyLuckContext=oldMode;
+    strategyLuckConfigContext=oldCfg
+  }
 }
 function strategyBuildCandidates(plan,cfg){
   const candidates=[],paid=cfg.currencies.paidCurrencyId;
@@ -1907,6 +2551,18 @@ function strategyPortfolioShortlist(arr){
   [...arr].sort((a,b)=>b.dice-a.dice).slice(0,2).forEach(add);[...arr].sort((a,b)=>b.direct-a.direct||b.dice-a.dice).slice(0,2).forEach(add);
   return[...selected.values()].slice(0,16)
 }
+function strategyPortfolioBurstDice(portfolio,types){
+  let total=0;
+  portfolio.counts.forEach((count,ti)=>{
+    if(!count)return;
+    const type=types[ti];
+    const perDay=type.group.dailyReset
+      ?Math.min(Number(count),Number(type.pack.limit||0))
+      :Number(count);
+    total+=perDay*Number(type.dice||0)
+  });
+  return total
+}
 async function strategyFindCheapestPortfolio(base,cfg,amount,progress){
   const kind=strategyTargetKind(base),fundCost=Number(cfg.fund.premiumCost.amount||0);
   const upper=Math.max(10000,Math.ceil((Number(amount||0)*500+fundCost)/500)*500);
@@ -1928,8 +2584,25 @@ async function strategyFindCheapestPortfolio(base,cfg,amount,progress){
       })
     }
 
+    // 第一層仍按整週總CP快速排序；另外計算「單日可集中骰子」，
+    // 避免像基金解鎖／第4階這種斷點把高價值混合組合剪掉。
+    candidates.forEach(c=>{
+      c.burst=strategyPortfolioBurstDice(c.portfolio,portfolioData.types);
+      const constPart=baseExpected+(c.fundFlag?fundFast:0);
+      c.cliffFast=
+        constPart+
+        Number(c.portfolio.direct||0)+
+        c.burst*cpDiceValue+
+        (Number(c.portfolio.dice||0)-c.burst)*cpDiceValue*.2
+    });
     candidates.sort((a,b)=>b.fast-a.fast||a.rank-b.rank||Number(b.fundFlag)-Number(a.fundFlag));
     const primary=candidates.slice(0,3);
+    const primaryKeys=new Set(primary.map(c=>`${c.fundFlag}|${c.portfolio.counts.join(",")}`));
+    const cliffFallback=[...candidates]
+      .sort((a,b)=>b.cliffFast-a.cliffFast||b.fast-a.fast)
+      .filter(c=>!primaryKeys.has(`${c.fundFlag}|${c.portfolio.counts.join(",")}`))
+      .slice(0,2);
+    let bestPrimaryScreen=-Infinity;
 
     for(let i=0;i<primary.length;i++){
       const c=primary[i];
@@ -1937,6 +2610,7 @@ async function strategyFindCheapestPortfolio(base,cfg,amount,progress){
       strategySchedulePrecision="screen";
       try{screened.estimate=strategyAllocateRolls(screened,cfg)}
       finally{strategySchedulePrecision="fast"}
+      bestPrimaryScreen=Math.max(bestPrimaryScreen,Number(screened.estimate.targetExpected||0));
       evaluated++;
       if(progress)progress(cost,upper,evaluated,c.fundFlag);
 
@@ -1950,6 +2624,28 @@ async function strategyFindCheapestPortfolio(base,cfg,amount,progress){
         }
       }
       if(evaluated%6===0)await wait(0)
+    }
+
+    // screen 模式為了速度會簡化每日候選圈數，有可能漏掉一個大型階段斷點。
+    // 只有當原本前三名已經離目標非常近（0.5內）時，
+    // 才對「單日爆發能力」最高的另外2組改用 fast 完整排程補搜。
+    // 這能抓到「總骰數略少，但能在關鍵日集中骰子解鎖基金／第4階」的方案，
+    // 同時避免對所有組合做昂貴窮舉。
+    if(bestPrimaryScreen>=amount-.5){
+      for(const c of cliffFallback){
+        const tested=strategyApplyPortfolio(base,c.portfolio,portfolioData.types,c.fundFlag,0);
+        strategySchedulePrecision="fast";
+        tested.estimate=strategyAllocateRolls(tested,cfg);
+        tested.chronology=strategyChronologyCheck(tested,cfg);
+        evaluated++;
+        if(progress)progress(cost,upper,evaluated,c.fundFlag);
+        if(tested.estimate.targetExpected+1e-9>=amount&&tested.chronology.ok){
+          tested.optimization.notes.push(
+            `階段斷點補搜命中：總CP前三名未達標，但集中骰子組合在 ${cost} ${cfgItem(cfg,cfg.currencies.paidCurrencyId).name} 可達標`
+          );
+          return tested
+        }
+      }
     }
 
     // 先以同一套可重現的日期排列搜尋最低成本，避免大型目標因大量排列組合而長時間卡住。
@@ -2286,6 +2982,13 @@ async function strategyBuildDeterministicPlan(cfg,kind,amount,mode,progress){
     }
     plan.estimate=strategyAllocateRolls(plan,cfg);
     plan.chronology=strategyChronologyCheck(plan,cfg);
+
+    // 第一階段先找到最低成本與箱數；第二階段不改成本，
+    // 只把同一組每日階段往後排，降低前中期資源耗盡風險。
+    if(kind==="premium"){
+      plan=strategyRefineStableSchedule(plan,cfg,amount)
+    }
+
     plan.validation=null;
     plan.feasible=Number(plan.estimate.targetExpected||0)+1e-9>=amount;
     plan.optimization.notes.push(mode==="baseline"
@@ -2388,7 +3091,7 @@ async function generateStrategy(){
   strategyPlan.selectedScenario="baseline";
   strategyPlan.adaptiveProfile=clone(plans.baseline.adaptiveProfile);
   strategyPlan.scenarioPlans.baseline.adaptiveProfile=clone(plans.baseline.adaptiveProfile);
-  strategyPlan.optimization.notes.push("基本方案採低成本主線＋條件式補救：主線成功就不買救援包；不足時只調整最後一天，不重做前六天流程");
+  strategyPlan.optimization.notes.push("先用CP與階段斷點找到最低成本，再做延後高階穩定化；基金排程不只記星期幾，而是記錄「日內第幾圈立刻領」。例如週五6圈領、再跑到10圈，會嚴格保留成兩個動作，避免10圈才一次領掉7～10圈基金");
   localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
 
   $("strategyProgress").style.width="100%";
@@ -2431,7 +3134,18 @@ async function validateStrategy(){
 function strategyOperationRows(plan,cfg){
   const kind=strategyTargetKind(plan),targetName=strategyTargetName(cfg,kind),rows=[];
   rows.push({label:"📋 每日任務骰子",values:plan.days.map(x=>x.missionAmount||0)});
-  if(plan.usePremiumFund){const buyDay=strategyPremiumFundPurchaseDay(plan);rows.push({label:"解鎖進階基金",values:plan.days.map((_,i)=>i===buyDay?itemText(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount):"—")})}
+  if(plan.usePremiumFund){
+    const buyDay=strategyPremiumFundPurchaseDay(plan),buyLap=strategyPremiumFundPurchaseLap(plan);
+    rows.push({label:"解鎖進階基金",values:plan.days.map((_,i)=>i===buyDay?`${itemText(cfg.fund.premiumCost.itemId,cfg.fund.premiumCost.amount)}${buyLap!==null?`（到${fmt(buyLap)}圈才購買）`:""}`:"—")})
+  }
+  if(plan.days.some((_,i)=>strategyFundClaimPoint(plan,i)!==null)){
+    rows.push({label:"⏱️ 基金精準領取點",values:plan.days.map((_,i)=>{
+      const at=strategyFundClaimPoint(plan,i);
+      if(at===null)return"—";
+      const dice=Number(plan.days[i].fundFreeDice||0)+Number(plan.days[i].fundPremiumDice||0);
+      return`${fmt(at)}圈立即領${dice?`（+${fmt(dice)}骰）`:""}`
+    })})
+  }
   const milestoneText=(ids,track)=>ids?.length?ids.map(id=>{const m=fundMilestoneById(cfg,id);return m?`${m.laps}圈`:`?`}).join("、"):"—";
   if(plan.days.some(x=>(x.fundFreeMilestoneIds||[]).length))rows.push({label:"免費基金領取階段",values:plan.days.map(x=>milestoneText(x.fundFreeMilestoneIds,"free"))});
   if(plan.usePremiumFund&&plan.days.some(x=>(x.fundPremiumMilestoneIds||[]).length))rows.push({label:"進階基金領取階段",values:plan.days.map(x=>milestoneText(x.fundPremiumMilestoneIds,"premium"))});
@@ -2444,6 +3158,12 @@ function strategyOperationRows(plan,cfg){
   rows.push({label:"當日到帳骰子（不含基金/起點）",values:chronology.days.map(x=>fmt(x.baseDice))});
   rows.push({label:"起點獎勵預計骰子",values:chronology.days.map(x=>x.startRewardDice?fmt(x.startRewardDice):"—")});
   rows.push({label:"基金中途到帳骰子",values:chronology.days.map(x=>x.fundDice?fmt(x.fundDice):"—")});
+  if(plan.optimization?.stableRefine?.before){
+    rows.push({
+      label:"穩定化前階段（原CP排程）",
+      values:plan.optimization.stableRefine.before.map(x=>x?`第 ${x} 階`:"不擲")
+    })
+  }
   rows.push({label:"每日目標階段",values:plan.days.map((x,i)=>strategyDayTargetStage(plan,cfg,i)?`第 ${strategyDayTargetStage(plan,cfg,i)} 階`:"不擲")});
   rows.push({label:"每日目標分數",values:plan.days.map((x,i)=>strategyDayTargetScore(plan,cfg,i)||"—")});
   rows.push({label:"估計投擲數（僅參考，不是上限）",values:plan.days.map(x=>x.rolls||0)});
@@ -2594,6 +3314,8 @@ function renderStrategy(){
     <div class="strategy-stat"><div class="k">3.5格完成圈數</div><div class="v">${fmt(e.scheduleMeta?.completedLaps||0)}</div></div>
     <div class="strategy-stat"><div class="k">有操作日期</div><div class="v">${fmt(e.scheduleMeta?.activeDays||0)} 天</div></div>
     <div class="strategy-stat"><div class="k">無意義溢出分</div><div class="v">${fmt(e.scheduleMeta?.totalOverflow||0)}</div></div>
+    <div class="strategy-stat"><div class="k">穩定化排程</div><div class="v" style="font-size:13px">${strategyPlan.optimization?.stableRefine?`${strategyPlan.optimization.stableRefine.before.join("/")}<br>→ ${strategyPlan.optimization.stableRefine.after.join("/")}`:"原排程已無前高後低"}</div></div>
+    <div class="strategy-stat"><div class="k">最後日公式剩餘骰</div><div class="v">${fmt(e.scheduleMeta?.leftoverDice||0)}</div></div>
     <div class="strategy-stat"><div class="k">預估支出</div><div class="v" style="font-size:14px">${escapeHtml(cfgItem(cfg,paid).name)} ${fmt(e.costs[paid]||0)}<br>${gem?`${escapeHtml(cfgItem(cfg,gem).name)} ${fmt(e.costs[gem]||0)}`:""}</div></div>
     <div class="strategy-stat"><div class="k">零翡翠基線</div><div class="v">${fmt(strategyPlan.optimization?.zeroEmeraldExpected?.target||0)}</div></div>`;
 
@@ -2634,7 +3356,13 @@ function prepareStrategyDay(dayIndex,{silent=false}={}){
   if(!pd||active.preparedDays?.[d])return true;
   if(active.realisticTimeline&&d>Number(active.unlockedDay||0)){if(!silent)toast("請先把時間軸推進到這一天");return false}
   if(active.plan.usePremiumFund&&d===strategyPremiumFundPurchaseDay(active.plan)&&!state.fundPremiumPurchased){
-    strategySpendInGame(config.fund.premiumCost);state.fundPremiumPurchased=true;log(`${config.event.dayLabels[d]}依攻略解鎖進階基金`)
+    const purchaseAt=strategyPremiumFundPurchaseLap(active.plan);
+    if(purchaseAt===null||Number(state.laps)>=Number(purchaseAt)-1e-9){
+      strategySpendInGame(config.fund.premiumCost);state.fundPremiumPurchased=true;
+      log(`${config.event.dayLabels[d]}依攻略解鎖進階基金`)
+    }else{
+      log(`${config.event.dayLabels[d]}進階基金延後到 ${fmt(purchaseAt)} 圈才購買，避免提前領取基金`)
+    }
   }
   if(Number(pd.missionAmount)>0&&!day.missionClaimed){
     day.missionClaimed=true;day.missionAmount=Number(pd.missionAmount);strategyGrantToGame(d,config.currencies.gameTokenId,pd.missionAmount)
@@ -2665,6 +3393,7 @@ function applyStrategyToGame(){
     preparedDays:Array.from({length:appliedPlan.days.length},()=>false),
     completedDays:Array.from({length:appliedPlan.days.length},()=>false),
     attemptResults:Array.from({length:appliedPlan.days.length},()=>null),
+    fundClaimExecutedDays:{},fundTimingMissed:{},
     dayLedger:Array.from({length:appliedPlan.days.length},()=>({opening:0,income:0,consumed:0})),
     unlockedDay:0,realisticTimeline:true,adaptiveStage:true,appliedAt:new Date().toISOString()
   };
@@ -2709,22 +3438,46 @@ function strategyDayObjectiveStatus(targetState,plan,cfg,day){
   }
 }
 function strategySimClaimDueFundFromState(sim,cfg,plan,day){
+  const pd=plan.days?.[day];
+  if(!pd||!strategyHasFundActionOnDay(plan,day))return false;
+
+  const claimAt=strategyFundClaimPoint(plan,day);
+  if(claimAt===null||Number(sim.laps)+1e-9<Number(claimAt))return false;
+
+  const plannedUnlock=strategyFundUnlockedCount(cfg,claimAt),
+        actualUnlock=strategyFundUnlockedCount(cfg,sim.laps);
+  if(Number(sim.laps)>Number(claimAt)+1e-9&&actualUnlock>plannedUnlock)return false;
+
+  if(plan.usePremiumFund&&day===strategyPremiumFundPurchaseDay(plan)&&!sim.fundPremiumPurchased){
+    sim.fundPremiumPurchased=true;
+    sim.spent=sim.spent||{};
+    const cost=cfg.fund.premiumCost;
+    sim.spent[cost.itemId]=Number(sim.spent[cost.itemId]||0)+Number(cost.amount||0);
+    if(!cfg.simulator.allowInsufficientCost){
+      sim.resources[cost.itemId]=Number(sim.resources[cost.itemId]||0)-Number(cost.amount||0)
+    }
+  }
+
+  let claimed=false;
   ["free","premium"].forEach(kind=>{
     if(kind==="premium"&&!sim.fundPremiumPurchased)return;
-    const dueIds=strategyDueFundIds(plan,day,kind);
-    const hasReady=dueIds.some(id=>
+    const dueIds=new Set(strategyDueFundIds(plan,day,kind));
+    const ready=[...dueIds].some(id=>
       !Object.prototype.hasOwnProperty.call(sim.fundClaims?.[kind]||{},id)&&
       Number(fundMilestoneById(cfg,id)?.laps??Infinity)<=Number(sim.laps)
     );
-    if(!hasReady)return;
+    if(!ready)return;
+
     fundMilestones(cfg).filter(m=>
       Number(m.laps)<=Number(sim.laps)&&
       !Object.prototype.hasOwnProperty.call(sim.fundClaims?.[kind]||{},m.id)
     ).forEach(m=>{
       sim.fundClaims[kind][m.id]=day;
       (kind==="free"?m.freeRewards:m.premiumRewards).forEach(r=>simAddItem(sim,cfg,r.itemId,r.amount))
-    })
-  })
+    });
+    claimed=true
+  });
+  return claimed
 }
 function strategySimClaimStagesFromState(sim,cfg,day){
   sim.currentDay=day;let changed=true;
@@ -2834,19 +3587,73 @@ async function simulateCurrentStrategyDayProbability(){
   toast(`獨立模擬完成：平均需 ${fmt(meanUsed)} 骰，固定公式內成功率 ${fmt(strategyDaySimulationStats[day].withinFormulaRate)}%`)
 }
 function claimStrategyFundWithoutHistory(){
-  const active=state.activeStrategy;if(!active)return;
+  const active=state.activeStrategy;if(!active)return false;
+  const d=state.currentDay,plan=active.plan,pd=plan.days[d];
+  if(!pd||!strategyHasFundActionOnDay(plan,d))return false;
+
+  const claimAt=strategyFundClaimPoint(plan,d);
+  if(claimAt===null||Number(state.laps)+1e-9<Number(claimAt))return false;
+
+  const plannedUnlock=strategyFundUnlockedCount(config,claimAt),
+        actualUnlock=strategyFundUnlockedCount(config,state.laps);
+
+  // 遊戲的基金是「一按全領」。
+  // 若玩家手動越過精準點才叫自動領，會連後面的里程一起吃掉，
+  // 因此不允許靜默補領，避免破壞攻略。
+  if(Number(state.laps)>Number(claimAt)+1e-9&&actualUnlock>plannedUnlock){
+    active.fundTimingMissed=active.fundTimingMissed||{};
+    if(!active.fundTimingMissed[d]){
+      active.fundTimingMissed[d]=true;
+      log(`⚠️ 已錯過${config.event.dayLabels[d]}基金精準領取點 ${fmt(claimAt)} 圈；目前 ${fmt(state.laps)} 圈若領取會多領後續基金`)
+      toast(`已錯過基金精準領取點 ${fmt(claimAt)} 圈；為避免多領，攻略沒有自動領取`)
+    }
+    return false
+  }
+
+  // 進階基金購買本身會立即把目前解鎖的免費＋進階基金一起領掉，
+  // 所以購買也必須發生在同一個精準圈數。
+  if(plan.usePremiumFund&&d===strategyPremiumFundPurchaseDay(plan)&&!state.fundPremiumPurchased){
+    strategySpendInGame(config.fund.premiumCost);
+    state.fundPremiumPurchased=true;
+    log(`${config.event.dayLabels[d]}到 ${fmt(claimAt)} 圈才購買進階基金`)
+  }
+
+  let claimedAny=false;
   ["free","premium"].forEach(kind=>{
     if(kind==="premium"&&!state.fundPremiumPurchased)return;
-    const dueIds=new Set(active.plan.days.slice(0,state.currentDay+1).flatMap(pd=>kind==="free"?(pd.fundFreeMilestoneIds||[]):(pd.fundPremiumMilestoneIds||[])));
-    const ready=[...dueIds].filter(id=>!Object.prototype.hasOwnProperty.call(state.fundClaims[kind],id)&&Number(fundMilestoneById(config,id)?.laps??Infinity)<=Number(state.laps));if(!ready.length)return;
-    const allUnlocked=fundUnlockedUnclaimed(kind);allUnlocked.forEach(m=>{state.fundClaims[kind][m.id]=state.currentDay;(kind==="free"?m.freeRewards:m.premiumRewards).forEach(r=>{
-      addItem(r.itemId,r.amount,`攻略自動領取${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true);
-      if(r.itemId===config.currencies.gameTokenId&&active.dayLedger){
-        const ledger=active.dayLedger[state.currentDay]||(active.dayLedger[state.currentDay]={opening:0,income:0,consumed:0});
-        ledger.income=Number(ledger.income||0)+Number(r.amount||0)
-      }
-    })});state.fundClaimEvents[kind].push({day:state.currentDay,laps:Number(state.laps),milestoneIds:allUnlocked.map(x=>x.id)})
-  })
+
+    const dueIds=new Set(strategyDueFundIds(plan,d,kind));
+    const ready=[...dueIds].filter(id=>
+      !Object.prototype.hasOwnProperty.call(state.fundClaims[kind],id)&&
+      Number(fundMilestoneById(config,id)?.laps??Infinity)<=Number(state.laps)
+    );
+    if(!ready.length)return;
+
+    // 按下基金時，實際遊戲會把「目前全部已解鎖且未領」一次領完。
+    const allUnlocked=fundUnlockedUnclaimed(kind);
+    allUnlocked.forEach(m=>{
+      state.fundClaims[kind][m.id]=d;
+      (kind==="free"?m.freeRewards:m.premiumRewards).forEach(r=>{
+        addItem(r.itemId,r.amount,`攻略精準領取${kind==="free"?"免費":"進階"}基金・${m.laps}圈`,true);
+        if(r.itemId===config.currencies.gameTokenId&&active.dayLedger){
+          const ledger=active.dayLedger[d]||(active.dayLedger[d]={opening:0,income:0,consumed:0});
+          ledger.income=Number(ledger.income||0)+Number(r.amount||0)
+        }
+      })
+    });
+    state.fundClaimEvents[kind].push({
+      day:d,laps:Number(state.laps),plannedClaimAt:Number(claimAt),
+      milestoneIds:allUnlocked.map(x=>x.id)
+    });
+    claimedAny=true
+  });
+
+  if(claimedAny){
+    active.fundClaimExecutedDays=active.fundClaimExecutedDays||{};
+    active.fundClaimExecutedDays[d]=true;
+    log(`${config.event.dayLabels[d]}在 ${fmt(claimAt)} 圈精準領取基金`)
+  }
+  return claimedAny
 }
 function claimReachedStagesWithoutHistory(){
   let changed=true;
@@ -2883,6 +3690,7 @@ async function executeStrategyDay({reuseSnapshot=false}={}){
   while(!objective.reached&&Number(state.resources[config.currencies.gameTokenId]||0)>=1){
     await rollOnce({silent:true,fast:true});used++;
     claimStrategyFundWithoutHistory();claimReachedStagesWithoutHistory();
+    if(active.fundTimingMissed?.[day])break;
     objective=strategyDayObjectiveStatus(state,active.plan,config,day);
     if(used%40===0){renderBoard();await wait(0)}
   }
@@ -2919,12 +3727,20 @@ function renderActiveStrategyCard(){
   config.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(pd.purchases?.[`${group.id}:${pack.id}`]||0);if(n)packNames.push(`${pack.name}×${n}`)}));
   const plannedFundIds=[...strategyDueFundIds(active.plan,d,"free"),...(active.plan.usePremiumFund?strategyDueFundIds(active.plan,d,"premium"):[])];
   const plannedFundLaps=[...new Set(plannedFundIds.map(id=>Number(fundMilestoneById(config,id)?.laps)).filter(Number.isFinite))].sort((a,b)=>a-b);
-  const fundParts=[];if(active.plan.usePremiumFund&&d===strategyPremiumFundPurchaseDay(active.plan))fundParts.push("本日解鎖進階基金");
-  if(plannedFundLaps.length)fundParts.push(`本日以前應完成基金：${plannedFundLaps.join("／")}圈`);
+  const todayClaimAt=strategyFundClaimPoint(active.plan,d);
+  const todayFundDice=Number(pd.fundFreeDice||0)+Number(pd.fundPremiumDice||0);
+  const fundParts=[];
+  if(todayClaimAt!==null){
+    if(active.plan.usePremiumFund&&d===strategyPremiumFundPurchaseDay(active.plan)){
+      fundParts.push(`先跑到 ${fmt(todayClaimAt)} 圈 → 才購買進階基金並立即領取${todayFundDice?`（剛好 +${fmt(todayFundDice)} 骰）`:""}`)
+    }else{
+      fundParts.push(`跑到 ${fmt(todayClaimAt)} 圈 → 立即按基金領取${todayFundDice?`（本次 +${fmt(todayFundDice)} 骰）`:""}`)
+    }
+  }
   const past=strategyIsPastReadOnly(),last=d>=active.plan.days.length-1,snapshot=!!strategyAttemptSnapshots[d];
   const chronology=active.plan.chronology?.days?.[d],estimate=active.plan.estimate?.dayEstimates?.[d];
   const sim=strategyDaySimulationStats[d],attempt=active.attemptResults?.[d],sampleCount=Math.max(500,Math.min(10000,Math.floor(Number($("strategySamples")?.value||active.plan.targets?.samples||3000))));
-  const objectiveText=`第 ${targetStage} 階${plannedFundLaps.length?`＋完成至 ${Math.max(...plannedFundLaps)} 圈基金`:""}`;
+  const objectiveText=`第 ${targetStage} 階${todayClaimAt!==null?`＋${fmt(todayClaimAt)}圈精準領基金`:""}`;
   const recovery=active.plan.adaptiveProfile?.rescue;
   const recoveryHint=(d===active.plan.days.length-1&&recovery)
     ?`<div class="help" style="margin-top:6px"><strong>最後日救援：</strong>先照主線跑，不足時再考慮 +${fmt(recovery.extraCost)}（${escapeHtml(recovery.purchases)}）；不要一開始就預買。</div>`:"";
@@ -2961,7 +3777,7 @@ function renderActiveStrategyCard(){
       <div class="active-strategy-cell"><div class="k">完整目標狀態</div><div class="v">${status.reached?"完成":"未完成"}</div></div>
       <div class="active-strategy-cell"><div class="k">目標／目前階段</div><div class="v">${targetStage}／${actualStage}</div></div>
       <div class="active-strategy-cell"><div class="k">目標分／目前分</div><div class="v">${fmt(targetScore)}／${fmt(dayState().score)}</div></div>
-      <div class="active-strategy-cell"><div class="k">基金目標／目前圈數</div><div class="v">${plannedFundLaps.length?Math.max(...plannedFundLaps):"—"}／${fmt(state.laps)}</div></div>
+      <div class="active-strategy-cell"><div class="k">基金精準領取點／目前圈數</div><div class="v">${todayClaimAt!==null?fmt(todayClaimAt):"—"}／${fmt(state.laps)}</div></div>
       <div class="active-strategy-cell"><div class="k">目前可用骰子</div><div class="v">${fmt(state.resources[config.currencies.gameTokenId]||0)}</div></div>
       <div class="active-strategy-cell"><div class="k">3.5格固定公式骰數</div><div class="v">${fmt(pd.rolls||0)}（非模擬平均）</div></div>
       <div class="active-strategy-cell"><div class="k">固定公式預計剩餘</div><div class="v">${chronology?fmt(chronology.endStock):"—"}</div></div>
@@ -3001,28 +3817,72 @@ function renderDaily(){
   $("claimDailyBtn").disabled=dayState().missionClaimed;
   $("claimDailyBtn").textContent=dayState().missionClaimed?"本日已領取":"領取每日骰子";
   $("refundDailyBtn").disabled=!dayState().missionClaimed;
+
+  const noPayPending=noPayDicePackages(config).some(({group,pack})=>{
+    const key=`${group.id}:${pack.id}`;
+    return Number(dayState().packagePurchases[key]||0)<Number(pack.limit||0)
+  });
+  $("claimFreeDailyBtn").disabled=dayState().missionClaimed&&!noPayPending;
+  $("claimFreeDailyBtn").textContent=`一鍵領無課金（${noPayDailyBundleLabel(config)}）`;
+
+  const diceStats=dailyDiceStats();
+  $("dailyDiceStats").innerHTML=[
+    ["本日獲得骰子",diceStats.gainedToday],
+    ["日前剩餘骰子",diceStats.previousRemaining],
+    ["本日可用骰子",diceStats.availableToday],
+    ["本日已消耗骰子",diceStats.spentToday]
+  ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">🎲 ${fmt(v)}</div></div>`).join("");
+
   const max=Math.max(1,...config.progressStages.map(x=>Number(x.requiredScore)));
   $("progressFill").style.width=`${Math.min(100,dayState().score/max*100)}%`;
   const next=config.progressStages.find(x=>dayState().score<Number(x.requiredScore));
   $("progressText").textContent=next?`目前 ${fmt(dayState().score)} 分，距離第 ${next.stage} 階還差 ${fmt(next.requiredScore-dayState().score)} 分。`:`目前 ${fmt(dayState().score)} 分，已達成全部階段。`;
-  const milestones=fundMilestones(config),unlockedCount=strategyFundUnlockedCount(config,state.laps),freeReady=fundUnlockedUnclaimed("free"),premiumReady=fundUnlockedUnclaimed("premium"),freeClaimed=Object.keys(state.fundClaims.free||{}).length,premiumClaimed=Object.keys(state.fundClaims.premium||{}).length,nextFund=milestones.find(m=>Number(m.laps)>Number(state.laps));
-  const trackStatus=(kind,m)=>Object.prototype.hasOwnProperty.call(state.fundClaims[kind]||{},m.id)?`<span class="fund-track-status ok">已領</span>`:Number(m.laps)<=Number(state.laps)?`<span class="fund-track-status ready">可領</span>`:`<span class="fund-track-status lock">未解鎖</span>`;
-  $("fundList").innerHTML=`<div class="fund-summary-grid">
-    <div class="row-card"><div class="row-top"><div><strong>🎟️ 免費基金</strong><div class="row-desc">已領 ${freeClaimed}/${milestones.length} 階｜目前可一次領 ${freeReady.length} 階</div></div><div class="form-row"><button class="btn secondary small" data-undo-fund ${state.lastFundUndo?"":"disabled"}>退回上次</button><button class="btn small" data-fund="free" ${freeReady.length?"":"disabled"}>${state.fundPremiumPurchased?"同時領免費＋進階":"領取免費已解鎖"}</button></div></div><div class="fund-progress"><span style="width:${milestones.length?freeClaimed/milestones.length*100:0}%"></span></div></div>
-    <div class="row-card"><div class="row-top"><div><strong>👑 進階基金</strong><div class="row-desc">${state.fundPremiumPurchased?`已購買｜已領 ${premiumClaimed}/${milestones.length} 階｜目前可領 ${premiumReady.length} 階`:`購買成本：${escapeHtml(itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount))}`}</div></div><button class="btn gold small" data-fund="premium" ${state.fundPremiumPurchased&&!freeReady.length&&!premiumReady.length?"disabled":""}>${state.fundPremiumPurchased?"同時領免費＋進階":"購買並領取已解鎖"}</button></div><div class="fund-progress"><span style="width:${milestones.length?premiumClaimed/milestones.length*100:0}%"></span></div></div>
-  </div><div class="help" style="margin-bottom:8px">目前完成 ${fmt(state.laps)} 圈，已解鎖 ${unlockedCount}/${milestones.length} 階${nextFund?`；下一階需 ${fmt(nextFund.laps)} 圈`:`；全部已解鎖`}。每次按領取會一次取得當下所有已解鎖且尚未領取的階段；已購買進階基金時，免費與進階會同時領取。</div>
-  <div class="fund-milestones"><table class="fund-table"><thead><tr><th>圈數</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{const cls=Number(m.laps)>Number(state.laps)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id)?"claimed":"unlocked");return`<tr class="${cls}"><td><strong>${fmt(m.laps)} 圈</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`}).join("")}</tbody></table></div>`;
+
   $("stageList").innerHTML=config.progressStages.map(stage=>{
     const claimed=dayState().claimedStages.includes(stage.stage),unlocked=dayState().score>=Number(stage.requiredScore);
     return `<div class="row-card"><div class="row-top"><div><strong>第 ${stage.stage} 階</strong> <span class="badge ${claimed||unlocked?"ok":"warn"}">${claimed?"已領取":unlocked?"可領取":`${fmt(stage.requiredScore)} 分`}</span><div class="row-desc">${escapeHtml(rewardsText(stage.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-stage="${stage.stage}" ${claimed?"":"disabled"}>退回</button><button class="btn small" data-stage="${stage.stage}" ${claimed||!unlocked?"disabled":""}>領取</button></div></div></div>`
-  }).join("")
+  }).join("");
+
+  const milestones=fundMilestones(config),
+        unlocked=milestones.filter(m=>Number(m.laps)<=Number(state.laps)),
+        freeReady=fundUnlockedUnclaimed("free"),
+        premiumReady=state.fundPremiumPurchased?fundUnlockedUnclaimed("premium"):[],
+        nextFund=milestones.find(m=>Number(m.laps)>Number(state.laps));
+
+  const trackStatus=(kind,m)=>Object.prototype.hasOwnProperty.call(state.fundClaims[kind]||{},m.id)
+    ?`<span class="fund-track-status ok">已領</span>`
+    :Number(m.laps)<=Number(state.laps)
+      ?`<span class="fund-track-status ready">可領</span>`
+      :`<span class="fund-track-status lock">未解鎖</span>`;
+
+  $("claimFundBtn").disabled=!(freeReady.length||premiumReady.length);
+  $("purchaseFundBtn").disabled=state.fundPremiumPurchased;
+  $("purchaseFundBtn").textContent=state.fundPremiumPurchased
+    ?"基金已購買"
+    :`購買基金（${itemText(config.fund.premiumCost.itemId,config.fund.premiumCost.amount)}）`;
+  $("undoFundBtn").disabled=!state.lastFundUndo;
+
+  const claimRewards=[
+    ...freeReady.flatMap(m=>m.freeRewards||[]),
+    ...premiumReady.flatMap(m=>m.premiumRewards||[])
+  ];
+  const maxUnlockedLap=unlocked.length?Math.max(...unlocked.map(m=>Number(m.laps))):0;
+  $("fundStatus").textContent=`目前完成 ${fmt(state.laps)} 圈｜已解鎖至 ${fmt(maxUnlockedLap)} 圈${nextFund?`｜下一階 ${fmt(nextFund.laps)} 圈`:"｜全部里程已解鎖"}`;
+  $("fundClaimPreview").innerHTML=(freeReady.length||premiumReady.length)
+    ?`按 <strong>領取基金</strong> 現在可領：<strong>${escapeHtml(aggregateRewardsText(claimRewards,config))}</strong><br>免費 ${freeReady.length} 階${state.fundPremiumPurchased?`＋進階 ${premiumReady.length} 階`:""}`
+    :`目前沒有新的基金獎勵可領${state.fundPremiumPurchased?"":"；進階基金尚未購買"}`;
+
+  $("fundList").innerHTML=`<div class="fund-milestones"><table class="fund-table"><thead><tr><th>圈數</th><th>免費獎勵</th><th>免費狀態</th><th>進階獎勵</th><th>進階狀態</th></tr></thead><tbody>${milestones.map(m=>{
+    const cls=Number(m.laps)>Number(state.laps)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&(state.fundPremiumPurchased?Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id):true)?"claimed":"unlocked");
+    return`<tr class="${cls}"><td><strong>${fmt(m.laps)} 圈</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`
+  }).join("")}</tbody></table></div>`;
 }
 function renderPackages(){
   $("packageGroups").innerHTML=config.packageGroups.map(group=>`
     <div class="editor-card"><div class="editor-head"><h3>${escapeHtml(group.name)}</h3><span class="badge">${group.dailyReset?"每日重置":"活動共用"}</span></div>
     <div class="list">${group.packages.map(pack=>{
       const key=`${group.id}:${pack.id}`,bought=Number(dayState().packagePurchases[key]||0),left=Math.max(0,Number(pack.limit)-bought);
-      return `<div class="row-card"><div class="row-top"><div><strong>${escapeHtml(pack.name)}</strong> <span class="badge ${left?"":"warn"}">${bought}/${pack.limit}</span><div class="row-desc">支出：${escapeHtml(itemText(pack.cost.itemId,pack.cost.amount))}<br>獲得：${escapeHtml(rewardsText(pack.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-group="${group.id}" data-refund-package="${pack.id}" ${bought?"":"disabled"}>退回 1 次</button><button class="btn pink small" data-buy-group="${group.id}" data-buy-package="${pack.id}" ${left?"":"disabled"}>購買</button></div></div></div>`
+      return `<div class="row-card"><div class="row-top"><div><strong>${escapeHtml(pack.name)}</strong> ${group.id==="dicePackages"&&["adDice","gemDice"].includes(pack.id)?`<span class="badge free">無課金</span>`:""} <span class="badge ${left?"":"warn"}">${bought}/${pack.limit}</span><div class="row-desc">支出：${escapeHtml(itemText(pack.cost.itemId,pack.cost.amount))}<br>獲得：${escapeHtml(rewardsText(pack.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-group="${group.id}" data-refund-package="${pack.id}" ${bought?"":"disabled"}>退回 1 次</button><button class="btn pink small" data-buy-group="${group.id}" data-buy-package="${pack.id}" ${left?"":"disabled"}>購買</button></div></div></div>`
     }).join("")}</div></div>`).join("")
 }
 function renderResources(){
@@ -3054,7 +3914,7 @@ function renderLog(){
 }
 function render(){
   $("eventName").textContent=config.event.name+"玩法模擬器";
-  renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons()
+  renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
 }
 function save(){
   localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
@@ -3068,14 +3928,14 @@ function load(){
     const c=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG)||localStorage.getItem(LEGACY2_CONFIG),s=localStorage.getItem(STORAGE_STATE)||localStorage.getItem(LEGACY_STATE)||localStorage.getItem(LEGACY2_STATE);
     if(!s)return toast("沒有已儲存的進度");
     if(c){const parsed=normalizeFundConfig(JSON.parse(c));validateConfig(parsed);config=parsed}
-    state=JSON.parse(s);ensureStateSchema(state,config);simulationBaseline=loadStoredBaseline();strategyPlan=loadStoredStrategy();batchResults=[];
-    undoStack=[];redoStack=[];syncStateToConfig(false);render();toast("已讀取")
+    state=JSON.parse(s);ensureStateSchema(state,config);state.activeStrategy=null;simulationBaseline=loadStoredBaseline();strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);batchResults=[];
+    undoStack=[];redoStack=[];lastAutoRollSnapshot=null;syncStateToConfig(false);ensureGameTokenFlow(state,config);render();toast("已讀取")
   }catch(e){toast(`讀取失敗：${e.message}`)}
 }
 function reset(){
   if(!confirm("確定要重置全部模擬進度嗎？活動設定與模擬基準會保留。"))return;
   recordHistory("重置全部模擬進度");
-  state=createState();generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
+  state=createState();lastAutoRollSnapshot=null;generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
 }
 function itemOptions(selected){
   return settingsDraft.items.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===selected?"selected":""}>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</option>`).join("")
@@ -3110,13 +3970,6 @@ function renderSettings(){
       <div class="field"><label>每完成一圈積分</label>${pathInput("scoreRules.pointsPerLap",c.scoreRules.pointsPerLap,"number",'step="any"')}</div>
       <div class="field"><label>地圖設定</label><label class="checkline"><input type="checkbox" data-path="board.refreshOnLap" ${c.board.refreshOnLap?"checked":""}> 每完成一圈刷新地圖</label></div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
-      <div class="field"><label>固定計算：每顆骰子平均格數</label>${pathInput("strategyLuck.baseline.diceAverage",c.strategyLuck.baseline.diceAverage,"number",'min="0.1" step="0.01"')}</div>
-      <div class="field"><label>非洲／歐洲浮動倍率（σ）</label>${pathInput("strategyLuck.sigmaMultiplier",c.strategyLuck.sigmaMultiplier,"number",'min="0" step="0.1"')}</div>
-      <div class="field"><label>目前每日零翡翠骰數（自動）</label><div class="input" style="height:auto;min-height:42px;display:flex;align-items:center">${fmt(strategyDailyNoPaidDice(c))} 顆｜只供參考，不作固定校準</div></div>
-      <div class="help" style="grid-column:1/-1">情境平均格數直接依本次骰子數 N 計算：基本＝${fmt(c.strategyLuck.baseline.diceAverage)}；非洲／歐洲＝基本 ± σ倍率 × 單顆骰子標準差 ÷ √N。活動復刻後每日任務或禮包數量改變，不需要重新設定102之類的基準值。</div>
-      <div class="field"><label>非洲方案隨機箱</label><select data-path="strategyLuck.africa.boxMode"><option value="minimum" ${c.strategyLuck.africa.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.africa.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
-      <div class="field"><label>基本基準隨機箱</label><select data-path="strategyLuck.baseline.boxMode"><option value="minimum" ${c.strategyLuck.baseline.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.baseline.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
-      <div class="field"><label>歐洲方案隨機箱</label><select data-path="strategyLuck.europe.boxMode"><option value="minimum" ${c.strategyLuck.europe.boxMode==="minimum"?"selected":""}>常見最低值</option><option value="expected" ${c.strategyLuck.europe.boxMode==="expected"?"selected":""}>完整期望值</option></select></div>
     </div>
     <h3>起點獎勵</h3>
     <div class="editor-card"><div class="help">每次完成一圈、棋子經過起點時取得。初始站在起點不會自動領取。</div><div class="editor-table">${rewardRows(c.board.startRewards||[],"board.startRewards","package")}</div><button class="btn secondary small" data-settings-action="addReward" data-base="board.startRewards">＋加入起點獎勵</button></div>
@@ -3278,10 +4131,8 @@ document.addEventListener("click",e=>{
     document.querySelectorAll(".tab-panel").forEach(x=>x.classList.remove("active"));
     tab.classList.add("active");$(`tab-${tab.dataset.tab}`).classList.add("active")
   }
-  const fund=e.target.closest("[data-fund]");if(fund)claimFund(fund.dataset.fund);
   const stage=e.target.closest("[data-stage]");if(stage)claimStage(stage.dataset.stage);
   const refundStageBtn=e.target.closest("[data-refund-stage]");if(refundStageBtn)refundStage(refundStageBtn.dataset.refundStage);
-  const undoFundBtn=e.target.closest("[data-undo-fund]");if(undoFundBtn)undoLastFundAction();
   const buy=e.target.closest("[data-buy-package]");if(buy)buyPackage(buy.dataset.buyGroup,buy.dataset.buyPackage);
   const refund=e.target.closest("[data-refund-package]");if(refund)refundPackage(refund.dataset.refundGroup,refund.dataset.refundPackage);
   const multiplier=e.target.closest("[data-roll-count]");if(multiplier){
@@ -3298,10 +4149,16 @@ document.addEventListener("click",e=>{
 });
 $("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
 $("autoRollBtn").addEventListener("click",autoRoll);
+$("undoAutoRollBtn").addEventListener("click",undoAutoRoll);
+$("retryAutoRollBtn").addEventListener("click",retryAutoRoll);
 $("stopAutoBtn").addEventListener("click",()=>{stopAuto=true});
 $("refreshBoardBtn").addEventListener("click",()=>{recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()});
 $("claimDailyBtn").addEventListener("click",claimDaily);
 $("refundDailyBtn").addEventListener("click",refundDailyClaim);
+$("claimFreeDailyBtn").addEventListener("click",claimFreeDailyBundle);
+$("claimFundBtn").addEventListener("click",claimAllFund);
+$("purchaseFundBtn").addEventListener("click",purchasePremiumFund);
+$("undoFundBtn").addEventListener("click",undoLastFundAction);
 $("openOneBoxBtn").addEventListener("click",()=>openBoxes(false));
 $("openAllBoxesBtn").addEventListener("click",()=>openBoxes(true));
 $("undoBoxBtn").addEventListener("click",undoLastBoxOpen);
@@ -3347,7 +4204,8 @@ $("importStrategyInput").addEventListener("change",async e=>{
 window.addEventListener("resize",()=>{clearTimeout(window.__boardResize);window.__boardResize=setTimeout(renderBoard,120)});
 
 try{normalizeFundConfig(config);validateConfig(config)}catch{config=normalizeFundConfig(clone(DEFAULT_CONFIG))}
-state=createState();ensureStateSchema(state,config);generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
+strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);
+state=createState();state.activeStrategy=null;ensureStateSchema(state,config);generateBoard();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
 </script>
 </body>
 </html>
