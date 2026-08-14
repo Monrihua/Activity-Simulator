@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜舊物品ID自動清理版 v41</title>
+<title>活動玩法模擬器｜彈珠中間雙釘落點版 v42</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -1696,9 +1696,38 @@ function pinballBouncePath(cfg=config){
     const j=Math.floor(Math.random()*(i+1));
     [decisions[i],decisions[j]]=[decisions[j],decisions[i]]
   }
-  // 每顆彈珠從中央附近的小範圍隨機出現，不會全部疊在完全相同的位置。
-  const startX=45+Math.random()*10;
+  // 改為從「中間左右兩側的兩根釘子」上方掉落，避免先從空位被吸向中間釘子而顯得不自然。
+  const startX=pinballStartXForMiddleSidePegs();
   return{decisions,slot,startX}
+}
+function pinballStartXForMiddleSidePegs(){
+  const count=Math.max(2,Number(pinballSettings().slotCount||8));
+  const pegCount=Math.max(2,count-1);
+
+  // 優先用實際渲染出的最上排釘子位置，這樣不管尺寸怎麼改都能準確對齊。
+  const field=$("pinballField");
+  const topRowPegs=[...document.querySelectorAll('[data-peg-row="0"]')];
+  if(field&&topRowPegs.length>=3){
+    const rectF=field.getBoundingClientRect();
+    const centers=topRowPegs.map(el=>{
+      const r=el.getBoundingClientRect();
+      return (r.left+r.width/2-rectF.left)/Math.max(1,rectF.width)*100
+    }).sort((a,b)=>a-b);
+    const mid=Math.floor(centers.length/2);
+    const candidates=centers.length%2===1
+      ? [centers[Math.max(0,mid-1)],centers[Math.min(centers.length-1,mid+1)]]
+      : [centers[Math.max(0,mid-1)],centers[Math.min(centers.length-1,mid)]];
+    const base=candidates[Math.random()<.5?0:1];
+    return Math.max(8,Math.min(92,base+(Math.random()-.5)*1.2))
+  }
+
+  // DOM 尚未可用時的後備算法：取中間左右相鄰兩根頂排釘子的理論位置。
+  const leftIndex=Math.floor((pegCount-1)/2)-1+(pegCount%2===0?1:0)
+  const rightIndex=leftIndex+1+(pegCount%2===1?1:0)
+  const pick=Math.random()<.5?leftIndex:rightIndex
+  const colSpan=86/pegCount;
+  const base=7+(pick+.5)*colSpan;
+  return Math.max(8,Math.min(92,base+(Math.random()-.5)*1.2))
 }
 function pinballNearestPeg(row,xPercent){
   const field=$("pinballField");if(!field)return null;
@@ -1717,7 +1746,7 @@ async function animatePinballDrop(path,fast=false){
   if(fast||config.gameplay.type!=="pinball")return;
   const layer=$("pinballBallLayer");if(!layer)return;
   const ball=document.createElement("div");ball.className="pinball-ball";layer.appendChild(ball);
-  let x=Math.max(42,Math.min(58,Number(path.startX??(45+Math.random()*10))));
+  let x=Math.max(8,Math.min(92,Number(path.startX??pinballStartXForMiddleSidePegs())));
   ball.style.left=`${x}%`;ball.style.top="3%";await wait(30);
   for(let row=0;row<path.decisions.length;row++){
     const dir=path.decisions[row],peg=pinballNearestPeg(row,x),hitTop=13+row*9.4;
