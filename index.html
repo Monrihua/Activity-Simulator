@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠底排間距調整版 v58</title>
+<title>活動玩法模擬器｜彈珠設定精簡與隨機箱三數量版 v59</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -1356,6 +1356,43 @@ function migrateV53PinballFixedSlots(cfg,pin){
   delete pin.triggerRequiredNormal;
   cfg.configSchemaVersion=53
 }
+function normalizePinballRandomBoxOutcomesV59(pin){
+  (pin.randomBoxes||[]).forEach(box=>{
+    const old=Array.isArray(box.outcomes)?box.outcomes:[];
+    const probs=old.map(x=>Math.max(0,Number(x.probability||0)));
+    const p1=probs[0]??0;
+    const p2=probs[1]??0;
+    const p3=probs.length>2?probs.slice(2).reduce((s,x)=>s+x,0):0;
+    box.outcomes=[
+      {amount:10,probability:p1},
+      {amount:15,probability:p2},
+      {amount:20,probability:p3}
+    ]
+  })
+}
+function migrateV59PinballCleanup(cfg,pin){
+  if(Number(cfg.configSchemaVersion||0)>=59)return;
+  pin.slotCount=8;
+  pin.normalSlotRewards=[
+    {itemId:pin.normalExchangeId,amount:50},
+    {itemId:pin.normalExchangeId,amount:20},
+    {itemId:pin.normalExchangeId,amount:10},
+    {itemId:pin.premiumExchangeId,amount:1},
+    {itemId:pin.normalExchangeId,amount:5},
+    {itemId:pin.normalExchangeId,amount:15},
+    {itemId:pin.normalExchangeId,amount:25},
+    {itemId:pin.premiumExchangeId,amount:2}
+  ];
+  pin.targetHitRequirements=[5,10,15,20,20,15,10,5];
+  pin.landingWeights=[5,10,15,20,20,15,10,5];
+  normalizePinballRandomBoxOutcomesV59(pin);
+  delete pin.triggerRequiredPremium;
+  delete pin.triggerRequiredNormal;
+  delete pin.normalRewards;
+  delete pin.slotTypes;
+  delete pin.slotRewardPool;
+  cfg.configSchemaVersion=59
+}
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
   if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
@@ -1440,8 +1477,8 @@ function normalizeFundConfig(cfg){
   cleanupLegacyPinballItemAliases(cfg,pin);
 
   pin.dailyMissionMaxGameTokens=Math.max(0,Number(pin.dailyMissionMaxGameTokens??30));
-  pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.slotCount||8))));
-  if(!Array.isArray(pin.normalSlotRewards)||!pin.normalSlotRewards.length)pin.normalSlotRewards=[
+  pin.slotCount=8;
+  if(!Array.isArray(pin.normalSlotRewards)||pin.normalSlotRewards.length!==8)pin.normalSlotRewards=[
     {itemId:pin.normalExchangeId,amount:50},
     {itemId:pin.normalExchangeId,amount:20},
     {itemId:pin.normalExchangeId,amount:10},
@@ -1451,9 +1488,8 @@ function normalizeFundConfig(cfg){
     {itemId:pin.normalExchangeId,amount:25},
     {itemId:pin.premiumExchangeId,amount:2}
   ];
-  pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.normalSlotRewards.length||pin.slotCount||8))));
-  pin.normalSlotRewards=pin.normalSlotRewards.slice(0,pin.slotCount).map(r=>({itemId:r?.itemId||pin.normalExchangeId,amount:Math.max(1,Math.floor(Number(r?.amount||1)))}));
-  while(pin.normalSlotRewards.length<pin.slotCount)pin.normalSlotRewards.push({itemId:pin.normalExchangeId,amount:1});
+  pin.normalSlotRewards=pin.normalSlotRewards.slice(0,8).map(r=>({itemId:r?.itemId||pin.normalExchangeId,amount:Math.max(1,Math.floor(Number(r?.amount||1)))}));
+  while(pin.normalSlotRewards.length<8)pin.normalSlotRewards.push({itemId:pin.normalExchangeId,amount:1});
   pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
   if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
   if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
@@ -1471,42 +1507,28 @@ function normalizeFundConfig(cfg){
   migrateV51PinballRules(cfg,pin);
   migrateV52PinballOfficialRules(cfg,pin);
   migrateV53PinballFixedSlots(cfg,pin);
+  migrateV59PinballCleanup(cfg,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
 
   normalizeFundUnlockRule(mono.fund,mono,cfg,flagItemId);
   normalizeFundUnlockRule(pin.fund,pin,cfg,pin.gameTokenId);
 
-  // 最終落點是先依 8 格權重抽出目標，再播放假物理碰釘動畫。
-  if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==pin.slotCount){
-    const base=[5,10,15,20,20,15,10,5];
-    pin.landingWeights=Array.from({length:pin.slotCount},(_,k)=>Number(base[k]??1))
+  // 最終落點先依8格權重抽目標，再播放模擬碰釘動畫。
+  if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==8){
+    pin.landingWeights=[5,10,15,20,20,15,10,5]
   }
-  pin.landingWeights=pin.landingWeights.slice(0,pin.slotCount).map(x=>Math.max(0,Number(x||0)));
-  while(pin.landingWeights.length<pin.slotCount)pin.landingWeights.push(1);
-  if(!pin.landingWeights.some(x=>x>0))pin.landingWeights=pin.landingWeights.map(()=>1);
+  pin.landingWeights=pin.landingWeights.slice(0,8).map(x=>Math.max(0,Number(x||0)));
+  while(pin.landingWeights.length<8)pin.landingWeights.push(1);
+  if(!pin.landingWeights.some(x=>x>0))pin.landingWeights=[5,10,15,20,20,15,10,5];
 
-  if(!Array.isArray(pin.targetHitRequirements)||pin.targetHitRequirements.length!==pin.slotCount){
-    const base=[5,10,15,20,20,15,10,5];
-    pin.targetHitRequirements=Array.from({length:pin.slotCount},(_,k)=>Number(base[k]??20))
+  if(!Array.isArray(pin.targetHitRequirements)||pin.targetHitRequirements.length!==8){
+    pin.targetHitRequirements=[5,10,15,20,20,15,10,5]
   }
-  pin.targetHitRequirements=pin.targetHitRequirements.slice(0,pin.slotCount).map(x=>Math.max(1,Math.floor(Number(x||1))));
-  while(pin.targetHitRequirements.length<pin.slotCount)pin.targetHitRequirements.push(20);
+  pin.targetHitRequirements=pin.targetHitRequirements.slice(0,8).map(x=>Math.max(1,Math.floor(Number(x||1))));
+  while(pin.targetHitRequirements.length<8)pin.targetHitRequirements.push(20);
 
   pin.hiddenSlotRequired=Math.max(1,Math.floor(Number(pin.hiddenSlotRequired||32)));
-
-  if(!Array.isArray(pin.normalRewards)||!pin.normalRewards.length){
-    pin.normalRewards=[
-      {itemId:pin.normalExchangeId,amount:50,probability:5},
-      {itemId:pin.normalExchangeId,amount:20,probability:10},
-      {itemId:pin.normalExchangeId,amount:10,probability:15},
-      {itemId:pin.premiumExchangeId,amount:1,probability:20},
-      {itemId:pin.normalExchangeId,amount:5,probability:20},
-      {itemId:pin.normalExchangeId,amount:15,probability:15},
-      {itemId:pin.normalExchangeId,amount:25,probability:10},
-      {itemId:pin.premiumExchangeId,amount:2,probability:5}
-    ]
-  }
 
   if(!Array.isArray(pin.hiddenVaultRewards)||!pin.hiddenVaultRewards.length){
     const alchemyId=ensureNamedConfigItem(cfg,["alchemyReagent"],["高級煉金試劑"],"alchemyReagent","高級煉金試劑","個","🧪");
@@ -1523,7 +1545,11 @@ function normalizeFundConfig(cfg){
     ]
   }
 
+  normalizePinballRandomBoxOutcomesV59(pin);
   delete pin.triggerRequired;
+  delete pin.triggerRequiredPremium;
+  delete pin.triggerRequiredNormal;
+  delete pin.normalRewards;
   delete pin.slotTypes;
   delete pin.slotRewardPool;
 
@@ -2627,7 +2653,6 @@ function validateConfig(c){
   Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
     (g.randomBoxes||[]).forEach(x=>validateProbability(x.outcomes,`${gameplay}・${x.name}`))
   });
-  validateProbability(c.gameplaySettings.pinball.normalRewards,"彈珠機・普通模式獎勵");
   validateProbability(c.gameplaySettings.pinball.hiddenVaultRewards,"彈珠機・隱藏寶庫獎勵");
   if(!(c.gameplaySettings.pinball.landingWeights||[]).some(x=>Number(x)>0))throw new Error("彈珠機落點權重至少要有一格大於 0");
   if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
@@ -2650,8 +2675,20 @@ function validateConfig(c){
   });
   if(!ids.includes(c.gameplaySettings.pinball.craftTicketId))throw new Error(`彈珠機製作卷物品不存在：${c.gameplaySettings.pinball.craftTicketId}`);
   if(Number(c.gameplaySettings.pinball.ballCapacity)<1)throw new Error("彈珠機可製作彈珠持有上限至少為 1");
-  if(Number(c.gameplaySettings.pinball.triggerRequiredPremium)<1)throw new Error("高級卷軸特殊格門檻至少為 1");
-  if(Number(c.gameplaySettings.pinball.triggerRequiredNormal)<1)throw new Error("普通卷軸特殊格門檻至少為 1");
+  if((c.gameplaySettings.pinball.normalSlotRewards||[]).length!==8)throw new Error("彈珠機普通模式必須固定 8 格");
+  if((c.gameplaySettings.pinball.targetHitRequirements||[]).length!==8)throw new Error("彈珠機特殊格門檻必須有 8 格");
+  if((c.gameplaySettings.pinball.landingWeights||[]).length!==8)throw new Error("彈珠機落點權重必須有 8 格");
+  (c.gameplaySettings.pinball.normalSlotRewards||[]).forEach((r,i)=>{
+    if(!ids.includes(r.itemId))throw new Error(`彈珠機第 ${i+1} 格引用不存在的物品：${r.itemId}`);
+    if(Number(r.amount)<1)throw new Error(`彈珠機第 ${i+1} 格獎勵數量至少為 1`)
+  });
+  (c.gameplaySettings.pinball.targetHitRequirements||[]).forEach((n,i)=>{
+    if(Number(n)<1)throw new Error(`彈珠機第 ${i+1} 格特殊門檻至少為 1`)
+  });
+  (c.gameplaySettings.pinball.randomBoxes||[]).forEach(box=>{
+    const amounts=(box.outcomes||[]).map(x=>Number(x.amount));
+    if(amounts.length!==3||amounts[0]!==10||amounts[1]!==15||amounts[2]!==20)throw new Error(`彈珠機隨機箱「${box.name}」數量固定為 10／15／20`)
+  });
   if(Number(c.gameplaySettings.pinball.hiddenSlotRequired)<1)throw new Error("隱藏模式單格獎勵門檻至少為 1");
   return true
 }
@@ -5868,7 +5905,7 @@ function renderSettings(){
 
   sections.pinball=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🔮 彈珠機玩法</h2><div class="help">彈珠會逐排碰撞釘子左右偏移；最終落點可由各位置權重控制。槽位內容則由可設定的格子類型與刷新權重產生；特殊格累積達標後停止普通投珠，需手動開始隱藏模式。彈珠機自己的隨機箱、每日進度、禮包與基金也能另外設定。</div></div>
+      <div><h2>🔮 彈珠機玩法</h2><div class="help">普通模式固定 8 格；先依各格落點權重決定最終落點，再播放模擬碰釘動畫。紅色特殊格門檻依所在位置計算。舊版已不使用的設定已移除。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
 
@@ -5894,42 +5931,41 @@ function renderSettings(){
     <div class="editor-card">
       <h3 style="margin-top:0">彈珠機規則</h3>
       <div class="setting-grid">
-        <div class="field"><label>底部格子數</label>${pathInput("gameplaySettings.pinball.slotCount",c.gameplaySettings.pinball.slotCount,"number",'min="2" max="12" step="1"')}</div>
-        <div class="field"><label>特殊格為高級卷軸時需要進入</label>${pathInput("gameplaySettings.pinball.triggerRequiredPremium",c.gameplaySettings.pinball.triggerRequiredPremium,"number",'min="1" step="1"')}</div>
-        <div class="field"><label>特殊格為普通卷軸時需要進入</label>${pathInput("gameplaySettings.pinball.triggerRequiredNormal",c.gameplaySettings.pinball.triggerRequiredNormal,"number",'min="1" step="1"')}</div>
-        <div class="field"><label>隱藏模式免費彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
+        <div class="field"><label>普通模式底部格子數</label><input value="8" disabled></div>
+        <div class="field"><label>隱藏模式免費粉色彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式單格獎勵門檻</label>${pathInput("gameplaySettings.pinball.hiddenSlotRequired",c.gameplaySettings.pinball.hiddenSlotRequired,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">製作卷 1:1 轉成綠色彈球後，必須按「開始投入彈珠」才會掉落。普通模式底部 8 格獎勵固定，由左到右顯示；紅色特殊格門檻也改成依位置獨立設定。最終落點不是靠真實物理分布，而是先依各格權重抽出目標，再播放模擬碰釘動畫。離開彈珠機時，普通模式未落完的綠色彈球會返還；隱藏寶庫則會直接快速結算剩餘粉色彈球。</div>
+      <div class="help">普通模式 8 格內容固定，不再使用舊版「普通模式獎勵機率」以及「高級／普通卷軸共用特殊格門檻」。</div>
     </div>
 
-    <div class="editor-head"><div><h3>落點位置權重</h3><div class="help">直接控制彈珠最後落入各位置的機率。動畫會依抽中的格子，自動產生一條真的能走到該格的左右碰釘路徑。</div></div></div>
+    <div class="editor-head"><div><h3>固定 8 格、紅標門檻與最終落點權重</h3><div class="help">由左到右分別設定每格獎勵、紅色標記出現在該格時的累積門檻，以及彈珠最終落入該格的權重。</div></div></div>
     <div class="editor-card">
-      <div class="setting-grid">
-        ${c.gameplaySettings.pinball.landingWeights.map((w,i)=>{
+      <div class="editor-table">
+        ${(c.gameplaySettings.pinball.normalSlotRewards||[]).map((reward,i)=>{
+          const names=["最左","左二","左一","中左","中右","右一","右二","最右"];
           const pct=pinballLandingPercentages(c)[i]||0;
-          return `<div class="field"><label>第 ${i+1} 格權重（約 ${fmt(pct)}%）</label>${pathInput(`gameplaySettings.pinball.landingWeights.${i}`,w,"number",'min="0" step="any"')}</div>`
+          return `<div class="editor-row" style="grid-template-columns:90px minmax(135px,1fr) 90px 105px 115px;align-items:end">
+            <div><strong>第 ${i+1} 格</strong><div class="help">${names[i]||""}</div></div>
+            <div class="field"><label>獎勵物品</label><select data-path="gameplaySettings.pinball.normalSlotRewards.${i}.itemId">${itemOptions(reward.itemId)}</select></div>
+            <div class="field"><label>數量</label>${pathInput(`gameplaySettings.pinball.normalSlotRewards.${i}.amount`,reward.amount,"number",'min="1" step="1"')}</div>
+            <div class="field"><label>紅標門檻</label>${pathInput(`gameplaySettings.pinball.targetHitRequirements.${i}`,c.gameplaySettings.pinball.targetHitRequirements?.[i]??20,"number",'min="1" step="1"')}</div>
+            <div class="field"><label>落點權重</label>${pathInput(`gameplaySettings.pinball.landingWeights.${i}`,c.gameplaySettings.pinball.landingWeights?.[i]??1,"number",'min="0" step="any"')}<div class="help">約 ${fmt(pct)}%</div></div>
+          </div>`
         }).join("")}
       </div>
       <div class="form-row" style="margin-top:8px">
-        <button class="btn secondary small" data-settings-action="equalPinballLandingWeights">設為全部位置平均</button>
-        <button class="btn secondary small" data-settings-action="naturalPinballLandingWeights">恢復自然碰釘分布</button>
+        <button class="btn secondary small" data-settings-action="equalPinballLandingWeights">全部位置平均</button>
+        <button class="btn secondary small" data-settings-action="defaultPinballLandingWeights">恢復預設 5/10/15/20/20/15/10/5</button>
       </div>
     </div>
 
-    <div class="editor-head"><div><h3>普通模式獎勵機率</h3><div class="help">每次刷新底部槽位時，每一格都直接從這個獎勵池抽一次。機率合計必須為 100%。</div></div></div>
-    <div class="editor-card">
-      <div class="editor-table">${rewardRows(c.gameplaySettings.pinball.normalRewards,`gameplaySettings.pinball.normalRewards`,"probability")}</div>
-      <button class="btn secondary small" data-settings-action="addReward" data-base="gameplaySettings.pinball.normalRewards" data-probability="1">＋加入普通模式獎勵</button>
-    </div>
-
-    <div class="editor-head" style="margin-top:18px"><div><h3>隱藏寶庫獎勵機率</h3><div class="help">隱藏模式中，同一底格每累積到指定顆數，就從這個獎勵池抽 1 次。單格累積 64 顆會抽 2 次，依此類推；每次隱藏模式結束後各格累積歸零。</div></div></div>
+    <div class="editor-head" style="margin-top:18px"><div><h3>隱藏寶庫獎勵機率</h3><div class="help">隱藏模式每個底格會固定抽到一種寶庫獎勵；同一格每累積到指定顆數，就獲得一次該格獎勵。</div></div></div>
     <div class="editor-card">
       <div class="editor-table">${rewardRows(c.gameplaySettings.pinball.hiddenVaultRewards,`gameplaySettings.pinball.hiddenVaultRewards`,"probability")}</div>
       <button class="btn secondary small" data-settings-action="addReward" data-base="gameplaySettings.pinball.hiddenVaultRewards" data-probability="1">＋加入隱藏寶庫獎勵</button>
     </div>
 
-    <div class="editor-head" style="margin-top:18px"><div><h3>隨機箱設定</h3><div class="help">彈珠機也可使用自己的隨機箱設定，例如普通／高級捲軸箱、特殊箱等。</div></div><button class="btn green small" data-settings-action="addGameplayBox" data-gameplay="pinball">＋新增隨機箱</button></div>
+    <div class="editor-head" style="margin-top:18px"><div><h3>隨機箱設定</h3><div class="help">彈珠機隨機箱的獎勵數量固定只有 <strong>10／15／20</strong> 三種；只需要設定三種數量各自的機率，合計必須為 100%。</div></div><button class="btn green small" data-settings-action="addGameplayBox" data-gameplay="pinball">＋新增隨機箱</button></div>
     ${c.gameplaySettings.pinball.randomBoxes.map((box,i)=>{
       const total=box.outcomes.reduce((s,x)=>s+Number(x.probability||0),0);
       return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><div><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}">機率 ${fmt(total)}%</span> <button class="btn red small" data-settings-action="removeGameplayBox" data-gameplay="pinball" data-box="${i}">刪除箱子</button></div></div>
@@ -5938,13 +5974,13 @@ function renderSettings(){
           <div class="field"><label>消耗的箱子物品</label><select data-path="gameplaySettings.pinball.randomBoxes.${i}.boxItemId">${itemOptions(box.boxItemId)}</select></div>
           <div class="field"><label>開箱獲得物品</label><select data-path="gameplaySettings.pinball.randomBoxes.${i}.rewardItemId">${itemOptions(box.rewardItemId)}</select></div>
         </div>
-        <div class="editor-table">${box.outcomes.map((x,j)=>`<div class="editor-row package-reward">${pathInput(`gameplaySettings.pinball.randomBoxes.${i}.outcomes.${j}.amount`,x.amount,"number",'step="any"')}${pathInput(`gameplaySettings.pinball.randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0"')}<button class="btn red small" data-settings-action="removeGameplayBoxOutcome" data-gameplay="pinball" data-box="${i}" data-index="${j}">刪除</button></div>`).join("")}</div>
-        <button class="btn secondary small" data-settings-action="addGameplayBoxOutcome" data-gameplay="pinball" data-box="${i}">＋加入開箱結果</button>
+        <div class="setting-grid" style="margin-top:10px">
+          ${box.outcomes.map((x,j)=>`<div class="field"><label>獲得 ×${fmt(x.amount)} 的機率</label>${pathInput(`gameplaySettings.pinball.randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0" max="100"')}</div>`).join("")}
+        </div>
       </div>`
     }).join("")}
 
   </section>`;
-
 
   sections.items=`<section class="setting-section active">
     <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。系統識別碼可自行修改；修改後會同步更新設定內對此物品的引用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
@@ -6047,28 +6083,8 @@ function settingsAction(btn){
     const n=Math.max(2,Number(settingsDraft.gameplaySettings.pinball.slotCount||8));
     settingsDraft.gameplaySettings.pinball.landingWeights=Array.from({length:n},()=>1)
   }
-  if(a==="naturalPinballLandingWeights"){
-    const n=Math.max(2,Number(settingsDraft.gameplaySettings.pinball.slotCount||8)),steps=n-1;
-    settingsDraft.gameplaySettings.pinball.landingWeights=Array.from({length:n},(_,k)=>{
-      let c=1;
-      for(let i=1;i<=k;i++)c=c*(steps-k+i)/i;
-      return c
-    })
-  }
-  if(a==="addPinballSlotType"){
-    const p=settingsDraft.gameplaySettings.pinball;
-    if(!Array.isArray(p.slotTypes))p.slotTypes=[];
-    p.slotTypes.push({
-      id:`slotType${Date.now()}`,
-      name:`格子類型 ${p.slotTypes.length+1}`,
-      distributionWeight:10,
-      rewards:[{itemId:p.normalExchangeId||settingsDraft.items[0].id,amount:1,probability:100}]
-    })
-  }
-  if(a==="removePinballSlotType"){
-    const p=settingsDraft.gameplaySettings.pinball;
-    if(p.slotTypes.length<=1)return toast("至少保留一種彈珠格子類型");
-    p.slotTypes.splice(Number(btn.dataset.index),1)
+  if(a==="defaultPinballLandingWeights"){
+    settingsDraft.gameplaySettings.pinball.landingWeights=[5,10,15,20,20,15,10,5]
   }
 
   if(a==="addStage"){
@@ -6091,7 +6107,15 @@ function settingsAction(btn){
   }
   if(a==="addGameplayBox"){
     const gameplay=btn.dataset.gameplay||"monopoly",g=settingsDraft.gameplaySettings[gameplay];
-    g.randomBoxes.push({id:uid("box"),name:"新隨機箱",boxItemId:g.gameTokenId||settingsDraft.items[0].id,rewardItemId:g.premiumExchangeId||settingsDraft.items[0].id,outcomes:[{amount:1,probability:100}]})
+    g.randomBoxes.push({
+      id:uid("box"),
+      name:"新隨機箱",
+      boxItemId:g.gameTokenId||settingsDraft.items[0].id,
+      rewardItemId:g.premiumExchangeId||settingsDraft.items[0].id,
+      outcomes:gameplay==="pinball"
+        ?[{amount:10,probability:0},{amount:15,probability:0},{amount:20,probability:0}]
+        :[{amount:1,probability:100}]
+    })
   }
   if(a==="removeGameplayBox"){
     const gameplay=btn.dataset.gameplay||"monopoly";
@@ -6099,10 +6123,12 @@ function settingsAction(btn){
   }
   if(a==="addGameplayBoxOutcome"){
     const gameplay=btn.dataset.gameplay||"monopoly";
+    if(gameplay==="pinball")return toast("彈珠機隨機箱數量固定為 10／15／20");
     settingsDraft.gameplaySettings[gameplay].randomBoxes[Number(btn.dataset.box)].outcomes.push({amount:1,probability:0})
   }
   if(a==="removeGameplayBoxOutcome"){
     const gameplay=btn.dataset.gameplay||"monopoly";
+    if(gameplay==="pinball")return toast("彈珠機隨機箱固定保留 10／15／20 三種數量");
     settingsDraft.gameplaySettings[gameplay].randomBoxes[Number(btn.dataset.box)].outcomes.splice(Number(btn.dataset.index),1)
   }
   if(a==="addPackageGroup"){
