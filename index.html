@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜釘子加寬下移與首登贈送版 v54</title>
+<title>活動玩法模擬器｜首日贈送玩法判斷修正版 v56</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -403,7 +403,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0))
 }
 .pinball-pegs{
-  position:absolute;left:5%;right:5%;top:17%;bottom:19%;
+  position:absolute;left:5%;right:5%;top:16%;bottom:24%;
 }
 .pinball-peg{
   position:absolute;width:16px;height:16px;border-radius:50%;
@@ -1233,10 +1233,10 @@ function dailyMissionRewardItemId(cfg=config){
   return cfg.dailyMission?.rewardItemId||cfg.currencies?.gameTokenId||""
 }
 function firstDayLoginGift(cfg=config){
-  const active=cfg.activeGameplay||"monopoly";
+  const active=cfg.gameplay?.type||"monopoly";
   const gp=cfg.gameplaySettings?.[active]||{};
   const itemId=active==="pinball"
-    ?(gp.craftTicketId||gp.gameTokenId||cfg.currencies?.gameTokenId||"CraftTicket")
+    ?(gp.craftTicketId||"CraftTicket")
     :(gp.gameTokenId||cfg.currencies?.gameTokenId||"dice");
   return{itemId,amount:5,label:`首日登入贈送 ${cfgItem(cfg,itemId).name} ×5`}
 }
