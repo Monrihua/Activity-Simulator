@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜固定格子與洞口動畫版 v53</title>
+<title>活動玩法模擬器｜釘子加寬下移與首登贈送版 v54</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -403,7 +403,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0))
 }
 .pinball-pegs{
-  position:absolute;left:9%;right:9%;top:13%;bottom:21%;
+  position:absolute;left:5%;right:5%;top:17%;bottom:19%;
 }
 .pinball-peg{
   position:absolute;width:16px;height:16px;border-radius:50%;
@@ -1232,6 +1232,18 @@ function migrateV49GenericFundAndPinballCraft(cfg,mono,pin){
 function dailyMissionRewardItemId(cfg=config){
   return cfg.dailyMission?.rewardItemId||cfg.currencies?.gameTokenId||""
 }
+function firstDayLoginGift(cfg=config){
+  const active=cfg.activeGameplay||"monopoly";
+  const gp=cfg.gameplaySettings?.[active]||{};
+  const itemId=active==="pinball"
+    ?(gp.craftTicketId||gp.gameTokenId||cfg.currencies?.gameTokenId||"CraftTicket")
+    :(gp.gameTokenId||cfg.currencies?.gameTokenId||"dice");
+  return{itemId,amount:5,label:`首日登入贈送 ${cfgItem(cfg,itemId).name} ×5`}
+}
+function canClaimFirstDayLoginGift(targetState=state,cfg=config){
+  const day=targetState.days?.[Number(targetState.currentDay||0)]||dayState();
+  return Number(targetState.currentDay||0)===0&&!day.firstLoginClaimed
+}
 function migrateV50PinballRewardsToCraft(cfg,mono,pin){
   if(Number(cfg.configSchemaVersion||0)>=50)return;
 
@@ -1588,7 +1600,7 @@ function loadStoredStrategy(){
     if(!saved)return null;const parsed=JSON.parse(saved);return Number(parsed.version||0)>=4?parsed:null
   }catch{return null}
 }
-function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,missionItemId:null,lapsCompleted:0,pinballDrops:0,pinballHiddenRuns:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
+function createDayState(){return{score:0,missionClaimed:false,missionAmount:0,missionItemId:null,firstLoginClaimed:false,firstLoginAmount:0,firstLoginItemId:null,lapsCompleted:0,pinballDrops:0,pinballHiddenRuns:0,claimedStages:[],packagePurchases:{},freeBundleUndo:null}}
 function createState(){
   return{
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},obtained:{},
@@ -1608,6 +1620,10 @@ function ensureStateSchema(targetState=state,cfg=config){
   while(targetState.days.length<Number(cfg.event.totalDays))targetState.days.push(createDayState());
   targetState.days.forEach(day=>{
     day.score=Number(day.score||0);day.missionClaimed=!!day.missionClaimed;
+    day.firstLoginClaimed=!!day.firstLoginClaimed;
+    if(!Object.prototype.hasOwnProperty.call(day,"firstLoginAmount"))day.firstLoginAmount=day.firstLoginClaimed?5:0;
+    if(!Object.prototype.hasOwnProperty.call(day,"firstLoginItemId"))day.firstLoginItemId=day.firstLoginClaimed?firstDayLoginGift(cfg).itemId:null;
+    day.firstLoginAmount=Number(day.firstLoginAmount||0);
     day.lapsCompleted=Math.max(0,Number(day.lapsCompleted||0));
     day.pinballDrops=Math.max(0,Number(day.pinballDrops||0));
     day.pinballHiddenRuns=Math.max(0,Number(day.pinballHiddenRuns||0));
@@ -1674,6 +1690,7 @@ function deterministicLedger(targetState,cfg){
   const cost=(id,amount)=>{ledger.spent[id]=Number(ledger.spent[id]||0)+Number(amount||0)};
   targetState.days.forEach((day,d)=>{
     if(day.missionClaimed)grant(d,day.missionItemId||dailyMissionRewardItemId(cfg),day.missionAmount);
+    if(day.firstLoginClaimed)grant(d,day.firstLoginItemId||firstDayLoginGift(cfg).itemId,day.firstLoginAmount||5);
     (day.claimedStages||[]).forEach(stageNo=>{const stage=cfg.progressStages.find(x=>Number(x.stage)===Number(stageNo));(stage?.rewards||[]).forEach(r=>grant(d,r.itemId,r.amount))});
     cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(day.packagePurchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;cost(pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))}))
   });
@@ -1818,6 +1835,10 @@ function noPayDicePackages(cfg=config){
 function noPayDailyBundleLabel(cfg=config){
   const dailyItem=cfgItem(cfg,dailyMissionRewardItemId(cfg));
   const parts=[`每日 ${dailyItem.name} ×${fmt(cfg.dailyMission.maxGameTokens)}`];
+  if(Number(state.currentDay||0)===0){
+    const gift=firstDayLoginGift(cfg);
+    parts.push(`首日登入 ${cfgItem(cfg,gift.itemId).name} ×${fmt(gift.amount)}`)
+  }
   noPayDicePackages(cfg).forEach(({pack})=>parts.push(`${pack.name} ×${fmt(pack.limit)}`));
   return parts.join("＋")
 }
@@ -2730,14 +2751,15 @@ function renderPinballBoard(){
 
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="pinball"));
   const pegs=$("pinballPegs"),pegPattern=ps.slots.length===8?[3,4,5,6,7,6,5]:Array.from({length:Math.max(4,ps.slots.length-1)},(_,i)=>Math.max(3,Math.min(ps.slots.length-1,3+i)));
-  const pegSignature=pegPattern.join("-");
+  const pegSpacing=11.8;
+  const pegSignature=`${pegPattern.join("-")}:${pegSpacing}`;
   if(pegs&&pegs.dataset.signature!==pegSignature){
     pegs.dataset.signature=pegSignature;
     pegs.innerHTML=pegPattern.map((count,row)=>{
-      const start=50-((count-1)*10)/2;
+      const start=50-((count-1)*pegSpacing)/2;
       const y=pegPattern.length===1?50:(row/(pegPattern.length-1))*100;
       return Array.from({length:count},(_,col)=>{
-        const x=start+col*10;
+        const x=start+col*pegSpacing;
         return `<span class="pinball-peg" style="left:${x}%;top:${y}%" data-peg-row="${row}" data-peg-col="${col}"></span>`
       }).join("")
     }).join("")
@@ -2977,7 +2999,13 @@ function claimDaily(){
   recordHistory(`領取${config.event.dayLabels[state.currentDay]}每日任務`);
   const missionItem=dailyMissionRewardItemId(config);
   dayState().missionClaimed=true;dayState().missionAmount=amount;dayState().missionItemId=missionItem;
-  addItem(missionItem,amount,"每日任務",true);render()
+  addItem(missionItem,amount,"每日任務",true);
+  if(canClaimFirstDayLoginGift()){
+    const gift=firstDayLoginGift(config);
+    dayState().firstLoginClaimed=true;dayState().firstLoginAmount=gift.amount;dayState().firstLoginItemId=gift.itemId;
+    addItem(gift.itemId,gift.amount,"首日登入贈送",true)
+  }
+  render()
 }
 function claimFreeDailyBundle(){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用或修改未來才取得的資源");
@@ -2990,7 +3018,7 @@ function claimFreeDailyBundle(){
   if(!canDoMission&&!pending.some(x=>x.remain>0))return toast("本日無課金內容已全部領取");
 
   recordHistory(`一鍵領無課金：${noPayDailyBundleLabel(config)}`);
-  const undo={day:state.currentDay,mission:false,missionAmount:0,missionItemId:null,packages:[]};
+  const undo={day:state.currentDay,mission:false,missionAmount:0,missionItemId:null,firstLogin:false,firstLoginAmount:0,firstLoginItemId:null,packages:[]};
 
   if(canDoMission){
     const amount=Number(config.dailyMission.maxGameTokens||0);
@@ -3000,6 +3028,14 @@ function claimFreeDailyBundle(){
     addItem(missionItem,amount,"每日任務",true);
     undo.mission=true;undo.missionAmount=amount;undo.missionItemId=missionItem;
     actions.push(`每日 ${item(missionItem).name} ${fmt(amount)}`)
+  }
+
+  if(canClaimFirstDayLoginGift()){
+    const gift=firstDayLoginGift(config);
+    day.firstLoginClaimed=true;day.firstLoginAmount=gift.amount;day.firstLoginItemId=gift.itemId;
+    addItem(gift.itemId,gift.amount,"首日登入贈送",true);
+    undo.firstLogin=true;undo.firstLoginAmount=gift.amount;undo.firstLoginItemId=gift.itemId;
+    actions.push(`首日登入 ${item(gift.itemId).name} ${fmt(gift.amount)}`)
   }
 
   pending.forEach(({group,pack,key,remain})=>{
@@ -3035,6 +3071,14 @@ function refundFreeDailyBundle(){
     day.missionClaimed=false;day.missionAmount=0;day.missionItemId=null;
     if(state.resources[missionItem]<0)negative=true
   }
+  if(u.firstLogin&&day.firstLoginClaimed){
+    const giftItem=u.firstLoginItemId||day.firstLoginItemId||firstDayLoginGift(config).itemId,amount=Number(u.firstLoginAmount||day.firstLoginAmount||5);
+    state.resources[giftItem]=Number(state.resources[giftItem]||0)-amount;
+    if(giftItem===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-amount);
+    day.score=Math.max(0,Number(day.score||0)-scorePerItem(giftItem)*amount);
+    day.firstLoginClaimed=false;day.firstLoginAmount=0;day.firstLoginItemId=null;
+    if(state.resources[giftItem]<0)negative=true
+  }
 
   (u.packages||[]).forEach(entry=>{
     const group=config.packageGroups.find(x=>x.id===entry.groupId);
@@ -3069,19 +3113,33 @@ function refundFreeDailyBundle(){
 function refundDailyClaim(){
   if(!dayState().missionClaimed)return toast("本日尚未領取每日任務");
   const amount=Number(dayState().missionAmount||0),missionItem=dayState().missionItemId||dailyMissionRewardItemId(config);
+  const hadGift=dayState().firstLoginClaimed;
+  const giftItem=dayState().firstLoginItemId||firstDayLoginGift(config).itemId;
+  const giftAmount=Number(dayState().firstLoginAmount||5);
   recordHistory(`退回${config.event.dayLabels[state.currentDay]}每日任務`);
   state.resources[missionItem]=Number(state.resources[missionItem]||0)-amount;
   if(missionItem===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-amount);
   dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(missionItem)*amount);
   dayState().missionClaimed=false;dayState().missionAmount=0;dayState().missionItemId=null;
+  if(hadGift){
+    state.resources[giftItem]=Number(state.resources[giftItem]||0)-giftAmount;
+    if(giftItem===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-giftAmount);
+    dayState().score=Math.max(0,Number(dayState().score||0)-scorePerItem(giftItem)*giftAmount);
+    dayState().firstLoginClaimed=false;dayState().firstLoginAmount=0;dayState().firstLoginItemId=null
+  }
   if(dayState().freeBundleUndo?.mission){
     dayState().freeBundleUndo.mission=false;
     dayState().freeBundleUndo.missionAmount=0;
     dayState().freeBundleUndo.missionItemId=null;
+    if(dayState().freeBundleUndo?.firstLogin){
+      dayState().freeBundleUndo.firstLogin=false;
+      dayState().freeBundleUndo.firstLoginAmount=0;
+      dayState().freeBundleUndo.firstLoginItemId=null
+    }
     if(!(dayState().freeBundleUndo.packages||[]).length)dayState().freeBundleUndo=null
   }
-  log(`退回每日任務 ${itemText(missionItem,amount)}`);render();
-  toast(state.resources[missionItem]<0?`已退回；部分${item(missionItem).name}已使用，因此目前數量為負數。`:"已退回每日任務")
+  log(`退回每日任務 ${itemText(missionItem,amount)}${hadGift?`＋首日登入 ${itemText(giftItem,giftAmount)}`:""}`);render();
+  toast((state.resources[missionItem]<0)||(hadGift&&state.resources[giftItem]<0)?`已退回；部分獎勵已使用，因此目前數量可能為負數。`:"已退回每日任務")
 }
 function fundUnlockedUnclaimed(kind,targetState=state,cfg=config){
   ensureStateSchema(targetState,cfg);const claimed=targetState.fundClaims[kind]||{};
@@ -5537,7 +5595,8 @@ function renderDaily(){
   const dailyTokenItem=item(dailyMissionRewardItemId(config));
   $("claimDailyBtn").disabled=dayState().missionClaimed;
   $("claimDailyBtn").textContent=dayState().missionClaimed?"本日已領取":`領取每日${dailyTokenItem.name}`;
-  $("claimDailyBtn").title=`每日任務最多可領 ${fmt(config.dailyMission.maxGameTokens)} ${dailyTokenItem.unit||"個"}${dailyTokenItem.name}`;
+  const firstDayGiftNote=Number(state.currentDay||0)===0?`；另含首日登入 ${item(firstDayLoginGift(config).itemId).name} ×${fmt(firstDayLoginGift(config).amount)}`:"";
+  $("claimDailyBtn").title=`每日任務最多可領 ${fmt(config.dailyMission.maxGameTokens)} ${dailyTokenItem.unit||"個"}${dailyTokenItem.name}${firstDayGiftNote}`;
   $("refundDailyBtn").disabled=!dayState().missionClaimed;
 
   const noPayPending=noPayDicePackages(config).some(({group,pack})=>{
