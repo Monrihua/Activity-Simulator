@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜普通機率與隱藏寶庫版 v51</title>
+<title>活動玩法模擬器｜固定格子與洞口動畫版 v53</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -386,14 +386,24 @@ button:disabled{cursor:not-allowed;opacity:.45}
   background:#514660;border:2px solid #786b86;border-radius:12px;padding:6px 10px;font-size:13px
 }
 .pinball-field{
-  position:relative;width:100%;aspect-ratio:1.26;overflow:hidden;border-radius:22px 22px 10px 10px;
+  position:relative;width:100%;aspect-ratio:1.16;overflow:hidden;border-radius:22px 22px 10px 10px;
   background:
     radial-gradient(circle at 20% 20%,rgba(255,255,255,.025),transparent 28%),
     linear-gradient(180deg,#242230,#1b1a25);
   border:4px solid #625568;box-shadow:inset 0 0 30px rgba(0,0,0,.45)
 }
+.pinball-spawn-hole{
+  position:absolute;left:50%;top:4.8%;transform:translateX(-50%);
+  width:18%;height:5.8%;border-radius:999px;z-index:5;pointer-events:none;
+  background:radial-gradient(ellipse at center,#06050b 0%,#090711 48%,#1c1524 78%,rgba(255,255,255,.08) 100%);
+  box-shadow:inset 0 2px 10px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.08)
+}
+.pinball-spawn-hole::after{
+  content:"";position:absolute;left:14%;right:14%;top:18%;height:28%;border-radius:999px;
+  background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0))
+}
 .pinball-pegs{
-  position:absolute;inset:7% 7% 23%;
+  position:absolute;left:9%;right:9%;top:13%;bottom:21%;
 }
 .pinball-peg{
   position:absolute;width:16px;height:16px;border-radius:50%;
@@ -409,6 +419,14 @@ button:disabled{cursor:not-allowed;opacity:.45}
   border:2px solid #555269;box-shadow:0 3px 7px rgba(0,0,0,.65);
   transition:left .105s cubic-bezier(.35,.05,.65,1),top .105s linear,transform .09s ease;
   z-index:6
+}
+.pinball-ball.normal-ball{
+  background:radial-gradient(circle at 35% 30%,#effff1,#75f38d 30%,#29b94d 68%,#12682b);
+  border-color:#236c37
+}
+.pinball-ball.hidden-ball{
+  background:radial-gradient(circle at 35% 30%,#fff2fb,#ff91d0 30%,#ed4aa6 68%,#8f2867);
+  border-color:#9b3c75
 }
 .pinball-ball.hit-left{transform:translateX(-2px) rotate(-18deg) scale(.96)}
 .pinball-ball.hit-right{transform:translateX(2px) rotate(18deg) scale(.96)}
@@ -616,6 +634,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               <span class="pinball-mode" id="pinballModeLabel">普通模式</span>
             </div>
             <div class="pinball-field" id="pinballField">
+              <div class="pinball-spawn-hole" id="pinballSpawnHole"></div>
               <div class="pinball-pegs" id="pinballPegs"></div>
               <div class="pinball-ball-layer" id="pinballBallLayer"></div>
               <div class="pinball-slots" id="pinballSlots"></div>
@@ -633,7 +652,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
                 <label>投入數量</label>
                 <input type="number" id="pinballDropCountInput" min="1" step="1" value="1">
               </div>
-              <button class="pinball-hold-btn" id="pinballDropMainBtn">投入彈珠（可連點／長按）</button>
+              <button class="pinball-hold-btn" id="pinballDropMainBtn">開始投入彈珠（可連點／長按）</button>
               <label class="pinball-skip"><input type="checkbox" id="pinballSkipAnimation"> 跳過動畫</label>
             </div>
             <div class="pinball-queue-status" id="pinballQueueStatus">待投入 0 顆｜場上 0 顆</div>
@@ -893,14 +912,23 @@ const DEFAULT_CONFIG = {
       normalExchangeId:"normalScroll",
       dailyMissionMaxGameTokens:30,
       dailyMissionRewardItemId:"CraftTicket",
-      pointsPerItemObtained:[{itemId:"pinballBall",points:2},{itemId:"premiumScroll",points:0}],
+      pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
       randomBoxes:[],
       slotCount:8,
-      triggerRequiredPremium:5,
-      triggerRequiredNormal:20,
       hiddenBalls:200,
       hiddenSlotRequired:32,
-      landingWeights:[1,7,21,35,35,21,7,1],
+      landingWeights:[5,10,15,20,20,15,10,5],
+      targetHitRequirements:[5,10,15,20,20,15,10,5],
+      normalSlotRewards:[
+        {itemId:"normalScroll",amount:50},
+        {itemId:"normalScroll",amount:20},
+        {itemId:"normalScroll",amount:10},
+        {itemId:"premiumScroll",amount:1},
+        {itemId:"normalScroll",amount:5},
+        {itemId:"normalScroll",amount:15},
+        {itemId:"normalScroll",amount:25},
+        {itemId:"premiumScroll",amount:2}
+      ],
       normalRewards:[
         {itemId:"normalScroll",amount:50,probability:5},
         {itemId:"normalScroll",amount:20,probability:10},
@@ -1095,6 +1123,9 @@ let lastAutoRollSnapshot=null;
 let pinballLaunchQueue=0;
 let pinballActiveBalls=0;
 let pinballQueueRunning=false;
+let pinballNormalDropSeq=0;
+const pinballNormalActiveDrops=new Map();
+let pinballHiddenForceFast=false;
 let pinballHoldTimer=null;
 let pinballHoldInterval=null;
 let pinballHoldActive=false;
@@ -1276,6 +1307,43 @@ function migrateV51PinballRules(cfg,pin){
   delete pin.slotRewardPool;
   cfg.configSchemaVersion=51
 }
+function migrateV52PinballOfficialRules(cfg,pin){
+  if(Number(cfg.configSchemaVersion||0)>=52)return;
+
+  // 每日進度：獲得製作卷 +10，獲得高級捲軸 +1。
+  pin.pointsPerItemObtained=[
+    {itemId:pin.craftTicketId,points:10},
+    {itemId:pin.premiumExchangeId,points:1}
+  ];
+
+  // 基金：消耗製作卷。
+  if(!pin.fund)pin.fund={};
+  pin.fund.unlockBasis="itemSpent";
+  pin.fund.unlockItemId=pin.craftTicketId;
+
+  cfg.configSchemaVersion=52
+}
+function migrateV53PinballFixedSlots(cfg,pin){
+  if(Number(cfg.configSchemaVersion||0)>=53)return;
+  pin.slotCount=8;
+  pin.normalSlotRewards=[
+    {itemId:pin.normalExchangeId,amount:50},
+    {itemId:pin.normalExchangeId,amount:20},
+    {itemId:pin.normalExchangeId,amount:10},
+    {itemId:pin.premiumExchangeId,amount:1},
+    {itemId:pin.normalExchangeId,amount:5},
+    {itemId:pin.normalExchangeId,amount:15},
+    {itemId:pin.normalExchangeId,amount:25},
+    {itemId:pin.premiumExchangeId,amount:2}
+  ];
+  pin.targetHitRequirements=[5,10,15,20,20,15,10,5];
+  if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==8){
+    pin.landingWeights=[5,10,15,20,20,15,10,5]
+  }
+  delete pin.triggerRequiredPremium;
+  delete pin.triggerRequiredNormal;
+  cfg.configSchemaVersion=53
+}
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
   if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
@@ -1316,12 +1384,24 @@ function normalizeFundConfig(cfg){
       normalExchangeId:"normalScroll",
       dailyMissionMaxGameTokens:Number(mono.dailyMissionMaxGameTokens||30),
       dailyMissionRewardItemId:"CraftTicket",
-      pointsPerItemObtained:[{itemId:"pinballBall",points:2},{itemId:"premiumScroll",points:0}],
+      pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
       randomBoxes:[],
       progressStages:clone(mono.progressStages||cfg.progressStages||[]),
       packageGroups:clone(mono.packageGroups||cfg.packageGroups||[]),
       fund:clone(mono.fund||cfg.fund||{}),
-      slotCount:8,triggerRequiredPremium:5,triggerRequiredNormal:20,hiddenBalls:200,hiddenSlotRequired:32,
+      slotCount:8,hiddenBalls:200,hiddenSlotRequired:32,
+      landingWeights:[5,10,15,20,20,15,10,5],
+      targetHitRequirements:[5,10,15,20,20,15,10,5],
+      normalSlotRewards:[
+        {itemId:"normalScroll",amount:50},
+        {itemId:"normalScroll",amount:20},
+        {itemId:"normalScroll",amount:10},
+        {itemId:"premiumScroll",amount:1},
+        {itemId:"normalScroll",amount:5},
+        {itemId:"normalScroll",amount:15},
+        {itemId:"normalScroll",amount:25},
+        {itemId:"premiumScroll",amount:2}
+      ],
       normalRewards:[],
       hiddenVaultRewards:[]
     }
@@ -1349,6 +1429,19 @@ function normalizeFundConfig(cfg){
 
   pin.dailyMissionMaxGameTokens=Math.max(0,Number(pin.dailyMissionMaxGameTokens??30));
   pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.slotCount||8))));
+  if(!Array.isArray(pin.normalSlotRewards)||!pin.normalSlotRewards.length)pin.normalSlotRewards=[
+    {itemId:pin.normalExchangeId,amount:50},
+    {itemId:pin.normalExchangeId,amount:20},
+    {itemId:pin.normalExchangeId,amount:10},
+    {itemId:pin.premiumExchangeId,amount:1},
+    {itemId:pin.normalExchangeId,amount:5},
+    {itemId:pin.normalExchangeId,amount:15},
+    {itemId:pin.normalExchangeId,amount:25},
+    {itemId:pin.premiumExchangeId,amount:2}
+  ];
+  pin.slotCount=Math.max(2,Math.min(12,Math.floor(Number(pin.normalSlotRewards.length||pin.slotCount||8))));
+  pin.normalSlotRewards=pin.normalSlotRewards.slice(0,pin.slotCount).map(r=>({itemId:r?.itemId||pin.normalExchangeId,amount:Math.max(1,Math.floor(Number(r?.amount||1)))}));
+  while(pin.normalSlotRewards.length<pin.slotCount)pin.normalSlotRewards.push({itemId:pin.normalExchangeId,amount:1});
   pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
   if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
   if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
@@ -1364,26 +1457,30 @@ function normalizeFundConfig(cfg){
 
   migrateV50PinballRewardsToCraft(cfg,mono,pin);
   migrateV51PinballRules(cfg,pin);
+  migrateV52PinballOfficialRules(cfg,pin);
+  migrateV53PinballFixedSlots(cfg,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
 
   normalizeFundUnlockRule(mono.fund,mono,cfg,flagItemId);
   normalizeFundUnlockRule(pin.fund,pin,cfg,pin.gameTokenId);
 
-  // 落點權重：舊版7次公平左右碰撞的自然分布是 1:7:21:35:35:21:7:1。
+  // 最終落點是先依 8 格權重抽出目標，再播放假物理碰釘動畫。
   if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==pin.slotCount){
-    const steps=Math.max(1,pin.slotCount-1);
-    pin.landingWeights=Array.from({length:pin.slotCount},(_,k)=>{
-      let c=1;
-      for(let i=1;i<=k;i++)c=c*(steps-k+i)/i;
-      return c
-    })
+    const base=[5,10,15,20,20,15,10,5];
+    pin.landingWeights=Array.from({length:pin.slotCount},(_,k)=>Number(base[k]??1))
   }
-  pin.landingWeights=pin.landingWeights.map(x=>Math.max(0,Number(x||0)));
+  pin.landingWeights=pin.landingWeights.slice(0,pin.slotCount).map(x=>Math.max(0,Number(x||0)));
+  while(pin.landingWeights.length<pin.slotCount)pin.landingWeights.push(1);
   if(!pin.landingWeights.some(x=>x>0))pin.landingWeights=pin.landingWeights.map(()=>1);
 
-  pin.triggerRequiredPremium=Math.max(1,Math.floor(Number(pin.triggerRequiredPremium||5)));
-  pin.triggerRequiredNormal=Math.max(1,Math.floor(Number(pin.triggerRequiredNormal||20)));
+  if(!Array.isArray(pin.targetHitRequirements)||pin.targetHitRequirements.length!==pin.slotCount){
+    const base=[5,10,15,20,20,15,10,5];
+    pin.targetHitRequirements=Array.from({length:pin.slotCount},(_,k)=>Number(base[k]??20))
+  }
+  pin.targetHitRequirements=pin.targetHitRequirements.slice(0,pin.slotCount).map(x=>Math.max(1,Math.floor(Number(x||1))));
+  while(pin.targetHitRequirements.length<pin.slotCount)pin.targetHitRequirements.push(20);
+
   pin.hiddenSlotRequired=Math.max(1,Math.floor(Number(pin.hiddenSlotRequired||32)));
 
   if(!Array.isArray(pin.normalRewards)||!pin.normalRewards.length){
@@ -1499,7 +1596,7 @@ function createState(){
     fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
     gameTokenFlow:Array.from({length:config.event.totalDays},()=>({gained:0,spent:0})),
     gameplayStates:{
-      pinball:{slots:[],targetSlot:0,targetHits:0,hiddenPending:false,hiddenActive:false,hiddenRuns:0,totalDrops:0,normalDrops:0,hiddenDrops:0,boardVersion:0,lastLanding:null,hiddenSlotCounts:[],hiddenVaultClaims:0}
+      pinball:{slots:[],targetSlot:0,targetHits:0,hiddenPending:false,hiddenActive:false,hiddenRuns:0,totalDrops:0,normalDrops:0,hiddenDrops:0,boardVersion:0,lastLanding:null,hiddenSlotCounts:[],hiddenSlotRewards:[],hiddenVaultClaims:0}
     },
     lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
@@ -1563,6 +1660,7 @@ function ensureStateSchema(targetState=state,cfg=config){
   ps.boardVersion=Math.max(0,Number(ps.boardVersion||0));
   if(!Object.prototype.hasOwnProperty.call(ps,"lastLanding"))ps.lastLanding=null;
   if(!Array.isArray(ps.hiddenSlotCounts))ps.hiddenSlotCounts=[];
+  if(!Array.isArray(ps.hiddenSlotRewards))ps.hiddenSlotRewards=[];
   ps.hiddenVaultClaims=Math.max(0,Number(ps.hiddenVaultClaims||0));
   if(!Array.isArray(targetState.log))targetState.log=[];if(!Object.prototype.hasOwnProperty.call(targetState,"activeStrategy"))targetState.activeStrategy=null;
   ensureGameTokenFlow(targetState,cfg);
@@ -1873,9 +1971,9 @@ function pinballLandingPercentages(cfg=config){
 function pinballState(targetState=state){ensureStateSchema(targetState,config);return targetState.gameplayStates.pinball}
 function refreshPinballSlotRewards(targetState=state,cfg=config){
   const ps=pinballState(targetState),pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8));
-  ps.slots=Array.from({length:count},()=>{
-    const reward=clone(weightedPick(pc.normalRewards||[]));
-    return{...reward,slotTypeId:"normalMode",slotTypeName:"普通模式獎勵"}
+  ps.slots=Array.from({length:count},(_,i)=>{
+    const reward=clone((pc.normalSlotRewards||[])[i]||{itemId:pc.normalExchangeId,amount:1});
+    return{...reward,slotTypeId:"normalMode",slotTypeName:"普通模式固定獎勵"}
   });
   ps.lastLanding=null;
   ps.boardVersion=Number(ps.boardVersion||0)+1;
@@ -1886,6 +1984,7 @@ function generatePinballSlots(targetState=state,cfg=config){
   ps.targetSlot=Math.floor(Math.random()*count);
   ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.lastLanding=null;
   ps.hiddenSlotCounts=Array.from({length:count},()=>0);
+  ps.hiddenSlotRewards=[];
   ps.hiddenVaultClaims=0;
   return ps
 }
@@ -1897,18 +1996,54 @@ function ensurePinballSlots(targetState=state,cfg=config){
 }
 function pinballTargetRequired(targetState=state,cfg=config){
   const ps=ensurePinballSlots(targetState,cfg),pc=pinballSettings(cfg);
-  const reward=ps.slots[Number(ps.targetSlot)||0];
-  return reward?.itemId===pc.premiumExchangeId
-    ?Math.max(1,Number(pc.triggerRequiredPremium||5))
-    :Math.max(1,Number(pc.triggerRequiredNormal||20))
+  return Math.max(1,Math.floor(Number(pc.targetHitRequirements?.[Number(ps.targetSlot)||0]||20)))
 }
 function pickPinballHiddenVaultReward(cfg=config){
   return clone(weightedPick(pinballSettings(cfg).hiddenVaultRewards||[]))
 }
 
-function switchGameplay(type){
+function refundUnfinishedNormalPinballs(){
+  const queued=Math.max(0,Number(pinballLaunchQueue||0));
+  pinballLaunchQueue=0;
+
+  let refunded=0;
+  pinballNormalActiveDrops.forEach(meta=>{
+    if(meta.canceled)return;
+    meta.canceled=true;
+    state.resources[meta.token]=Number(state.resources[meta.token]||0)+1;
+    adjustGameTokenSpend(meta.day,-1);
+    refunded++
+  });
+
+  stopPinballHold();
+  updatePinballQueueStatus();
+
+  if(refunded||queued){
+    log(`退出彈珠機：返還 ${fmt(refunded)} 顆尚未完全下落的${item(pinballSettings().gameTokenId).name}${queued?`；取消待投入 ${fmt(queued)} 顆`:""}`)
+  }
+  return{refunded,queued}
+}
+async function settleHiddenModeBeforeExit(){
+  const ps=pinballState();
+  if(!ps.hiddenActive)return;
+  pinballHiddenForceFast=true;
+  toast("正在直接結算隱藏寶庫剩餘粉色彈球…");
+  let guard=0;
+  while(ps.hiddenActive&&guard<500){
+    await wait(20);
+    guard++
+  }
+}
+async function switchGameplay(type){
   if(rolling)return toast("目前遊戲正在執行，請稍候");
   if(!config.gameplaySettings?.[type])return toast("這個玩法尚未設定");
+  if(type===config.gameplay.type)return;
+
+  if(config.gameplay.type==="pinball"&&type!=="pinball"){
+    if(pinballState().hiddenActive)await settleHiddenModeBeforeExit();
+    refundUnfinishedNormalPinballs()
+  }
+
   config.gameplay.type=type;
   normalizeFundConfig(config);
   ensureStateSchema(state,config);
@@ -2051,7 +2186,24 @@ function pinballPegContactPointByDirection(peg,dir,metrics){
     y:peg.y - metrics.contactY
   }
 }
-async function animatePinballDrop(path,fast=false){
+function pinballSpawnOrigin(firstContact,firstDir){
+  const hole=$("pinballSpawnHole"),field=$("pinballField");
+  if(hole&&field){
+    const fr=field.getBoundingClientRect(),hr=hole.getBoundingClientRect();
+    const cx=(hr.left+hr.width/2-fr.left)/Math.max(1,fr.width)*100;
+    const half=(hr.width*.28)/Math.max(1,fr.width)*100;
+    const bias=firstDir<0?-half:firstDir>0?half:0;
+    return{
+      x:Math.max(8,Math.min(92,cx+bias+(Math.random()-.5)*Math.max(half*.35,.4))),
+      y:Math.max(2,(hr.top+hr.height*.55-fr.top)/Math.max(1,fr.height)*100)
+    }
+  }
+  return{
+    x:Math.max(8,Math.min(92,firstContact.x + (firstDir<0?-1:firstDir>0?1:0)*Math.min(3,0.9+Math.random()*1.5))),
+    y:Math.max(2,firstContact.y-8)
+  }
+}
+async function animatePinballDrop(path,fast=false,mode="normal"){
   if(fast||config.gameplay.type!=="pinball")return;
   const layer=$("pinballBallLayer");
   if(!layer)return;
@@ -2060,7 +2212,7 @@ async function animatePinballDrop(path,fast=false){
   if(!route?.length)return;
 
   const ball=document.createElement("div");
-  ball.className="pinball-ball";
+  ball.className=`pinball-ball ${mode==="hidden"?"hidden-ball":"normal-ball"}`;
   layer.appendChild(ball);
 
   const metrics=pinballPegContactMetrics();
@@ -2075,13 +2227,12 @@ async function animatePinballDrop(path,fast=false){
   const firstDir=dirs[0];
   const firstContact=contacts[0];
 
-  // 出生位置也從同側上方開始，避免先在正中間再被拉走。
-  const spawnX=firstContact.x + (firstDir<0?-1:1)*Math.min(metrics.contactX*.45,0.7);
-  const spawnY=Math.max(1,firstContact.y-8);
+  // 出生位置改成從上方洞口的左右／中間範圍出現，再朝既定目標格做假物理動畫。
+  const spawn=pinballSpawnOrigin(firstContact,firstDir);
 
   ball.style.transition="none";
-  ball.style.left=`${spawnX}%`;
-  ball.style.top=`${spawnY}%`;
+  ball.style.left=`${spawn.x}%`;
+  ball.style.top=`${spawn.y}%`;
   await wait(20);
 
   await movePinballBall(
@@ -2250,14 +2401,20 @@ async function runPinballHiddenMode({fast=false}={}){
   if(!ps.hiddenPending||ps.hiddenActive)return;
   if(pinballActiveBalls>0)return toast(`還有 ${fmt(pinballActiveBalls)} 顆普通彈珠尚未落完，請等全部落下後再開始`);
 
+  const triggerRequiredAtEntry=pinballTargetRequired();
+  const preservedTargetHits=Math.max(0,Number(ps.targetHits||0)-triggerRequiredAtEntry);
+  const previousTargetSlot=Number(ps.targetSlot||0);
+
   pinballLaunchQueue=0;
   ps.hiddenPending=false;
   ps.hiddenActive=true;
   ps.hiddenSlotCounts=Array.from({length:ps.slots.length},()=>0);
+  ps.hiddenSlotRewards=Array.from({length:ps.slots.length},()=>pickPinballHiddenVaultReward());
   ps.hiddenVaultClaims=0;
+  pinballHiddenForceFast=false;
   renderPinballBoard();
 
-  $("rollMessage").textContent=`隱藏模式開始：${fmt(count)} 顆免費彈珠；每一格各自累積 ${fmt(slotRequired)} 顆，就抽 1 次隱藏寶庫。`;
+  $("rollMessage").textContent=`隱藏模式開始：${fmt(count)} 顆免費粉色彈球自動落下；每一格各自累積 ${fmt(slotRequired)} 顆，即獲得該格顯示的獎勵。`;
 
   const tally={};
   let launched=0,completed=0;
@@ -2273,7 +2430,7 @@ async function runPinballHiddenMode({fast=false}={}){
     const slotCount=ps.hiddenSlotCounts[slot];
 
     if(slotCount%slotRequired===0){
-      const reward=pickPinballHiddenVaultReward();
+      const reward=ps.hiddenSlotRewards?.[slot];
       if(reward){
         pinballAggregateReward(tally,reward);
         ps.hiddenVaultClaims=Number(ps.hiddenVaultClaims||0)+1
@@ -2295,7 +2452,7 @@ async function runPinballHiddenMode({fast=false}={}){
   };
 
   while(launched<count){
-    const skipNow=fast||pinballSkipAnimation();
+    const skipNow=fast||pinballHiddenForceFast||pinballSkipAnimation();
     const path=pinballBouncePath();
     const slot=Math.max(0,Math.min(ps.slots.length-1,path.slot));
     launched++;
@@ -2312,7 +2469,7 @@ async function runPinballHiddenMode({fast=false}={}){
     let promise;
     promise=(async()=>{
       try{
-        await animatePinballDrop(path,false);
+        await animatePinballDrop(path,false,"hidden");
         finishHiddenBall(path,slot)
       }finally{
         pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
@@ -2339,10 +2496,19 @@ async function runPinballHiddenMode({fast=false}={}){
   const slotSummary=(ps.hiddenSlotCounts||[]).map((n,i)=>`第${i+1}格 ${fmt(n)}`).join("、");
 
   generatePinballSlots();
+  if(ps.slots.length>1&&Number(ps.targetSlot)===previousTargetSlot){
+    const choices=Array.from({length:ps.slots.length},(_,i)=>i).filter(i=>i!==previousTargetSlot);
+    ps.targetSlot=choices[Math.floor(Math.random()*choices.length)]
+  }
+  ps.targetHits=preservedTargetHits;
   ps.hiddenActive=false;
+  pinballHiddenForceFast=false;
+
+  const nextRequired=pinballTargetRequired();
+  if(ps.targetHits>=nextRequired)ps.hiddenPending=true;
 
   $("rollMessage").textContent=
-    `隱藏模式完成：${fmt(count)} 顆；單格每 ${fmt(slotRequired)} 顆共觸發 ${fmt(claims)} 次寶庫獎勵${rewardText?` → ${rewardText}`:""}。${slotSummary}。下一輪普通槽位已刷新。`;
+    `隱藏模式完成：${fmt(count)} 顆；單格每 ${fmt(slotRequired)} 顆共獲得 ${fmt(claims)} 次寶庫獎勵${rewardText?` → ${rewardText}`:""}。${slotSummary}。紅色標記已變換，超出門檻的 ${fmt(preservedTargetHits)} 次已保留${ps.hiddenPending?`，且已達新門檻 ${fmt(nextRequired)} 次`:""}。`;
   render()
 }
 async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
@@ -2352,12 +2518,21 @@ async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
   if(ps.hiddenActive){if(!silent)toast("隱藏模式執行中");return null}
   if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
   state.resources[token]-=1;adjustGameTokenSpend(state.currentDay,1);
+  const normalDropId=++pinballNormalDropSeq;
+  const normalDropMeta={id:normalDropId,token,day:state.currentDay,canceled:false};
+  pinballNormalActiveDrops.set(normalDropId,normalDropMeta);
   const path=pinballBouncePath();
   const slot=Math.max(0,Math.min(ps.slots.length-1,path.slot)),reward=ps.slots[slot];
 
   const main=$("pinballDropMainBtn");
   if(!concurrent){rolling=true;$("rollBtn").disabled=true;$("rollSelectedBtn").disabled=true}
-  await animatePinballDrop(path,fast);
+  await animatePinballDrop(path,fast,"normal");
+
+  if(normalDropMeta.canceled){
+    pinballNormalActiveDrops.delete(normalDropId);
+    if(!concurrent){rolling=false;$("rollBtn").disabled=false;$("rollSelectedBtn").disabled=false}
+    return{slot:null,reward:null,result:"已退出，彈珠已返還",triggered:false,canceled:true}
+  }
 
   addItem(reward.itemId,reward.amount,`彈珠機第 ${slot+1} 格`,true);
   ps.lastLanding=slot;ps.totalDrops++;ps.normalDrops++;
@@ -2379,9 +2554,11 @@ async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
 
   if(triggered){
     ps.hiddenPending=true;
-    $("rollMessage").textContent=`特殊格已完成 ${targetRequired}/${targetRequired}！普通投珠已暫停，請按「開始隱藏模式」。`;
+    const overflow=Math.max(0,Number(ps.targetHits||0)-targetRequired);
+    $("rollMessage").textContent=`特殊格已完成 ${fmt(ps.targetHits)}/${fmt(targetRequired)}！普通投珠已暫停，請按「開始隱藏模式」。${overflow?`超出的 ${fmt(overflow)} 次會保留到下一輪。`:""}`;
     render()
   }
+  pinballNormalActiveDrops.delete(normalDropId);
   return{slot,reward,result,triggered}
 }
 async function dropPinballs(count){
@@ -2549,20 +2726,20 @@ function renderPinballBoard(){
     :`${ps.slots.length} 格｜特殊格 ${fmt(ps.targetHits)}/${fmt(targetRequired)}｜隱藏模式 ${fmt(pc.hiddenBalls)} 顆｜第 ${ps.boardVersion} 組`;
   $("multiplierWrap").style.display="none";
   $("autoRollBtn").textContent="自動使用全部彈珠";
-  $("pinballDropMainBtn").textContent="投入彈珠（可連點／長按）";
+  $("pinballDropMainBtn").textContent="開始投入彈珠（可連點／長按）";
 
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="pinball"));
-  const pegs=$("pinballPegs"),rows=Math.max(1,ps.slots.length-1),cols=Math.max(2,ps.slots.length-1);
-  if(pegs&&(Number(pegs.dataset.rows)!==rows||Number(pegs.dataset.cols)!==cols)){
-    pegs.dataset.rows=rows;pegs.dataset.cols=cols;
-    const spacing=100/(cols+1);
-    pegs.innerHTML=Array.from({length:rows*cols},(_,i)=>{
-      const row=Math.floor(i/cols),col=i%cols;
-      // 奇數排真正平移半個「格距」，不是半個釘子寬度。
-      const stagger=row%2?spacing/2:0;
-      const x=Math.min(97,(col+1)*spacing+stagger);
-      const y=rows===1?50:(row/(rows-1))*100;
-      return `<span class="pinball-peg" style="left:${x}%;top:${y}%" data-peg-row="${row}" data-peg-col="${col}"></span>`
+  const pegs=$("pinballPegs"),pegPattern=ps.slots.length===8?[3,4,5,6,7,6,5]:Array.from({length:Math.max(4,ps.slots.length-1)},(_,i)=>Math.max(3,Math.min(ps.slots.length-1,3+i)));
+  const pegSignature=pegPattern.join("-");
+  if(pegs&&pegs.dataset.signature!==pegSignature){
+    pegs.dataset.signature=pegSignature;
+    pegs.innerHTML=pegPattern.map((count,row)=>{
+      const start=50-((count-1)*10)/2;
+      const y=pegPattern.length===1?50:(row/(pegPattern.length-1))*100;
+      return Array.from({length:count},(_,col)=>{
+        const x=start+col*10;
+        return `<span class="pinball-peg" style="left:${x}%;top:${y}%" data-peg-row="${row}" data-peg-col="${col}"></span>`
+      }).join("")
     }).join("")
   }
   $("pinballSlots").style.gridTemplateColumns=`repeat(${ps.slots.length},minmax(0,1fr))`;
@@ -2571,10 +2748,11 @@ function renderPinballBoard(){
     if(ps.hiddenActive){
       const total=Number(ps.hiddenSlotCounts?.[i]||0),required=Math.max(1,Number(pc.hiddenSlotRequired||32));
       const earned=Math.floor(total/required),progress=total%required;
-      return `<div class="pinball-slot" data-hidden-slot="${i}" title="隱藏寶庫｜第 ${i+1} 格累積 ${fmt(total)} 顆｜每 ${fmt(required)} 顆獲得1次獎勵｜落點約 ${fmt(landingPct)}%" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
+      const reward=ps.hiddenSlotRewards?.[i],rit=reward?item(reward.itemId):{icon:"🎁",name:"寶庫"};
+      return `<div class="pinball-slot" data-hidden-slot="${i}" title="隱藏寶庫｜${escapeHtml(rit.name)}${reward?` ×${fmt(reward.amount)}`:""}｜第 ${i+1} 格累積 ${fmt(total)} 顆｜每 ${fmt(required)} 顆獲得1次｜落點約 ${fmt(landingPct)}%" ${i===ps.lastLanding?'style="filter:brightness(1.18)"':""}>
         <span class="pinball-hidden-count">${fmt(progress)}/${fmt(required)}${earned?` ·獎${fmt(earned)}`:""}</span>
-        <span class="slot-icon">🎁</span>
-        <span class="slot-amount">寶庫</span>
+        <span class="slot-icon">${escapeHtml(rit.icon||"🎁")}</span>
+        <span class="slot-amount">${reward?`×${fmt(reward.amount)}`:"寶庫"}</span>
       </div>`
     }
     const it=item(reward.itemId),target=i===Number(ps.targetSlot);
@@ -2613,10 +2791,10 @@ function renderPinballBoard(){
   $("pinballCraftMaxBtn").disabled=craftable<1;
   $("pinballCraftBtn").title=ballHeld>=cap?`${item(ballId).name}已達 ${fmt(cap)} 上限，請先消耗`:`1 ${item(craftId).unit||"張"}${item(craftId).name} → 1 ${item(ballId).unit||"顆"}${item(ballId).name}`;
   $("pinballStatus").textContent=ps.hiddenActive
-    ?`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費彈珠；每格各自累積 ${fmt(pc.hiddenSlotRequired)} 顆獲得1次寶庫獎勵。`
+    ?`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費粉色彈珠；每格各自累積 ${fmt(pc.hiddenSlotRequired)} 顆就獲得該格獎勵。`
     :pending
       ?`特殊格 ${fmt(targetRequired)}/${fmt(targetRequired)} 已完成。普通投珠暫停，請手動開始隱藏模式。`
-      :`特殊格在第 ${Number(ps.targetSlot)+1} 格（${item(ps.slots[ps.targetSlot]?.itemId).name}），目前 ${fmt(ps.targetHits)}/${fmt(targetRequired)}；高級卷軸格需 ${fmt(pc.triggerRequiredPremium)}，普通卷軸格需 ${fmt(pc.triggerRequiredNormal)}。`
+      :`特殊格在第 ${Number(ps.targetSlot)+1} 格（${item(ps.slots[ps.targetSlot]?.itemId).name} ×${fmt(ps.slots[ps.targetSlot]?.amount||0)}），目前 ${fmt(ps.targetHits)}/${fmt(targetRequired)}；本格門檻 ${fmt(targetRequired)} 次。`
 }
 function renderBoard(){
   if(config.gameplay.type==="pinball"){renderPinballBoard();return}
@@ -5448,7 +5626,8 @@ function renderDistribution(){
     if(ps.hiddenActive){
       $("distribution").innerHTML=ps.slots.map((_,i)=>{
         const n=Number(ps.hiddenSlotCounts?.[i]||0),req=Math.max(1,Number(pc.hiddenSlotRequired||32));
-        return `<div class="resource-row"><span>🎁 第 ${i+1} 格隱藏寶庫</span><strong>${fmt(n)} 顆｜已獲得 ${fmt(Math.floor(n/req))} 次</strong></div>`
+        const reward=ps.hiddenSlotRewards?.[i],rewardText=reward?`${item(reward.itemId).icon||""}${item(reward.itemId).name}×${fmt(reward.amount)}`:"寶庫";
+        return `<div class="resource-row"><span>🎁 第 ${i+1} 格・${escapeHtml(rewardText)}</span><strong>${fmt(n)}/${fmt(req)}｜已獲得 ${fmt(Math.floor(n/req))} 次</strong></div>`
       }).join("")
     }else{
       $("distribution").innerHTML=ps.slots.map((r,i)=>`<div class="resource-row"><span>${i===ps.targetSlot?"🎯 ":""}第 ${i+1} 格・${escapeHtml(item(r.itemId).icon||"")} ${escapeHtml(item(r.itemId).name)}</span><strong>×${fmt(r.amount)}｜${fmt(landingPct[i]||0)}%</strong></div>`).join("")
@@ -5469,8 +5648,10 @@ function renderScoreRules(){
   if(config.gameplay.type==="monopoly")rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
   else{
     const pc=pinballSettings();
-    rows.push(`特殊格：高級卷軸需 ${fmt(pc.triggerRequiredPremium)} 顆；普通卷軸需 ${fmt(pc.triggerRequiredNormal)} 顆`);
-    rows.push(`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費彈珠；單格每累積 ${fmt(pc.hiddenSlotRequired)} 顆抽 1 次隱藏寶庫`)
+    rows.push(`每日進度：每獲得 1 ${item(pc.craftTicketId).name} +10 分；每獲得 1 ${item(pc.premiumExchangeId).name} +1 分`);
+    rows.push(`基金：每消耗 1 ${item(pc.craftTicketId).name} 累積 1`);
+    rows.push(`特殊格門檻：${(pc.targetHitRequirements||[]).map((n,i)=>`第${i+1}格 ${fmt(n)}`).join("｜")}（超出門檻次數保留）`);
+    rows.push(`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費粉色彈球；單格每累積 ${fmt(pc.hiddenSlotRequired)} 顆獲得該格獎勵`)
   }
   $("scoreRules").innerHTML=`<div><strong>目前玩法：${config.gameplay.type==="pinball"?"彈珠機":"大富翁"}</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 }
@@ -5660,7 +5841,7 @@ function renderSettings(){
         <div class="field"><label>隱藏模式免費彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式單格獎勵門檻</label>${pathInput("gameplaySettings.pinball.hiddenSlotRequired",c.gameplaySettings.pinball.hiddenSlotRequired,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">普通模式每格直接依下方「普通模式獎勵機率」刷新。被選為特殊格時，如果該格是高級卷軸，累積指定次數後進入隱藏模式；普通卷軸則使用另一個門檻。隱藏模式中每個底格獨立累積，單格達門檻就抽一次隱藏寶庫獎勵。</div>
+      <div class="help">製作卷 1:1 轉成綠色彈球後，必須按「開始投入彈珠」才會掉落。普通模式底部 8 格獎勵固定，由左到右顯示；紅色特殊格門檻也改成依位置獨立設定。最終落點不是靠真實物理分布，而是先依各格權重抽出目標，再播放模擬碰釘動畫。離開彈珠機時，普通模式未落完的綠色彈球會返還；隱藏寶庫則會直接快速結算剩餘粉色彈球。</div>
     </div>
 
     <div class="editor-head"><div><h3>落點位置權重</h3><div class="help">直接控制彈珠最後落入各位置的機率。動畫會依抽中的格子，自動產生一條真的能走到該格的左右碰釘路徑。</div></div></div>
