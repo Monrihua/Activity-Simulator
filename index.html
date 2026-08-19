@@ -323,6 +323,16 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .side-stack{grid-template-columns:1fr}
   .tabs{flex-wrap:wrap;overflow:visible}
   .tab-btn{flex:1 1 auto;text-align:center}
+  .tab-toolbar .tabs{
+    display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;
+    overflow:visible;padding-bottom:0;width:100%
+  }
+  .tab-toolbar .tabs .tab-btn{
+    width:100%;min-width:0;min-height:54px;display:flex;align-items:center;justify-content:center;
+    white-space:normal;line-height:1.15;padding:8px 6px
+  }
+  .tab-toolbar .tabs .tab-btn:nth-child(5),
+  .tab-toolbar .tabs .tab-btn:nth-child(6){grid-column:span 2}
   .settings-main{grid-template-columns:1fr}
   .settings-nav{display:flex;overflow:visible;padding:8px;gap:6px;flex-wrap:wrap}
   .settings-nav button{width:auto;white-space:nowrap;margin:0;flex:0 0 auto}
@@ -572,7 +582,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .exchange-shop-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .exchange-shop-actions input{width:76px;height:38px;text-align:center}
 .exchange-setting-card{margin-bottom:10px}
-(max-width:720px){
+@media(max-width:720px){
   .fund-goal-grid{grid-template-columns:1fr 90px}
   .fund-goal-grid .field:last-child{grid-column:1/-1}
   .box-open-controls{grid-template-columns:minmax(0,1fr) 84px;grid-template-areas:"select count" "open open" "all undo";align-items:stretch}
@@ -583,7 +593,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .box-open-controls #undoBoxBtn{grid-area:undo}
   .box-open-controls .btn{width:100%;min-width:0;height:48px;white-space:normal;line-height:1.15;padding:8px 10px}
 }
-(max-width:480px){
+@media(max-width:480px){
   .fund-goal-grid{grid-template-columns:1fr}
   .fund-goal-grid .field:last-child{grid-column:auto}
   .box-open-controls{grid-template-columns:minmax(0,1fr) 78px;gap:7px}
