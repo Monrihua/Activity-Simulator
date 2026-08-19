@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜背包與每日進度折疊修正版 v69</title>
+<title>卡皮巴拉活動模擬器｜發現Bug或有操作優化建議請找卡皮巴拉公會｜伺服器：TC-217「貓窩」會長：梦 璃花|ID:8479986</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -359,17 +359,22 @@ button:disabled{cursor:not-allowed;opacity:.45}
 
 .daily-progress-section{margin-top:12px;border:2px solid #dce6ed;border-radius:16px;background:#fbfdff;overflow:hidden}
 .daily-progress-toolbar{padding:10px;background:#f4f8fb}
-.daily-progress-toggle{width:100%;border:0;background:transparent;color:#27384d;padding:0;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-weight:1000;font-size:17px}
-.daily-progress-toggle .toggle-state{font-size:12px;color:#718096}
-.daily-progress-compact{display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px}
+.daily-progress-title{font-size:17px;font-weight:1000;color:#27384d}
+.daily-progress-compact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px}
 .daily-progress-compact .mini{border:1px solid #dce6ed;border-radius:10px;background:#fff;padding:8px;min-width:0}
 .daily-progress-compact .k{font-size:10px;color:#718096;font-weight:900}
 .daily-progress-compact .v{margin-top:2px;font-size:15px;font-weight:1000;color:#26384e;word-break:break-word}
 .daily-progress-bulk-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
 .daily-progress-bulk-actions .btn{width:100%;height:40px}
-.daily-progress-body{padding:0 10px 10px}
-.daily-progress-section.collapsed .daily-progress-body{display:none}
-.daily-progress-section.collapsed .daily-progress-compact{display:grid}
+.daily-progress-main{padding:0 10px 10px}
+.daily-progress-stage-toggle{
+  width:calc(100% - 20px);margin:0 10px 10px;border:1px solid #dce6ed;border-radius:11px;
+  background:#f4f8fb;color:#3d5066;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;
+  gap:8px;text-align:left;font-weight:1000
+}
+.daily-progress-stage-toggle .toggle-state{font-size:12px;color:#718096}
+.daily-progress-stage-body{padding:0 10px 10px}
+.daily-progress-section.collapsed .daily-progress-stage-body{display:none}
 @media(max-width:520px){
   .daily-progress-toolbar{padding:9px}
   .daily-progress-compact{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
@@ -377,6 +382,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
   .daily-progress-compact .k{font-size:9px}
   .daily-progress-compact .v{font-size:13px}
   .daily-progress-bulk-actions .btn{height:42px;font-size:13px}
+  .daily-progress-stage-toggle{width:calc(100% - 18px);margin:0 9px 9px}
 }
 
 .daily-dice-stats{
@@ -487,8 +493,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .pinball-peg.offset{transform:translate(-50%,-50%)}
 .pinball-ball-layer{position:absolute;inset:0;pointer-events:none;z-index:4}
 .pinball-ball{
-  position:absolute;width:20px;height:20px;border-radius:50%;left:50%;top:4%;
-  margin-left:-10px;margin-top:-10px;background:radial-gradient(circle at 35% 30%,#fff,#f0f0ff 28%,#b4b4d5 68%,#68647e);
+  position:absolute;width:18px;height:18px;border-radius:50%;left:50%;top:4%;
+  margin-left:-9px;margin-top:-9px;background:radial-gradient(circle at 35% 30%,#fff,#f0f0ff 28%,#b4b4d5 68%,#68647e);
   border:2px solid #555269;box-shadow:0 3px 7px rgba(0,0,0,.65);
   transition:left .105s cubic-bezier(.35,.05,.65,1),top .105s linear,transform .09s ease;
   z-index:6
@@ -684,8 +690,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
   <header class="hero">
     <div class="hero-row">
       <div>
-        <h1 id="eventName">卡皮巴拉活動</h1>
-        <p>共用活動環境＋可擴充遊戲玩法的模擬器</p>
+        <h1 id="eventName">卡皮巴拉活動模擬器</h1>
+        <p id="eventTitleSuffix">｜發現Bug或有操作優化建議請找卡皮巴拉公會｜伺服器：TC-217「貓窩」會長：梦 璃花|ID:8479986</p>
       </div>
       <div class="hero-actions">
         <button class="btn secondary" id="undoBtn" disabled>↶ 復原上一步</button>
@@ -795,7 +801,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <button class="tab-btn active" data-tab="daily">每日進度</button>
             <button class="tab-btn" data-tab="packages">每日禮包</button>
             <button class="tab-btn" data-tab="shop">兌換商店</button>
-            <button class="tab-btn" data-tab="inventory">背包與箱子</button>
+            <button class="tab-btn" data-tab="inventory">背包</button>
             <button class="tab-btn" data-tab="simulation">批次模擬</button>
             <button class="tab-btn" data-tab="log">模擬紀錄</button>
           </div>
@@ -820,19 +826,23 @@ button:disabled{cursor:not-allowed;opacity:.45}
 
           <section class="daily-progress-section collapsed" id="dailyProgressSection">
             <div class="daily-progress-toolbar">
-              <button class="daily-progress-toggle" id="dailyProgressToggle" type="button" aria-expanded="false">
-                <span>🎁 每日進度獎勵</span><span class="toggle-state" id="dailyProgressToggleText">展開</span>
-              </button>
+              <div class="daily-progress-title">🎁 每日進度獎勵</div>
               <div class="daily-progress-compact" id="dailyProgressCompact"></div>
               <div class="daily-progress-bulk-actions">
                 <button class="btn" id="claimAllStagesBtn" type="button">全部領取</button>
                 <button class="btn secondary" id="refundAllStagesBtn" type="button">全部退回</button>
               </div>
             </div>
-            <div class="daily-progress-body" id="dailyProgressBody">
+            <div class="daily-progress-main">
               <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
               <div class="help" id="progressText"></div>
-              <div class="list" id="stageList" style="margin-top:10px"></div>
+            </div>
+            <button class="daily-progress-stage-toggle" id="dailyProgressToggle" type="button" aria-expanded="false">
+              <span id="dailyProgressStageLabel">第 1～5 階獎勵明細</span>
+              <span class="toggle-state" id="dailyProgressToggleText">展開</span>
+            </button>
+            <div class="daily-progress-stage-body" id="dailyProgressStageBody">
+              <div class="list" id="stageList"></div>
             </div>
           </section>
 
@@ -1016,8 +1026,14 @@ button:disabled{cursor:not-allowed;opacity:.45}
 <script>
 "use strict";
 
+const FIXED_EVENT_TITLE_SUFFIX='發現Bug或有操作優化建議請找卡皮巴拉公會｜伺服器：TC-217「貓窩」會長：梦 璃花|ID:8479986';
+function eventDisplayTitle(cfg){
+  const base=String(cfg?.event?.name||"卡皮巴拉活動模擬器").trim()||"卡皮巴拉活動模擬器";
+  return `${base}｜${FIXED_EVENT_TITLE_SUFFIX}`
+}
+
 const DEFAULT_CONFIG = {
-  event:{name:"卡皮巴拉活動",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
+  event:{name:"卡皮巴拉活動模擬器",totalDays:7,dayLabels:["週一","週二","週三","週四","週五","週六","週日"]},
   gameplay:{type:"monopoly"},
   gameplaySettings:{
     monopoly:{
@@ -1552,7 +1568,11 @@ function migrateV65ExchangeShop(cfg,mono,pin){
 }
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
-  if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
+  let eventBaseName=String(cfg.event.name||"").trim();
+  const fixedFullSuffix=`｜${FIXED_EVENT_TITLE_SUFFIX}`;
+  if(eventBaseName.endsWith(fixedFullSuffix))eventBaseName=eventBaseName.slice(0,-fixedFullSuffix.length).trim();
+  if(!eventBaseName||["夏日環遊","卡皮巴拉","卡皮巴拉活動"].includes(eventBaseName))eventBaseName="卡皮巴拉活動模擬器";
+  cfg.event.name=eventBaseName;
   if(!cfg.gameplay||typeof cfg.gameplay!=="object")cfg.gameplay={type:"monopoly"};
   if(!cfg.gameplay.type)cfg.gameplay.type="monopoly";
   if(!Array.isArray(cfg.items))cfg.items=[];
@@ -5893,6 +5913,8 @@ function renderDaily(){
   $("dailyProgressSection").classList.toggle("collapsed",dailyProgressCollapsed);
   $("dailyProgressToggle").setAttribute("aria-expanded",String(!dailyProgressCollapsed));
   $("dailyProgressToggleText").textContent=dailyProgressCollapsed?"展開":"收合";
+  const firstStage=sortedStages[0]?.stage??1,lastStage=sortedStages.at(-1)?.stage??sortedStages.length;
+  $("dailyProgressStageLabel").textContent=`第 ${firstStage}～${lastStage} 階獎勵明細`;
   $("claimAllStagesBtn").disabled=!sortedStages.some(stage=>!dayState().claimedStages.includes(stage.stage)&&dayState().score>=Number(stage.requiredScore));
   $("refundAllStagesBtn").disabled=!sortedStages.some(stage=>dayState().claimedStages.includes(stage.stage));
 
@@ -6053,6 +6075,8 @@ function renderLog(){
 }
 function render(){
   $("eventName").textContent=config.event.name;
+  $("eventTitleSuffix").textContent=`｜${FIXED_EVENT_TITLE_SUFFIX}`;
+  document.title=eventDisplayTitle(config);
   renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderExchangeShop();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
 }
 function save(){
@@ -6126,7 +6150,9 @@ function renderSettings(){
       <span class="badge ok">共用環境</span>
     </div>
     <div class="setting-grid">
-      <div class="field"><label>標題設定</label>${pathInput("event.name",c.event.name)}</div>
+      <div class="field"><label>標題前半段（可修改）</label>${pathInput("event.name",c.event.name)}</div>
+      <div class="field"><label>固定後半段（不可修改）</label><input class="input" value="${escapeHtml(FIXED_EVENT_TITLE_SUFFIX)}" readonly></div>
+      <div class="field"><label>完整標題預覽</label><input class="input" value="${escapeHtml(eventDisplayTitle(c))}" readonly></div>
       <div class="field"><label>活動天數</label>${pathInput("event.totalDays",c.event.totalDays,"number",'min="1" max="30"')}</div>
       <div class="field"><label>購買試算</label><label class="checkline"><input type="checkbox" data-path="simulator.allowInsufficientCost" ${c.simulator.allowInsufficientCost?"checked":""}> 資源不足仍可購買，只記錄支出</label></div>
     </div>
