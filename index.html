@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜隱藏自動商店與基金目標版 v65</title>
+<title>活動玩法模擬器｜出球槽與狀態精簡版 v66</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -426,14 +426,21 @@ button:disabled{cursor:not-allowed;opacity:.45}
   border:4px solid #625568;box-shadow:inset 0 0 30px rgba(0,0,0,.45)
 }
 .pinball-spawn-hole{
-  position:absolute;left:50%;top:4.8%;transform:translateX(-50%);
-  width:18%;height:5.8%;border-radius:999px;z-index:5;pointer-events:none;
-  background:radial-gradient(ellipse at center,#06050b 0%,#090711 48%,#1c1524 78%,rgba(255,255,255,.08) 100%);
-  box-shadow:inset 0 2px 10px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.08)
+  /* 出球槽一路接到彈珠台頂端，球在槽內生成，離開下緣後才會看見 */
+  position:absolute;left:50%;top:-1.5%;transform:translateX(-50%);
+  width:25%;height:12%;border-radius:0 0 999px 999px;z-index:8;pointer-events:none;overflow:hidden;
+  background:linear-gradient(180deg,#100d18 0%,#100d18 46%,#17121f 72%,#241c2d 100%);
+  border:2px solid #352d40;border-top:0;
+  box-shadow:inset 0 -8px 13px rgba(0,0,0,.72),0 3px 8px rgba(0,0,0,.42)
+}
+.pinball-spawn-hole::before{
+  content:"";position:absolute;left:8%;right:8%;bottom:9%;height:35%;border-radius:999px;
+  background:radial-gradient(ellipse at center,#020207 0%,#06050b 57%,#17121e 78%,#342a3c 100%);
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.08)
 }
 .pinball-spawn-hole::after{
-  content:"";position:absolute;left:14%;right:14%;top:18%;height:28%;border-radius:999px;
-  background:linear-gradient(180deg,rgba(255,255,255,.18),rgba(255,255,255,0))
+  content:"";position:absolute;left:19%;right:19%;bottom:30%;height:8%;border-radius:999px;
+  background:rgba(255,255,255,.08);filter:blur(.5px)
 }
 .pinball-pegs{
   /* 與下方8格獎勵區同寬；最底排7根釘子對齊8格之間的7條分界線 */
@@ -554,7 +561,9 @@ button:disabled{cursor:not-allowed;opacity:.45}
 }
 .fund-goal-grid{display:grid;grid-template-columns:minmax(150px,1.25fr) 100px 140px;gap:8px;align-items:end}
 .fund-goal-result{margin-top:8px;padding:8px 10px;border-radius:10px;background:#eef5fa;color:#2f4254;font-size:12px;font-weight:800;line-height:1.45}
-.box-open-controls{display:grid;grid-template-columns:minmax(170px,1fr) 90px auto auto auto;gap:8px;align-items:center;margin-bottom:9px}
+.box-open-controls{display:grid;grid-template-columns:minmax(180px,1fr) 92px auto auto auto;gap:8px;align-items:center;margin-bottom:9px;min-width:0}
+.box-open-controls > *{min-width:0}
+.box-open-controls select,.box-open-controls input{width:100%}
 .box-open-controls input{height:42px}
 .exchange-shop-list{display:grid;gap:9px}
 .exchange-shop-card{border:1px solid #d8e2ea;border-radius:14px;background:#f8fafc;padding:11px}
@@ -563,16 +572,21 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .exchange-shop-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .exchange-shop-actions input{width:76px;height:38px;text-align:center}
 .exchange-setting-card{margin-bottom:10px}
-@media(max-width:720px){
+(max-width:720px){
   .fund-goal-grid{grid-template-columns:1fr 90px}
   .fund-goal-grid .field:last-child{grid-column:1/-1}
-  .box-open-controls{grid-template-columns:1fr 80px 1fr}
-  .box-open-controls #openAllBoxesBtn,.box-open-controls #undoBoxBtn{grid-column:auto}
+  .box-open-controls{grid-template-columns:minmax(0,1fr) 84px;grid-template-areas:"select count" "open open" "all undo";align-items:stretch}
+  .box-open-controls #boxSelect{grid-area:select}
+  .box-open-controls #boxOpenCount{grid-area:count}
+  .box-open-controls #openOneBoxBtn{grid-area:open}
+  .box-open-controls #openAllBoxesBtn{grid-area:all}
+  .box-open-controls #undoBoxBtn{grid-area:undo}
+  .box-open-controls .btn{width:100%;min-width:0;height:48px;white-space:normal;line-height:1.15;padding:8px 10px}
 }
-@media(max-width:480px){
+(max-width:480px){
   .fund-goal-grid{grid-template-columns:1fr}
   .fund-goal-grid .field:last-child{grid-column:auto}
-  .box-open-controls{grid-template-columns:1fr 76px}
+  .box-open-controls{grid-template-columns:minmax(0,1fr) 78px;gap:7px}
   .box-open-controls button{width:100%}
   .exchange-shop-actions{width:100%}
   .exchange-shop-actions input{flex:1;min-width:70px}
@@ -757,8 +771,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <button class="tab-btn active" data-tab="daily">每日進度</button>
             <button class="tab-btn" data-tab="packages">每日禮包</button>
             <button class="tab-btn" data-tab="shop">兌換商店</button>
-            <button class="tab-btn" data-tab="simulation">批次模擬</button>
             <button class="tab-btn" data-tab="inventory">背包與箱子</button>
+            <button class="tab-btn" data-tab="simulation">批次模擬</button>
             <button class="tab-btn" data-tab="log">模擬紀錄</button>
           </div>
           <div class="mini-week-switch" id="miniWeekSwitch" aria-label="快速切換活動日"></div>
@@ -2373,11 +2387,14 @@ function pinballSpawnOrigin(firstContact,firstDir){
   if(hole&&field){
     const fr=field.getBoundingClientRect(),hr=hole.getBoundingClientRect();
     const cx=(hr.left+hr.width/2-fr.left)/Math.max(1,fr.width)*100;
-    const half=(hr.width*.28)/Math.max(1,fr.width)*100;
-    const bias=firstDir<0?-half:firstDir>0?half:0;
-    return{x:Math.max(8,Math.min(92,cx+bias+(Math.random()-.5)*Math.max(half*.35,.4))),y:Math.max(2,(hr.top+hr.height*.55-fr.top)/Math.max(1,fr.height)*100)}
+    const spread=(hr.width*.34)/Math.max(1,fr.width)*100;
+    const sideBias=(firstDir<0?-1:firstDir>0?1:0)*spread*.14;
+    const x=cx+sideBias+(Math.random()*2-1)*spread;
+    // 生成點藏在槽內；槽本身位於球層上方，直到球離開槽口才會顯示。
+    const y=(hr.top+hr.height*.47-fr.top)/Math.max(1,fr.height)*100;
+    return{x:Math.max(8,Math.min(92,x)),y:Math.max(-1,y)}
   }
-  return{x:Math.max(8,Math.min(92,firstContact.x+(firstDir<0?-1:firstDir>0?1:0)*Math.min(3,0.9+Math.random()*1.5))),y:Math.max(2,firstContact.y-8)}
+  return{x:Math.max(8,Math.min(92,firstContact.x+(Math.random()-.5)*6)),y:Math.max(0,firstContact.y-9)}
 }
 async function animatePinballDrop(path,fast=false,mode="normal"){
   if(fast||config.gameplay.type!=="pinball")return;
@@ -2959,11 +2976,13 @@ function renderPinballBoard(){
   $("pinballCraftBtn").disabled=craftable<1;
   $("pinballCraftMaxBtn").disabled=craftable<1;
   $("pinballCraftBtn").title=ballHeld>=cap?`${item(ballId).name}已達 ${fmt(cap)} 上限，請先消耗`:`1 ${item(craftId).unit||"張"}${item(craftId).name} → 1 ${item(ballId).unit||"顆"}${item(ballId).name}`;
-  $("pinballStatus").textContent=ps.hiddenActive
+  const statusEl=$("pinballStatus");
+  statusEl.hidden=!ps.hiddenActive&&!pending;
+  statusEl.textContent=ps.hiddenActive
     ?`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費粉色彈珠；每格各自累積 ${fmt(pc.hiddenSlotRequired)} 顆就獲得該格獎勵。`
     :pending
-      ?`特殊格 ${fmt(targetRequired)}/${fmt(targetRequired)} 已完成。普通投珠暫停，待場上彈珠落完後將自動開始隱藏模式。`
-      :`特殊格在第 ${Number(ps.targetSlot)+1} 格（${item(ps.slots[ps.targetSlot]?.itemId).name} ×${fmt(ps.slots[ps.targetSlot]?.amount||0)}），目前 ${fmt(ps.targetHits)}/${fmt(targetRequired)}；本格門檻 ${fmt(targetRequired)} 次。`
+      ?`特殊格已達門檻。普通投珠暫停，待場上彈珠落完後將自動開始隱藏模式。`
+      :""
 }
 function renderBoard(){
   if(config.gameplay.type==="pinball"){renderPinballBoard();return}
