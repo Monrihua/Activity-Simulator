@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>活動玩法模擬器｜彈珠操作整合與隱藏自動版 v64</title>
+<title>活動玩法模擬器｜隱藏自動商店與基金目標版 v65</title>
 <style>
 :root{
   --ink:#263248;--muted:#718096;--line:#dce5ef;--paper:#fff;
@@ -549,6 +549,34 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .pinball-craft-title{font-weight:1000;font-size:13px}
 .pinball-craft-status{font-size:11px;color:#c9c2d5;font-weight:900}
 .pinball-ball{will-change:left,top,transform}
+.fund-goal-tool{
+  margin:8px 0 10px;padding:10px;border:1px solid #d7e1e9;border-radius:13px;background:#f7fafc
+}
+.fund-goal-grid{display:grid;grid-template-columns:minmax(150px,1.25fr) 100px 140px;gap:8px;align-items:end}
+.fund-goal-result{margin-top:8px;padding:8px 10px;border-radius:10px;background:#eef5fa;color:#2f4254;font-size:12px;font-weight:800;line-height:1.45}
+.box-open-controls{display:grid;grid-template-columns:minmax(170px,1fr) 90px auto auto auto;gap:8px;align-items:center;margin-bottom:9px}
+.box-open-controls input{height:42px}
+.exchange-shop-list{display:grid;gap:9px}
+.exchange-shop-card{border:1px solid #d8e2ea;border-radius:14px;background:#f8fafc;padding:11px}
+.exchange-shop-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.exchange-shop-desc{font-size:12px;color:#627485;line-height:1.5;margin-top:4px}
+.exchange-shop-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.exchange-shop-actions input{width:76px;height:38px;text-align:center}
+.exchange-setting-card{margin-bottom:10px}
+@media(max-width:720px){
+  .fund-goal-grid{grid-template-columns:1fr 90px}
+  .fund-goal-grid .field:last-child{grid-column:1/-1}
+  .box-open-controls{grid-template-columns:1fr 80px 1fr}
+  .box-open-controls #openAllBoxesBtn,.box-open-controls #undoBoxBtn{grid-column:auto}
+}
+@media(max-width:480px){
+  .fund-goal-grid{grid-template-columns:1fr}
+  .fund-goal-grid .field:last-child{grid-column:auto}
+  .box-open-controls{grid-template-columns:1fr 76px}
+  .box-open-controls button{width:100%}
+  .exchange-shop-actions{width:100%}
+  .exchange-shop-actions input{flex:1;min-width:70px}
+}
 @media(max-width:720px){
   .pinball-controls{
     grid-template-columns:72px 1fr 1fr;
@@ -677,7 +705,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               <div class="pinball-slots" id="pinballSlots"></div>
             </div>
             <div class="pinball-hidden-banner" id="pinballHiddenBanner">✨ 隱藏模式</div>
-            <button class="pinball-hidden-start" id="pinballHiddenStartBtn">開始隱藏模式（200 顆）</button>
+            <button class="pinball-hidden-start" id="pinballHiddenStartBtn">跳過動畫</button>
             <div class="pinball-footer">
               <div>
                 <div class="pinball-progress"><div id="pinballHiddenProgress"></div></div>
@@ -690,7 +718,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               <button class="btn secondary small pinball-craft-max" id="pinballCraftMaxBtn" title="製作目前可用的最大數量">全部製作</button>
               <button class="pinball-hold-btn" id="pinballDropMainBtn">投入彈珠（長按1秒自動）</button>
             </div>
-            <label class="pinball-auto-toggle"><input type="checkbox" id="pinballAutoStartHidden"> 進入隱藏模式後自動開始</label>
+            <label class="pinball-auto-toggle"><input type="checkbox" id="pinballSkipNormalAnimation"> 普通模式跳過動畫</label>
             <div class="pinball-queue-status" id="pinballQueueStatus">待投入 0 顆｜場上 0 顆</div>
             <div class="pinball-craft-panel" id="pinballCraftPanel">
               <div class="pinball-craft-head">
@@ -728,6 +756,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <div class="tabs">
             <button class="tab-btn active" data-tab="daily">每日進度</button>
             <button class="tab-btn" data-tab="packages">每日禮包</button>
+            <button class="tab-btn" data-tab="shop">兌換商店</button>
             <button class="tab-btn" data-tab="simulation">批次模擬</button>
             <button class="tab-btn" data-tab="inventory">背包與箱子</button>
             <button class="tab-btn" data-tab="log">模擬紀錄</button>
@@ -769,6 +798,16 @@ button:disabled{cursor:not-allowed;opacity:.45}
             </div>
           </div>
           <div class="fund-preview" id="fundClaimPreview"></div>
+          <div class="fund-goal-tool">
+            <strong>🎯 基金內容目標試算</strong>
+            <div class="help">選擇想從基金累計取得的物品與數量，反推需要解鎖到第幾階以及基金解鎖條件所需數量。</div>
+            <div class="fund-goal-grid" style="margin-top:7px">
+              <div class="field"><label>內容物品</label><select id="fundGoalItem"></select></div>
+              <div class="field"><label>目標數量</label><input class="input" id="fundGoalAmount" type="number" min="0" step="1" value="1"></div>
+              <div class="field"><label>獎勵範圍</label><select id="fundGoalTrack"><option value="all">免費＋進階</option><option value="free">只算免費</option><option value="premium">只算進階</option></select></div>
+            </div>
+            <div class="fund-goal-result" id="fundGoalResult">請選擇物品與數量。</div>
+          </div>
           <details class="fund-details" id="fundDetails">
             <summary>基金里程列表</summary>
             <div class="fund-details-body">
@@ -839,10 +878,16 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <div class="sim-table-wrap" id="simulationResults"></div>
         </div>
 
+        <div class="tab-panel" id="tab-shop">
+          <div class="card-title"><div><h3>🛒 兌換商店</h3><div class="help">兌換次數為整個活動共用上限。</div></div></div>
+          <div class="exchange-shop-list" id="exchangeShopList"></div>
+        </div>
+
         <div class="tab-panel" id="tab-inventory">
-          <div class="form-row" style="margin-bottom:9px">
+          <div class="box-open-controls">
             <select id="boxSelect"></select>
-            <button class="btn green" id="openOneBoxBtn">開 1 箱</button>
+            <input class="input" id="boxOpenCount" type="number" min="1" step="1" value="1" aria-label="開箱數量">
+            <button class="btn green" id="openOneBoxBtn">開指定數量</button>
             <button class="btn secondary" id="openAllBoxesBtn">全部開啟</button>
             <button class="btn secondary" id="undoBoxBtn">退回上次開箱</button>
           </div>
@@ -877,7 +922,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
         <div class="help">
           週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機玩法；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後會先進入待機，可手動開始或勾選自動開始隱藏模式，並在開始時刷新 8 格。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。
         </div>
       </section>
     </aside>
@@ -898,6 +943,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
         <button data-setting-tab="fund">活動基金</button>
         <button data-setting-tab="stages">每日進度獎勵</button>
         <button data-setting-tab="packages">每日禮包</button>
+        <button data-setting-tab="shop">兌換商店</button>
         <div class="settings-nav-title">遊戲玩法</div>
         <button data-setting-tab="monopoly">🎲 大富翁玩法</button>
         <button data-setting-tab="pinball">🔮 彈珠機玩法</button>
@@ -935,7 +981,8 @@ const DEFAULT_CONFIG = {
         {id:"premiumBox",name:"高級兌換幣隨機箱",boxItemId:"premiumExchangeBox",rewardItemId:"dragonFruitJuice",outcomes:[
           {amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}
         ]}
-      ]
+      ],
+      exchangeShop:[]
     },
     pinball:{
       gameTokenId:"pinballBall",
@@ -945,6 +992,9 @@ const DEFAULT_CONFIG = {
       dailyMissionRewardItemId:"CraftTicket",
       pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
       randomBoxes:[],
+      exchangeShop:[
+        {id:"normalToPremiumScroll",name:"普通捲軸兌換",cost:{itemId:"normalScroll",amount:240},reward:{itemId:"premiumScroll",amount:10},limit:10}
+      ],
       slotCount:8,
       hiddenBalls:200,
       hiddenSlotRequired:32,
@@ -1158,6 +1208,8 @@ let pinballNormalDropSeq=0;
 const pinballNormalActiveDrops=new Map();
 let pinballHiddenForceFast=false;
 let pinballHiddenAutoStarting=false;
+let pinballHiddenAnimationToken=0;
+const pinballHiddenAbortResolvers=new Set();
 let pinballHoldTimer=null;
 let pinballHoldInterval=null;
 let pinballHoldActive=false;
@@ -1434,6 +1486,19 @@ function migrateV60PinballRandomBoxEditable(cfg,pin){
   });
   cfg.configSchemaVersion=60
 }
+function migrateV65ExchangeShop(cfg,mono,pin){
+  if(Number(cfg.configSchemaVersion||0)>=65)return;
+  if(!Array.isArray(mono.exchangeShop))mono.exchangeShop=[];
+  if(!Array.isArray(pin.exchangeShop))pin.exchangeShop=[];
+  if(!pin.exchangeShop.some(x=>x.id==="normalToPremiumScroll")){
+    pin.exchangeShop.push({
+      id:"normalToPremiumScroll",name:"普通捲軸兌換",
+      cost:{itemId:pin.normalExchangeId,amount:240},
+      reward:{itemId:pin.premiumExchangeId,amount:10},limit:10
+    })
+  }
+  cfg.configSchemaVersion=65
+}
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
   if(!cfg.event.name||cfg.event.name==="夏日環遊"||cfg.event.name==="卡皮巴拉")cfg.event.name="卡皮巴拉活動";
@@ -1445,6 +1510,7 @@ function normalizeFundConfig(cfg){
   if(!cfg.gameplaySettings||typeof cfg.gameplaySettings!=="object")cfg.gameplaySettings={};
   if(!cfg.dailyMission)cfg.dailyMission={maxGameTokens:30,rewardItemId:cfg.currencies?.gameTokenId||"dice"};
   if(!Array.isArray(cfg.randomBoxes))cfg.randomBoxes=[];
+  if(!Array.isArray(cfg.exchangeShop))cfg.exchangeShop=[];
   if(!cfg.gameplaySettings.monopoly){
     cfg.gameplaySettings.monopoly={
       gameTokenId:cfg.currencies.gameTokenId||"dice",
@@ -1454,6 +1520,7 @@ function normalizeFundConfig(cfg){
       dailyMissionRewardItemId:cfg.dailyMission.rewardItemId||cfg.currencies.gameTokenId||"dice",
       pointsPerItemObtained:clone(cfg.scoreRules.pointsPerItemObtained||[]),
       randomBoxes:clone(cfg.randomBoxes||[]),
+      exchangeShop:clone(cfg.exchangeShop||[]),
       progressStages:clone(cfg.progressStages||[]),
       packageGroups:clone(cfg.packageGroups||[]),
       fund:clone(cfg.fund||{})
@@ -1463,6 +1530,7 @@ function normalizeFundConfig(cfg){
   if(!Object.prototype.hasOwnProperty.call(mono,"dailyMissionMaxGameTokens"))mono.dailyMissionMaxGameTokens=Number(cfg.dailyMission.maxGameTokens||30);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!Array.isArray(mono.randomBoxes))mono.randomBoxes=clone(cfg.randomBoxes||[]);
+  if(!Array.isArray(mono.exchangeShop))mono.exchangeShop=clone(cfg.exchangeShop||[]);
   if(!Array.isArray(mono.progressStages))mono.progressStages=clone(cfg.progressStages||[]);
   if(!Array.isArray(mono.packageGroups))mono.packageGroups=clone(cfg.packageGroups||[]);
   if(!mono.fund||typeof mono.fund!=="object")mono.fund=clone(cfg.fund||{});
@@ -1476,6 +1544,7 @@ function normalizeFundConfig(cfg){
       dailyMissionRewardItemId:"CraftTicket",
       pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
       randomBoxes:[],
+      exchangeShop:[{id:"normalToPremiumScroll",name:"普通捲軸兌換",cost:{itemId:"normalScroll",amount:240},reward:{itemId:"premiumScroll",amount:10},limit:10}],
       progressStages:clone(mono.progressStages||cfg.progressStages||[]),
       packageGroups:clone(mono.packageGroups||cfg.packageGroups||[]),
       fund:clone(mono.fund||cfg.fund||{}),
@@ -1534,6 +1603,7 @@ function normalizeFundConfig(cfg){
   pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
   if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
   if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
+  if(!Array.isArray(pin.exchangeShop))pin.exchangeShop=[];
   if(!Array.isArray(pin.progressStages))pin.progressStages=clone(mono.progressStages||cfg.progressStages||[]);
   if(!Array.isArray(pin.packageGroups))pin.packageGroups=clone(mono.packageGroups||cfg.packageGroups||[]);
   if(!pin.fund||typeof pin.fund!=="object")pin.fund=clone(mono.fund||cfg.fund||{});
@@ -1550,8 +1620,19 @@ function normalizeFundConfig(cfg){
   migrateV53PinballFixedSlots(cfg,pin);
   migrateV59PinballCleanup(cfg,pin);
   migrateV60PinballRandomBoxEditable(cfg,pin);
+  migrateV65ExchangeShop(cfg,mono,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
+  [mono,pin].forEach(g=>{
+    if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
+    g.exchangeShop=g.exchangeShop.map((offer,i)=>({
+      id:String(offer.id||`exchange${i+1}`),
+      name:String(offer.name||`兌換 ${i+1}`),
+      cost:{itemId:offer.cost?.itemId||g.normalExchangeId,amount:Math.max(0,Number(offer.cost?.amount||0))},
+      reward:{itemId:offer.reward?.itemId||g.premiumExchangeId,amount:Math.max(0,Number(offer.reward?.amount||0))},
+      limit:Math.max(0,Math.floor(Number(offer.limit||0)))
+    }))
+  });
 
   normalizeFundUnlockRule(mono.fund,mono,cfg,flagItemId);
   normalizeFundUnlockRule(pin.fund,pin,cfg,pin.gameTokenId);
@@ -1598,6 +1679,7 @@ function normalizeFundConfig(cfg){
   if(activeGameplay){
     if(!Array.isArray(activeGameplay.pointsPerItemObtained))activeGameplay.pointsPerItemObtained=[];
     if(!Array.isArray(activeGameplay.randomBoxes))activeGameplay.randomBoxes=[];
+    if(!Array.isArray(activeGameplay.exchangeShop))activeGameplay.exchangeShop=[];
     cfg.currencies.gameTokenId=activeGameplay.gameTokenId||cfg.currencies.gameTokenId||"dice";
     cfg.currencies.premiumExchangeId=activeGameplay.premiumExchangeId||cfg.currencies.premiumExchangeId||"dragonFruitJuice";
     cfg.currencies.normalExchangeId=activeGameplay.normalExchangeId||cfg.currencies.normalExchangeId||"kiwiJuice";
@@ -1605,6 +1687,7 @@ function normalizeFundConfig(cfg){
     cfg.dailyMission.rewardItemId=activeGameplay.dailyMissionRewardItemId||activeGameplay.gameTokenId||cfg.currencies.gameTokenId;
     cfg.scoreRules.pointsPerItemObtained=clone(activeGameplay.pointsPerItemObtained);
     cfg.randomBoxes=clone(activeGameplay.randomBoxes);
+    cfg.exchangeShop=clone(activeGameplay.exchangeShop);
     cfg.progressStages=clone(activeGameplay.progressStages||cfg.progressStages||[]);
     cfg.packageGroups=clone(activeGameplay.packageGroups||cfg.packageGroups||[]);
     cfg.fund=clone(activeGameplay.fund||cfg.fund||{})
@@ -1677,6 +1760,7 @@ function createState(){
     gameplayStates:{
       pinball:{slots:[],targetSlot:0,targetHits:0,hiddenPending:false,hiddenActive:false,hiddenRuns:0,totalDrops:0,normalDrops:0,hiddenDrops:0,boardVersion:0,lastLanding:null,hiddenSlotCounts:[],hiddenSlotRewards:[],hiddenVaultClaims:0}
     },
+    exchangePurchases:{},lastExchangeUndo:null,
     lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
 }
@@ -1713,6 +1797,8 @@ function ensureStateSchema(targetState=state,cfg=config){
   if(!Object.prototype.hasOwnProperty.call(targetState,"fundEventSeq"))targetState.fundEventSeq=0;
   if(!Object.prototype.hasOwnProperty.call(targetState,"lastFundUndo"))targetState.lastFundUndo=null;
   if(!Object.prototype.hasOwnProperty.call(targetState,"lastBoxUndo"))targetState.lastBoxUndo=null;
+  if(!targetState.exchangePurchases||typeof targetState.exchangePurchases!=="object")targetState.exchangePurchases={};
+  if(!Object.prototype.hasOwnProperty.call(targetState,"lastExchangeUndo"))targetState.lastExchangeUndo=null;
   if(!Object.prototype.hasOwnProperty.call(targetState,"fundPremiumPurchased"))targetState.fundPremiumPurchased=!!targetState.fundPremiumClaimed;
   if(targetState.fundFreeClaimed&&!Object.keys(targetState.fundClaims.free).length){
     const day=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.fundFreeClaimDay||0)));
@@ -2234,11 +2320,27 @@ function pinballVisualRoute(slot){
   const pool=candidates.slice(0,Math.min(10,candidates.length));
   return pool[Math.floor(Math.random()*pool.length)].route
 }
-async function movePinballBall(ball,x,y,duration=105,easing="linear"){
+async function movePinballBall(ball,x,y,duration=105,easing="linear",hiddenToken=null){
   ball.style.transition=`left ${duration}ms ${easing},top ${duration}ms ${easing},transform 80ms ease`;
   ball.style.left=`${x}%`;
   ball.style.top=`${y}%`;
-  await wait(duration)
+  if(hiddenToken===null){await wait(duration);return true}
+  let resolver;
+  const abortPromise=new Promise(resolve=>{
+    resolver=()=>resolve(false);
+    pinballHiddenAbortResolvers.add(resolver)
+  });
+  const normalPromise=wait(duration).then(()=>true);
+  const ok=await Promise.race([normalPromise,abortPromise]);
+  pinballHiddenAbortResolvers.delete(resolver);
+  return ok&&hiddenToken===pinballHiddenAnimationToken
+}
+function abortPinballHiddenAnimations(){
+  pinballHiddenForceFast=true;
+  pinballHiddenAnimationToken++;
+  [...pinballHiddenAbortResolvers].forEach(fn=>fn());
+  pinballHiddenAbortResolvers.clear();
+  document.querySelectorAll(".pinball-ball.hidden-ball").forEach(x=>x.remove())
 }
 function pinballPegContactMetrics(){
   const field=$("pinballField");
@@ -2248,10 +2350,8 @@ function pinballPegContactMetrics(){
   const ballRadius=10;
   const pegRadius=pr.height/2;
   const sumRadius=ballRadius+pegRadius;
-
   const sideContactPx=Math.max(4.4,Math.min(pegRadius*.92,sumRadius*.55));
   const contactArcYPx=Math.sqrt(Math.max(0,sumRadius*sumRadius-sideContactPx*sideContactPx));
-
   return{
     contactX:sideContactPx/Math.max(1,fr.width)*100,
     contactY:contactArcYPx/Math.max(1,fr.height)*100,
@@ -2266,13 +2366,7 @@ function pinballRouteDirection(route,index,landingX){
   return Math.sign(landingX-current.x)|| (Math.random()<.5?-1:1)
 }
 function pinballPegContactPointByDirection(peg,dir,metrics){
-  // 依照你的視覺規則：
-  // 落在偏左 -> 下一段往左下
-  // 落在偏右 -> 下一段往右下
-  return{
-    x:peg.x + (dir<0?-metrics.contactX:metrics.contactX),
-    y:peg.y - metrics.contactY
-  }
+  return{x:peg.x+(dir<0?-metrics.contactX:metrics.contactX),y:peg.y-metrics.contactY}
 }
 function pinballSpawnOrigin(firstContact,firstDir){
   const hole=$("pinballSpawnHole"),field=$("pinballField");
@@ -2281,155 +2375,73 @@ function pinballSpawnOrigin(firstContact,firstDir){
     const cx=(hr.left+hr.width/2-fr.left)/Math.max(1,fr.width)*100;
     const half=(hr.width*.28)/Math.max(1,fr.width)*100;
     const bias=firstDir<0?-half:firstDir>0?half:0;
-    return{
-      x:Math.max(8,Math.min(92,cx+bias+(Math.random()-.5)*Math.max(half*.35,.4))),
-      y:Math.max(2,(hr.top+hr.height*.55-fr.top)/Math.max(1,fr.height)*100)
-    }
+    return{x:Math.max(8,Math.min(92,cx+bias+(Math.random()-.5)*Math.max(half*.35,.4))),y:Math.max(2,(hr.top+hr.height*.55-fr.top)/Math.max(1,fr.height)*100)}
   }
-  return{
-    x:Math.max(8,Math.min(92,firstContact.x + (firstDir<0?-1:firstDir>0?1:0)*Math.min(3,0.9+Math.random()*1.5))),
-    y:Math.max(2,firstContact.y-8)
-  }
+  return{x:Math.max(8,Math.min(92,firstContact.x+(firstDir<0?-1:firstDir>0?1:0)*Math.min(3,0.9+Math.random()*1.5))),y:Math.max(2,firstContact.y-8)}
 }
 async function animatePinballDrop(path,fast=false,mode="normal"){
   if(fast||config.gameplay.type!=="pinball")return;
-  const layer=$("pinballBallLayer");
-  if(!layer)return;
-
-  const route=pinballVisualRoute(path.slot);
-  if(!route?.length)return;
-
+  const layer=$("pinballBallLayer");if(!layer)return;
+  const route=pinballVisualRoute(path.slot);if(!route?.length)return;
   const ball=document.createElement("div");
-  ball.className=`pinball-ball ${mode==="hidden"?"hidden-ball":"normal-ball"}`;
-  layer.appendChild(ball);
-
-  const metrics=pinballPegContactMetrics();
-  const count=Math.max(2,Number(pinballSettings().slotCount||8));
-  const landingX=(path.slot+.5)/count*100;
-
-  // 預先決定每一根釘子的「往哪邊掉」方向，接觸點就綁定這個方向。
+  ball.className=`pinball-ball ${mode==="hidden"?"hidden-ball":"normal-ball"}`;layer.appendChild(ball);
+  const hiddenToken=mode==="hidden"?pinballHiddenAnimationToken:null;
+  const move=async(x,y,duration,easing)=>{
+    const ok=await movePinballBall(ball,x,y,duration,easing,hiddenToken);
+    if(!ok){ball.remove();return false}
+    return true
+  };
+  const metrics=pinballPegContactMetrics(),count=Math.max(2,Number(pinballSettings().slotCount||8)),landingX=(path.slot+.5)/count*100;
   const dirs=route.map((_,i)=>pinballRouteDirection(route,i,landingX));
   const contacts=route.map((peg,i)=>pinballPegContactPointByDirection(peg,dirs[i],metrics));
-
-  const first=route[0];
-  const firstDir=dirs[0];
-  const firstContact=contacts[0];
-
-  // 出生位置改成從上方洞口的左右／中間範圍出現，再朝既定目標格做假物理動畫。
-  const spawn=pinballSpawnOrigin(firstContact,firstDir);
-
-  ball.style.transition="none";
-  ball.style.left=`${spawn.x}%`;
-  ball.style.top=`${spawn.y}%`;
-  await wait(20);
-
-  await movePinballBall(
-    ball,
-    firstContact.x,
-    firstContact.y,
-    118,
-    "cubic-bezier(.34,.72,.46,1)"
-  );
-  first.el.classList.add("flash");
-  await wait(18);
-  first.el.classList.remove("flash");
-
+  const first=route[0],firstDir=dirs[0],firstContact=contacts[0],spawn=pinballSpawnOrigin(firstContact,firstDir);
+  ball.style.transition="none";ball.style.left=`${spawn.x}%`;ball.style.top=`${spawn.y}%`;
+  if(!(await move(spawn.x,spawn.y,20,"linear")))return;
+  if(!(await move(firstContact.x,firstContact.y,118,"cubic-bezier(.34,.72,.46,1)")))return;
+  first.el.classList.add("flash");await wait(18);first.el.classList.remove("flash");
+  if(mode==="hidden"&&hiddenToken!==pinballHiddenAnimationToken){ball.remove();return}
   for(let i=0;i<route.length-1;i++){
-    const peg=route[i],next=route[i+1];
-    const dir=dirs[i];
-    const nextContact=contacts[i+1];
-
-    // 從當前釘子的接觸側反彈離開；方向與接觸側完全綁定。
-    ball.classList.remove("hit-left","hit-right");
-    ball.classList.add(dir<0?"hit-left":"hit-right");
-
-    const bounceX=peg.x+dir*metrics.bounceX;
-    const bounceY=peg.y+metrics.bounceY;
-    await movePinballBall(
-      ball,
-      bounceX,
-      bounceY,
-      82,
-      "cubic-bezier(.14,.82,.44,1)"
-    );
-
-    // 朝下一根釘子的既定接觸側靠近，不再跨方向硬拉。
-    const entrySide=dir<0?-1:1;
-    const approachX=nextContact.x-entrySide*Math.min(metrics.contactX*.35,0.65);
-    const approachY=Math.max(bounceY+1,nextContact.y-1.7);
-
-    await movePinballBall(
-      ball,
-      approachX,
-      approachY,
-      66,
-      "cubic-bezier(.28,.08,.58,1)"
-    );
-
-    await movePinballBall(
-      ball,
-      nextContact.x,
-      nextContact.y,
-      60,
-      "cubic-bezier(.36,.68,.56,1)"
-    );
-
-    next.el.classList.add("flash");
-    await wait(16);
-    next.el.classList.remove("flash")
+    const peg=route[i],next=route[i+1],dir=dirs[i],nextContact=contacts[i+1];
+    ball.classList.remove("hit-left","hit-right");ball.classList.add(dir<0?"hit-left":"hit-right");
+    if(!(await move(peg.x+dir*metrics.bounceX,peg.y+metrics.bounceY,82,"cubic-bezier(.14,.82,.44,1)")))return;
+    const entrySide=dir<0?-1:1,approachX=nextContact.x-entrySide*Math.min(metrics.contactX*.35,.65),approachY=Math.max(peg.y+metrics.bounceY+1,nextContact.y-1.7);
+    if(!(await move(approachX,approachY,66,"cubic-bezier(.28,.08,.58,1)")))return;
+    if(!(await move(nextContact.x,nextContact.y,60,"cubic-bezier(.36,.68,.56,1)")))return;
+    next.el.classList.add("flash");await wait(16);next.el.classList.remove("flash");
+    if(mode==="hidden"&&hiddenToken!==pinballHiddenAnimationToken){ball.remove();return}
   }
-
-  const last=route[route.length-1];
-  const finalDir=dirs[dirs.length-1];
-
-  ball.classList.remove("hit-left","hit-right");
-  ball.classList.add(finalDir<0?"hit-left":"hit-right");
-
-  await movePinballBall(
-    ball,
-    last.x+finalDir*metrics.bounceX,
-    last.y+metrics.bounceY,
-    82,
-    "cubic-bezier(.14,.82,.44,1)"
-  );
-
+  const last=route[route.length-1],finalDir=dirs[dirs.length-1];
+  ball.classList.remove("hit-left","hit-right");ball.classList.add(finalDir<0?"hit-left":"hit-right");
+  if(!(await move(last.x+finalDir*metrics.bounceX,last.y+metrics.bounceY,82,"cubic-bezier(.14,.82,.44,1)")))return;
   ball.classList.remove("hit-left","hit-right");
   const midX=last.x+(landingX-last.x)*.55;
-  await movePinballBall(ball,midX,82,96,"cubic-bezier(.28,.3,.56,1)");
-  await movePinballBall(ball,landingX,90,92,"cubic-bezier(.24,.76,.44,1)");
+  if(!(await move(midX,82,96,"cubic-bezier(.28,.3,.56,1)")))return;
+  if(!(await move(landingX,90,92,"cubic-bezier(.24,.76,.44,1)")))return;
   ball.remove()
 }
-function pinballAutoStartHiddenEnabled(){
-  return !!$("pinballAutoStartHidden")?.checked
-}
-function pinballRequestedCount(){
-  return 1
-}
+function pinballSkipNormalAnimation(){return !!$("pinballSkipNormalAnimation")?.checked}
+function pinballRequestedCount(){return 1}
 function updatePinballDropButton(){
-  const btn=$("pinballDropMainBtn");
-  if(!btn)return;
+  const btn=$("pinballDropMainBtn");if(!btn)return;
   btn.classList.toggle("holding",pinballHoldActive);
   btn.textContent=pinballHoldActive?"停止自動投入":"投入彈珠（長按1秒自動）"
 }
 function maybeAutoStartPinballHidden(){
   const ps=ensurePinballSlots();
-  if(pinballHiddenAutoStarting||!pinballAutoStartHiddenEnabled()||!ps.hiddenPending||ps.hiddenActive||pinballActiveBalls>0)return;
+  if(pinballHiddenAutoStarting||!ps.hiddenPending||ps.hiddenActive||pinballActiveBalls>0)return;
   pinballHiddenAutoStarting=true;
   setTimeout(async()=>{
     try{
       const next=ensurePinballSlots();
-      if(pinballAutoStartHiddenEnabled()&&next.hiddenPending&&!next.hiddenActive&&pinballActiveBalls===0)await runPinballHiddenMode({fast:false});
-    }finally{
-      pinballHiddenAutoStarting=false
-    }
+      if(next.hiddenPending&&!next.hiddenActive&&pinballActiveBalls===0)await runPinballHiddenMode({fast:false})
+    }finally{pinballHiddenAutoStarting=false}
   },0)
 }
 function updatePinballQueueStatus(){
   const el=$("pinballQueueStatus");
   if(el)el.textContent=`待投入 ${fmt(pinballLaunchQueue)} 顆｜場上 ${fmt(pinballActiveBalls)} 顆`;
   if(pinballHoldActive){
-    const ps=ensurePinballSlots();
-    const token=config.currencies.gameTokenId;
+    const ps=ensurePinballSlots(),token=config.currencies.gameTokenId;
     const available=Math.max(0,Math.floor(Number(state.resources[token]||0)))-(pinballLaunchQueue+pinballActiveBalls);
     if(ps.hiddenPending||ps.hiddenActive||available<1)stopPinballHold()
   }
@@ -2437,7 +2449,7 @@ function updatePinballQueueStatus(){
 }
 function enqueuePinballs(count){
   const ps=ensurePinballSlots();
-  if(ps.hiddenPending)return toast("隱藏模式已解鎖，請先開始隱藏模式");
+  if(ps.hiddenPending)return toast("隱藏模式已解鎖，待場上彈珠落完後會自動開始");
   if(ps.hiddenActive)return toast("隱藏模式執行中");
   const token=config.currencies.gameTokenId;
   const available=Math.max(0,Math.floor(Number(state.resources[token]||0)));
@@ -2462,7 +2474,7 @@ async function processPinballQueue(){
       updatePinballQueueStatus();
 
       // Start each ball independently; do not await completion before launching the next.
-      dropPinballOnce({silent:true,fast:false,concurrent:true}).finally(()=>{
+      dropPinballOnce({silent:true,fast:pinballSkipNormalAnimation(),concurrent:true}).finally(()=>{
         pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
         updatePinballQueueStatus()
       });
@@ -2539,6 +2551,7 @@ async function runPinballHiddenMode({fast=false}={}){
   ps.hiddenSlotRewards=Array.from({length:ps.slots.length},()=>pickPinballHiddenVaultReward());
   ps.hiddenVaultClaims=0;
   pinballHiddenForceFast=false;
+  pinballHiddenAnimationToken++;
   renderPinballBoard();
 
   $("rollMessage").textContent=`隱藏模式開始：${fmt(count)} 顆免費粉色彈球自動落下；每一格各自累積 ${fmt(slotRequired)} 顆，即獲得該格顯示的獎勵。`;
@@ -2641,7 +2654,7 @@ async function runPinballHiddenMode({fast=false}={}){
 async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
   if(strategyIsPastReadOnly()){if(!silent)toast("過去日期只能查看，不能使用後來才取得的資源");return null}
   const token=config.currencies.gameTokenId,ps=ensurePinballSlots(),pc=pinballSettings();
-  if(ps.hiddenPending){if(!silent)toast(pinballAutoStartHiddenEnabled()?"隱藏模式已解鎖，等待自動開始":"隱藏模式已解鎖，請先按「開始隱藏模式」");return null}
+  if(ps.hiddenPending){if(!silent)toast("隱藏模式已解鎖，待場上彈珠落完後會自動開始");return null}
   if(ps.hiddenActive){if(!silent)toast("隱藏模式執行中");return null}
   if(Number(state.resources[token]||0)<1){if(!silent)toast(`${item(token).name}不足`);return null}
   state.resources[token]-=1;adjustGameTokenSpend(state.currentDay,1);
@@ -2682,8 +2695,7 @@ async function dropPinballOnce({silent=false,fast=false,concurrent=false}={}){
   if(triggered){
     ps.hiddenPending=true;
     const overflow=Math.max(0,Number(ps.targetHits||0)-targetRequired);
-    const autoStart=pinballAutoStartHiddenEnabled();
-    $("rollMessage").textContent=`特殊格已完成 ${fmt(ps.targetHits)}/${fmt(targetRequired)}！普通投珠已暫停，${autoStart?"待場上彈珠落完後將自動開始隱藏模式":"請按「開始隱藏模式」"}。${overflow?`超出的 ${fmt(overflow)} 次會保留到下一輪。`:""}`;
+    $("rollMessage").textContent=`特殊格已完成 ${fmt(ps.targetHits)}/${fmt(targetRequired)}！普通投珠已暫停，待場上彈珠落完後將自動開始隱藏模式。${overflow?`超出的 ${fmt(overflow)} 次會保留到下一輪。`:""}`;
     render();
     maybeAutoStartPinballHidden()
   }
@@ -2738,6 +2750,15 @@ function validateConfig(c){
   validateProbability(c.gameplaySettings.pinball.hiddenVaultRewards,"彈珠機・隱藏寶庫獎勵");
   if(!(c.gameplaySettings.pinball.landingWeights||[]).some(x=>Number(x)>0))throw new Error("彈珠機落點權重至少要有一格大於 0");
   if(Number(c.event.totalDays)<1)throw new Error("活動天數至少 1 天");
+  Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
+    const offerIds=(g.exchangeShop||[]).map(x=>x.id);
+    if(new Set(offerIds).size!==offerIds.length)throw new Error(`${gameplay} 兌換商品 ID 不可重複`);
+    (g.exchangeShop||[]).forEach((offer,i)=>{
+      if(!ids.includes(offer.cost?.itemId))throw new Error(`${gameplay} 第 ${i+1} 個兌換商品的消耗物品不存在`);
+      if(!ids.includes(offer.reward?.itemId))throw new Error(`${gameplay} 第 ${i+1} 個兌換商品的獲得物品不存在`);
+      if(Number(offer.cost?.amount)<0||Number(offer.reward?.amount)<0||Number(offer.limit)<0)throw new Error(`${gameplay} 兌換商品數量與上限不可小於 0`)
+    })
+  });
   Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
     if(g.fund){
       if(!["itemSpent","itemObtained"].includes(g.fund.unlockBasis))throw new Error(`${gameplay} 基金解鎖依據無效`);
@@ -2919,9 +2940,9 @@ function renderPinballBoard(){
   $("pinballHiddenBanner").textContent=ps.hiddenActive
     ?`✨ 隱藏模式：每格累積 ${fmt(pc.hiddenSlotRequired)} 顆抽1次寶庫`
     :pending?`✨ 隱藏模式已解鎖，等待開始`:`✨ 隱藏模式`;
-  $("pinballHiddenStartBtn").classList.toggle("show",(pending&&!ps.hiddenActive)||ps.hiddenActive);
-  $("pinballHiddenStartBtn").disabled=!pending&&!ps.hiddenActive;
-  $("pinballHiddenStartBtn").textContent=ps.hiddenActive?"跳過動畫":`開始隱藏模式（${fmt(pc.hiddenBalls)} 顆）`;
+  $("pinballHiddenStartBtn").classList.toggle("show",ps.hiddenActive);
+  $("pinballHiddenStartBtn").disabled=!ps.hiddenActive;
+  $("pinballHiddenStartBtn").textContent="跳過動畫";
   $("pinballDropMainBtn").disabled=pending||ps.hiddenActive;
   $("pinballHiddenProgress").style.width=ps.hiddenActive?"0%":`${Math.min(100,Number(ps.targetHits||0)/Math.max(1,targetRequired)*100)}%`;
   updatePinballQueueStatus();
@@ -2941,7 +2962,7 @@ function renderPinballBoard(){
   $("pinballStatus").textContent=ps.hiddenActive
     ?`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費粉色彈珠；每格各自累積 ${fmt(pc.hiddenSlotRequired)} 顆就獲得該格獎勵。`
     :pending
-      ?`特殊格 ${fmt(targetRequired)}/${fmt(targetRequired)} 已完成。普通投珠暫停，${pinballAutoStartHiddenEnabled()?"待場上彈珠落完後將自動開始隱藏模式":"請手動開始隱藏模式"}。`
+      ?`特殊格 ${fmt(targetRequired)}/${fmt(targetRequired)} 已完成。普通投珠暫停，待場上彈珠落完後將自動開始隱藏模式。`
       :`特殊格在第 ${Number(ps.targetSlot)+1} 格（${item(ps.slots[ps.targetSlot]?.itemId).name} ×${fmt(ps.slots[ps.targetSlot]?.amount||0)}），目前 ${fmt(ps.targetHits)}/${fmt(targetRequired)}；本格門檻 ${fmt(targetRequired)} 次。`
 }
 function renderBoard(){
@@ -3024,7 +3045,7 @@ function renderAutoRollControls(){
   $("retryAutoRollBtn").disabled=rolling||!has
 }
 async function autoPinball({reuseSnapshot=false}={}){
-  if(pinballState().hiddenPending)return toast("隱藏模式已解鎖，請先開始隱藏模式");
+  if(pinballState().hiddenPending)return toast("隱藏模式已解鎖，待場上彈珠落完後會自動開始");
   if(pinballState().hiddenActive)return toast("隱藏模式執行中");
   const token=config.currencies.gameTokenId,usable=dailyDiceStats().availableToday;
   if(usable<1)return toast(`本日可用${item(token).name}不足`);
@@ -3047,7 +3068,7 @@ async function autoPinball({reuseSnapshot=false}={}){
   if(stopAuto)pinballLaunchQueue=0;
   const after=dailyDiceStats();
   $("rollMessage").textContent=pinballState().hiddenPending
-    ?`普通投珠已在特殊格完成時暫停；請先開始隱藏模式。`
+    ?`普通投珠已在特殊格完成時暫停；待場上彈珠落完後會自動開始隱藏模式。`
     :`彈珠機自動結束：本日剩餘可用 ${fmt(after.availableToday)} 個${item(token).name}。`;
   $("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false;
   render()
@@ -3268,6 +3289,40 @@ function refundDailyClaim(){
   log(`退回每日任務 ${itemText(missionItem,amount)}${hadGift?`＋首日登入 ${itemText(giftItem,giftAmount)}`:""}`);render();
   toast((state.resources[missionItem]<0)||(hadGift&&state.resources[giftItem]<0)?`已退回；部分獎勵已使用，因此目前數量可能為負數。`:"已退回每日任務")
 }
+function fundRewardItems(cfg=config){
+  const ids=[];
+  fundMilestones(cfg).forEach(m=>[...(m.freeRewards||[]),...(m.premiumRewards||[])].forEach(r=>{if(!ids.includes(r.itemId))ids.push(r.itemId)}));
+  return ids
+}
+function fundGoalAnalysis(itemId,goal,track="all",cfg=config){
+  const milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));
+  const target=Math.max(0,Number(goal||0));
+  let cumulative=0;
+  for(let i=0;i<milestones.length;i++){
+    const m=milestones[i];
+    if(track!=="premium")cumulative+=(m.freeRewards||[]).filter(r=>r.itemId===itemId).reduce((s,r)=>s+Number(r.amount||0),0);
+    if(track!=="free")cumulative+=(m.premiumRewards||[]).filter(r=>r.itemId===itemId).reduce((s,r)=>s+Number(r.amount||0),0);
+    if(cumulative+1e-9>=target)return{found:true,index:i+1,milestone:m,cumulative}
+  }
+  return{found:false,index:milestones.length,milestone:milestones[milestones.length-1]||null,cumulative}
+}
+function renderFundGoalCalculator(){
+  const itemSel=$("fundGoalItem"),amountEl=$("fundGoalAmount"),trackEl=$("fundGoalTrack"),result=$("fundGoalResult");
+  if(!itemSel||!amountEl||!trackEl||!result)return;
+  const ids=fundRewardItems(config),old=itemSel.value;
+  itemSel.innerHTML=ids.length?ids.map(id=>`<option value="${escapeHtml(id)}">${escapeHtml(item(id).icon||"")} ${escapeHtml(item(id).name)}</option>`).join(""):`<option value="">基金沒有獎勵物品</option>`;
+  if(ids.includes(old))itemSel.value=old;
+  const itemId=itemSel.value,goal=Math.max(0,Number(amountEl.value||0)),track=trackEl.value||"all";
+  if(!itemId){result.textContent="目前基金沒有可試算的獎勵物品。";return}
+  const a=fundGoalAnalysis(itemId,goal,track,config),it=item(itemId),meta=fundUnlockMetricMeta(state,config);
+  if(!a.milestone){result.textContent="目前沒有基金階段。";return}
+  if(a.found){
+    const threshold=fundMilestoneTarget(a.milestone);
+    result.innerHTML=`目標 <strong>${escapeHtml(it.name)} ×${fmt(goal)}</strong>：需要解鎖到 <strong>第 ${fmt(a.index)} 階</strong>，累計可取得 ${fmt(a.cumulative)} ${escapeHtml(it.unit||"個")}。<br>需${meta.basis==="itemSpent"?"消耗":"獲得"} <strong>${fmt(threshold)} ${escapeHtml(cfgItem(config,meta.itemId).name)}</strong> 才能達成。`
+  }else{
+    result.innerHTML=`基金全部解鎖後最多只能取得 <strong>${fmt(a.cumulative)} ${escapeHtml(it.name)}</strong>，無法達到 ${fmt(goal)}。`
+  }
+}
 function fundUnlockedUnclaimed(kind,targetState=state,cfg=config){
   ensureStateSchema(targetState,cfg);const claimed=targetState.fundClaims[kind]||{};
   return fundMilestones(cfg).filter(m=>fundMilestoneUnlockedForState(m,targetState,cfg)&&!Object.prototype.hasOwnProperty.call(claimed,m.id))
@@ -3425,7 +3480,8 @@ function openBoxes(all){
   const box=config.randomBoxes.find(x=>x.id===$("boxSelect").value)||config.randomBoxes[0];
   if(!box)return toast("尚未設定隨機箱");
   const owned=Math.floor(Number(state.resources[box.boxItemId]||0));
-  const count=all?owned:Math.min(1,owned);
+  const requested=Math.max(1,Math.floor(Number($("boxOpenCount")?.value||1)));
+  const count=all?owned:Math.min(requested,owned);
   if(count<1)return toast(`沒有${item(box.boxItemId).name}`);
   recordHistory(`開啟 ${count} 個${box.name}`);
   state.resources[box.boxItemId]-=count;if(box.boxItemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,count);
@@ -5781,6 +5837,7 @@ function renderDaily(){
     const cls=!fundMilestoneUnlockedForState(m,state,config)?"locked":(Object.prototype.hasOwnProperty.call(state.fundClaims.free,m.id)&&(state.fundPremiumPurchased?Object.prototype.hasOwnProperty.call(state.fundClaims.premium,m.id):true)?"claimed":"unlocked");
     return`<tr class="${cls}"><td><strong>${fundMilestoneLabel(fundMilestoneTarget(m),state,config)}</strong></td><td>${escapeHtml(rewardsText(m.freeRewards)||"—")}</td><td>${trackStatus("free",m)}</td><td>${escapeHtml(rewardsText(m.premiumRewards)||"—")}</td><td>${state.fundPremiumPurchased?trackStatus("premium",m):`<span class="fund-track-status lock">未購買</span>`}</td></tr>`
   }).join("")}</tbody></table></div>`;
+  renderFundGoalCalculator();
 }
 function renderPackages(){
   $("packageGroups").innerHTML=config.packageGroups.map(group=>`
@@ -5789,6 +5846,49 @@ function renderPackages(){
       const key=`${group.id}:${pack.id}`,bought=Number(dayState().packagePurchases[key]||0),left=Math.max(0,Number(pack.limit)-bought);
       return `<div class="row-card"><div class="row-top"><div><strong>${escapeHtml(pack.name)}</strong> ${group.id==="dicePackages"&&["adDice","gemDice"].includes(pack.id)?`<span class="badge free">無課金</span>`:""} <span class="badge ${left?"":"warn"}">${bought}/${pack.limit}</span><div class="row-desc">支出：${escapeHtml(itemText(pack.cost.itemId,pack.cost.amount))}<br>獲得：${escapeHtml(rewardsText(pack.rewards))}</div></div><div class="form-row"><button class="btn secondary small" data-refund-group="${group.id}" data-refund-package="${pack.id}" ${bought?"":"disabled"}>退回 1 次</button><button class="btn pink small" data-buy-group="${group.id}" data-buy-package="${pack.id}" ${left?"":"disabled"}>購買</button></div></div></div>`
     }).join("")}</div></div>`).join("")
+}
+function exchangeOfferKey(offer,cfg=config){return `${cfg.gameplay.type}:${offer.id}`}
+function exchangeOfferTimes(offer){return Math.max(0,Number(state.exchangePurchases?.[exchangeOfferKey(offer)]||0))}
+function exchangeShopOffer(offerId){return (config.exchangeShop||[]).find(x=>x.id===offerId)}
+function buyExchangeOffer(offerId,times=1){
+  if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能進行兌換");
+  const offer=exchangeShopOffer(offerId);if(!offer)return toast("找不到兌換項目");
+  const bought=exchangeOfferTimes(offer),remaining=Math.max(0,Number(offer.limit||0)-bought);
+  const requested=Math.max(1,Math.floor(Number(times||1))),count=Math.min(requested,remaining);
+  if(count<1)return toast("此兌換項目已達上限");
+  const need=Number(offer.cost.amount||0)*count,have=Number(state.resources[offer.cost.itemId]||0);
+  if(have<need)return toast(`${item(offer.cost.itemId).name}不足，需要 ${fmt(need)}`);
+  recordHistory(`兌換 ${offer.name} ×${count}`);
+  state.resources[offer.cost.itemId]=have-need;
+  state.spent[offer.cost.itemId]=Number(state.spent[offer.cost.itemId]||0)+need;
+  if(offer.cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,need);
+  const gain=Number(offer.reward.amount||0)*count;
+  addItem(offer.reward.itemId,gain,`${offer.name}兌換`,true);
+  const key=exchangeOfferKey(offer);state.exchangePurchases[key]=bought+count;
+  state.lastExchangeUndo={key,offerId:offer.id,count,cost:clone(offer.cost),reward:clone(offer.reward),day:state.currentDay};
+  render();toast(`已兌換 ${fmt(count)} 次`)
+}
+function undoLastExchange(){
+  const u=state.lastExchangeUndo;if(!u)return toast("沒有可退回的兌換");
+  const costAmount=Number(u.cost.amount||0)*Number(u.count||0),rewardAmount=Number(u.reward.amount||0)*Number(u.count||0);
+  state.resources[u.cost.itemId]=Number(state.resources[u.cost.itemId]||0)+costAmount;
+  state.spent[u.cost.itemId]=Math.max(0,Number(state.spent[u.cost.itemId]||0)-costAmount);
+  state.resources[u.reward.itemId]=Number(state.resources[u.reward.itemId]||0)-rewardAmount;
+  if(u.cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(u.day,-costAmount);
+  if(u.reward.itemId===config.currencies.gameTokenId)adjustGameTokenGain(u.day,-rewardAmount);
+  dayStateForIndex(u.day).score=Math.max(0,Number(dayStateForIndex(u.day).score||0)-scorePerItem(u.reward.itemId)*rewardAmount);
+  state.exchangePurchases[u.key]=Math.max(0,Number(state.exchangePurchases[u.key]||0)-Number(u.count||0));
+  const negative=state.resources[u.reward.itemId]<0;
+  state.lastExchangeUndo=null;recordHistory("退回上次兌換");render();toast(negative?"已退回；兌換所得物品已使用，因此資源可能為負數。":"已退回上次兌換")
+}
+function renderExchangeShop(){
+  const el=$("exchangeShopList");if(!el)return;
+  const offers=config.exchangeShop||[];
+  el.innerHTML=offers.length?offers.map(offer=>{
+    const bought=exchangeOfferTimes(offer),left=Math.max(0,Number(offer.limit||0)-bought),key=escapeHtml(offer.id);
+    return `<div class="exchange-shop-card"><div class="exchange-shop-row"><div><strong>${escapeHtml(offer.name)}</strong> <span class="badge ${left?"":"warn"}">${fmt(bought)}/${fmt(offer.limit)}</span><div class="exchange-shop-desc">${escapeHtml(itemText(offer.cost.itemId,offer.cost.amount))} → ${escapeHtml(itemText(offer.reward.itemId,offer.reward.amount))}</div></div><div class="exchange-shop-actions"><input class="input" type="number" min="1" max="${Math.max(1,left)}" value="1" data-exchange-count="${key}"><button class="btn green small" data-exchange-buy="${key}" ${left?"":"disabled"}>兌換</button></div></div></div>`
+  }).join(""):`<div class="empty">目前玩法沒有兌換商品，請到活動設定 → 兌換商店新增。</div>`;
+  if(state.lastExchangeUndo)el.insertAdjacentHTML("beforeend",`<div class="form-row" style="justify-content:flex-end"><button class="btn secondary small" id="undoExchangeBtn">退回上次兌換</button></div>`)
 }
 function renderResources(){
   const entries=config.items.filter(x=>Number(state.resources[x.id]||0)!==0);
@@ -5801,6 +5901,13 @@ function renderResources(){
     ?config.randomBoxes.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}（持有 ${fmt(state.resources[x.boxItemId])}）</option>`).join("")
     :`<option value="">目前玩法沒有隨機箱</option>`;
   if(config.randomBoxes.some(x=>x.id===current))$("boxSelect").value=current;
+  const selectedBox=config.randomBoxes.find(x=>x.id===$("boxSelect").value)||config.randomBoxes[0];
+  const boxCount=$("boxOpenCount");
+  if(boxCount){
+    const owned=selectedBox?Math.max(0,Math.floor(Number(state.resources[selectedBox.boxItemId]||0))):0;
+    boxCount.max=Math.max(1,owned);
+    if(Number(boxCount.value||1)<1)boxCount.value=1
+  }
   $("openOneBoxBtn").disabled=!config.randomBoxes.length;
   $("openAllBoxesBtn").disabled=!config.randomBoxes.length;
   $("undoBoxBtn").disabled=!state.lastBoxUndo
@@ -5846,7 +5953,7 @@ function renderLog(){
 }
 function render(){
   $("eventName").textContent=config.event.name;
-  renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
+  renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderExchangeShop();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
 }
 function save(){
   localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
@@ -6025,7 +6132,7 @@ function renderSettings(){
         <div class="field"><label>隱藏模式免費粉色彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式單格獎勵門檻</label>${pathInput("gameplaySettings.pinball.hiddenSlotRequired",c.gameplaySettings.pinball.hiddenSlotRequired,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">普通模式 8 格內容固定，不再使用舊版「普通模式獎勵機率」以及「高級／普通卷軸共用特殊格門檻」。</div>
+      <div class="help">普通模式 8 格內容固定；勾選「普通模式跳過動畫」時，綠色彈珠會直接結算落點。隱藏模式達標後永遠自動開始。</div>
     </div>
 
     <div class="editor-head"><div><h3>固定 8 格、紅標門檻與最終落點權重</h3><div class="help">由左到右分別設定每格獎勵、紅色標記出現在該格時的累積門檻，以及彈珠最終落入該格的權重。</div></div></div>
@@ -6134,6 +6241,22 @@ function renderSettings(){
       </div>`).join("")}
     </div>`).join("")}</section>`;
 
+  sections.shop=`<section class="setting-section active">
+    <div class="editor-head"><div><h2>${escapeHtml(activeGpLabel)}專用兌換商店</h2><div class="help">設定成本物品／數量、獲得物品／數量與整個活動的兌換上限。</div></div><button class="btn green small" data-settings-action="addExchangeOffer" data-gameplay="${activeGp}">＋新增兌換商品</button></div>
+    ${(activeGpCfg.exchangeShop||[]).map((offer,i)=>`<div class="editor-card exchange-setting-card">
+      <div class="editor-head"><strong>${escapeHtml(offer.name)}</strong><button class="btn red small" data-settings-action="removeExchangeOffer" data-gameplay="${activeGp}" data-index="${i}">刪除</button></div>
+      <div class="setting-grid">
+        <div class="field"><label>名稱</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.name`,offer.name)}</div>
+        <div class="field"><label>活動兌換上限</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.limit`,offer.limit,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>消耗物品</label><select data-path="gameplaySettings.${activeGp}.exchangeShop.${i}.cost.itemId">${itemOptions(offer.cost.itemId)}</select></div>
+        <div class="field"><label>消耗數量</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.cost.amount`,offer.cost.amount,"number",'min="0" step="any"')}</div>
+        <div class="field"><label>獲得物品</label><select data-path="gameplaySettings.${activeGp}.exchangeShop.${i}.reward.itemId">${itemOptions(offer.reward.itemId)}</select></div>
+        <div class="field"><label>獲得數量</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.reward.amount`,offer.reward.amount,"number",'min="0" step="any"')}</div>
+      </div>
+      <div class="help">系統識別碼：${escapeHtml(offer.id)}</div>
+    </div>`).join("")}
+  </section>`;
+
   sections.backup=`<section class="setting-section active"><h2>備份與還原</h2>
     <div class="editor-card"><h3>活動設定備份</h3><p class="help">備份包含共用活動環境與目前玩法設定；之後可以在同一環境加入其他玩法。</p>
       <div class="form-row"><button class="btn" data-settings-action="exportConfig">匯出活動設定</button><button class="btn secondary" data-settings-action="importConfig">匯入活動設定</button></div>
@@ -6170,7 +6293,7 @@ function settingsAction(btn){
   if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
   if(a==="addGameplayScoreRule"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
-    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,randomBoxes:[],pointsPerItemObtained:[]};
+    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,randomBoxes:[],exchangeShop:[],pointsPerItemObtained:[]};
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0})
   }
   if(a==="removeGameplayScoreRule"){
@@ -6202,6 +6325,16 @@ function settingsAction(btn){
   if(a==="removeStage"){
     const gp=btn.dataset.gameplay||settingsDraft.gameplay?.type||"monopoly";
     settingsDraft.gameplaySettings[gp].progressStages.splice(Number(btn.dataset.index),1)
+  }
+  if(a==="addExchangeOffer"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay?.type||"monopoly";
+    const g=settingsDraft.gameplaySettings[gameplay];
+    if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
+    g.exchangeShop.push({id:uid("exchange"),name:"新兌換商品",cost:{itemId:g.normalExchangeId||settingsDraft.items[0].id,amount:1},reward:{itemId:g.premiumExchangeId||settingsDraft.items[0].id,amount:1},limit:1})
+  }
+  if(a==="removeExchangeOffer"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay?.type||"monopoly";
+    settingsDraft.gameplaySettings[gameplay].exchangeShop.splice(Number(btn.dataset.index),1)
   }
   if(a==="addGameplayBox"){
     const gameplay=btn.dataset.gameplay||"monopoly",g=settingsDraft.gameplaySettings[gameplay];
@@ -6357,12 +6490,9 @@ $("pinballCraftMaxBtn").addEventListener("click",()=>convertPinballCraftTickets(
 
 $("pinballHiddenStartBtn").addEventListener("click",()=>{
   const ps=ensurePinballSlots();
-  if(ps.hiddenActive){
-    pinballHiddenForceFast=true;
-    $("pinballHiddenStartBtn").textContent="跳過中...";
-    return
-  }
-  runPinballHiddenMode({fast:false})
+  if(!ps.hiddenActive)return;
+  abortPinballHiddenAnimations();
+  $("pinballHiddenStartBtn").textContent="直接結算中..."
 });
 $("autoRollBtn").addEventListener("click",autoRoll);
 $("undoAutoRollBtn").addEventListener("click",undoAutoRoll);
@@ -6382,6 +6512,15 @@ $("refundFreeDailyBtn").addEventListener("click",refundFreeDailyBundle);
 $("claimFundBtn").addEventListener("click",claimAllFund);
 $("purchaseFundBtn").addEventListener("click",purchasePremiumFund);
 $("undoFundBtn").addEventListener("click",undoLastFundAction);
+["fundGoalItem","fundGoalTrack"].forEach(id=>$(id)?.addEventListener("change",renderFundGoalCalculator));
+$("fundGoalAmount")?.addEventListener("input",renderFundGoalCalculator);
+$("boxOpenCount")?.addEventListener("change",e=>{e.target.value=Math.max(1,Math.floor(Number(e.target.value||1)))});
+$("boxSelect")?.addEventListener("change",renderResources);
+$("exchangeShopList")?.addEventListener("click",e=>{
+  const buy=e.target.closest("[data-exchange-buy]");
+  if(buy){const id=buy.dataset.exchangeBuy,input=document.querySelector(`[data-exchange-count="${CSS.escape(id)}"]`);buyExchangeOffer(id,Number(input?.value||1));return}
+  if(e.target.closest("#undoExchangeBtn")){undoLastExchange();return}
+});
 $("openOneBoxBtn").addEventListener("click",()=>openBoxes(false));
 $("openAllBoxesBtn").addEventListener("click",()=>openBoxes(true));
 $("undoBoxBtn").addEventListener("click",undoLastBoxOpen);
