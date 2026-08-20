@@ -949,7 +949,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
             每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。<br>
             <strong>固定收益優先：</strong>「本日目標階段」只是本日終點。禮包、基金精準領取、指定隨機箱、兌換商店等固定步驟會先照設定順序完成；如果當下資源不足，只逐顆投入到足以完成該固定步驟，完成當下立刻停。<br>
             <strong>基金不能晚領：</strong>精準基金現在是「中斷事件」；若當天安排購買基金，會先依購買後的免費＋進階獎勵鎖定門檻，但等「購買基金」完成後才啟動監控。不管當下是在湊箱子、湊兌換材料或最後補分，只要基金條件剛好達標就立刻插隊領取；例如840到了就先領65，不會繼續製作到更高門檻。<br>
-            <strong>指定箱子不能晚開：</strong>例如設定開70個但當下只有50個，就逐顆玩到背包湊足70個，馬上開70個；箱子與兌換等固定分全部拿完後，仍不足目標階段才繼續用彈珠補最後差額。
+            <strong>指定箱子不能晚開：</strong>例如設定開70個但當下只有50個，就逐顆玩到背包湊足70個，馬上開70個；箱子與兌換等固定分全部拿完後，仍不足目標階段才繼續用彈珠補最後差額。<br>
+            <strong>週日「用完剩餘彈珠」：</strong>現在會連剩餘製作卷一起全部轉成彈珠投入，不再只丟已經製作好的球。每日摘要會列出當日實際使用彈珠與開箱數，可直接核對是否接近預期的 15／70／14。
           </div>
           <div class="weekly-flow-actions">
             <button class="btn gold small" id="loadExampleFlowBtn">套用目前範例流程</button>
@@ -3766,7 +3767,7 @@ function flowExamplePlan(cfg=config){
     {actions:clean([{type:"free"},pkg(p500),{type:"fundBuy"},{type:"fundClaim",itemId:craft,amount:65},{type:"stage",stage:flowClampStage(cfg,3)}])},
     {actions:clean([{type:"free"},pkg(p500),{type:"fundClaim",itemId:craft,amount:60},boxStep(15),{type:"stage",stage:flowClampStage(cfg,3)}])},
     {actions:clean([{type:"free"},pkg(p500),boxStep(70),exchangeStep(10),{type:"stage",stage:flowClampStage(cfg,3)}])},
-    {actions:clean([{type:"free"},pkg(p1000Premium),{type:"allBalls"},box?{type:"allBoxes",boxId:box.id}:null])}
+    {actions:clean([{type:"free"},{type:"allBalls"},box?{type:"allBoxes",boxId:box.id}:null,pkg(p1000Premium)])}
   ]
 }
 function flowNormalizePlan(plan,cfg=config){
@@ -3821,7 +3822,7 @@ function flowActionFields(action,cfg=config){
   if(action.type==="exchange"){
     const offers=cfg.exchangeShop||[];return `<select data-flow-field="offerId">${offers.map(o=>`<option value="${escapeHtml(o.id)}" ${o.id===action.offerId?"selected":""}>${escapeHtml(o.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次；材料不足時會逐顆玩到足夠，足夠立刻兌換。</span>`
   }
-  if(action.type==="allBalls")return `<span class="help">只使用當下已持有的${escapeHtml(cfgItem(cfg,pc.gameTokenId||cfg.currencies.gameTokenId).name)}，不額外消耗製作卷製作。</span>`;
+  if(action.type==="allBalls")return `<span class="help">把目前持有的彈珠全部投入；彈珠用完後會繼續把剩餘製作卷 1:1 製作成彈珠並投入，直到「彈珠=0、製作卷=0」才停止。途中照常自動領每日進度獎勵。</span>`;
   if(action.type==="fundBuy")return `<span class="help">購買進階基金，不會立即領獎。</span>`;
   if(action.type==="free")return `<span class="help">每日任務＋本日無課金禮包；首日也會包含登入贈送。</span>`;
   return""
@@ -4207,8 +4208,29 @@ function flowExchange(st,cfg,action,stats,ctx={}){
     note:`${offer.name} ${before<required?`先逐顆投入 ${prep.used} 顆湊材料 → `:""}兌換 ${want} 次`
   }
 }
-function flowUseAllBalls(st,cfg,stats){
-  const ball=cfg.gameplaySettings?.pinball?.gameTokenId||cfg.currencies.gameTokenId;let used=0,guard=0;while(Number(st.resources[ball]||0)>0&&guard++<20000){const r=flowDropPinball(st,cfg,stats,{autoCraft:false});if(!r.ok)break;used++}return{ok:true,note:`使用剩餘彈珠 ${used} 顆`}
+function flowUseAllBalls(st,cfg,stats,ctx={}){
+  const pc=cfg.gameplaySettings?.pinball||{};
+  const ball=pc.gameTokenId||cfg.currencies.gameTokenId;
+  const ticket=pc.craftTicketId;
+  let used=0,guard=0;
+
+  // 「剩下的都用一用」= 已製作彈珠 + 所有仍可轉換的製作卷。
+  // flowDropPinball(autoCraft:true) 會在彈珠歸零時每次自動製作1顆再投入。
+  while(
+    (Number(st.resources[ball]||0)>0 || Number(st.resources[ticket]||0)>0) &&
+    guard++<100000
+  ){
+    const r=flowDropPinball(st,cfg,stats,{autoCraft:true});
+    if(!r.ok)break;
+    used++;
+
+    flowCheckFundInterrupts(st,cfg,ctx,stats);
+  }
+
+  return{
+    ok:true,
+    note:`已用完可玩的彈珠資源：共投入 ${used} 顆｜剩餘 ${flowPlayableText(st,cfg)}`
+  }
 }
 function flowExecuteAction(st,cfg,action,stats,ctx={}){
   if(action.type==="free")return flowClaimFree(st,cfg,stats);
@@ -4219,7 +4241,7 @@ function flowExecuteAction(st,cfg,action,stats,ctx={}){
   if(action.type==="box")return flowOpenBox(st,cfg,action,stats,false,ctx);
   if(action.type==="allBoxes")return flowOpenBox(st,cfg,action,stats,true,ctx);
   if(action.type==="exchange")return flowExchange(st,cfg,action,stats,ctx);
-  if(action.type==="allBalls")return flowUseAllBalls(st,cfg,stats);
+  if(action.type==="allBalls")return flowUseAllBalls(st,cfg,stats,ctx);
   return{ok:false,note:`未知步驟 ${action.type}`}
 }
 function flowReachedStage(st,cfg){const score=Number(flowDayState(st).score||0),list=[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));return list.filter(s=>score>=Number(s.requiredScore||0)).at(-1)?.stage||0}
@@ -4233,6 +4255,11 @@ function runWeeklyFlowOnce(base,cfg,run){
     if(cfg.gameplay.type==="pinball")flowPinballEnsure(st,cfg);
 
     const actions=plan[d]?.actions||[];
+    const dayBallsStart=Number(stats.ballsUsed||0);
+    const dayBoxesStart=Number(stats.boxesOpened||0);
+    const premiumId=cfg.gameplaySettings?.pinball?.premiumExchangeId||cfg.currencies.premiumExchangeId;
+    const dayPremiumStart=Number(st.resources?.[premiumId]||0);
+
     const stageAction=actions.find(a=>a?.type==="stage")||null;
     const dayGoal=stageAction
       ?(cfg.progressStages||[]).find(s=>Number(s.stage)===Number(stageAction.stage))
@@ -4302,7 +4329,10 @@ function runWeeklyFlowOnce(base,cfg,run){
       craft:Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0),
       premium:Number(st.resources?.[cfg.gameplaySettings?.pinball?.premiumExchangeId]||0),
       normal:Number(st.resources?.[cfg.gameplaySettings?.pinball?.normalExchangeId]||0),
-      missionAmount:Number(flowDayState(st).missionAmount||0)
+      missionAmount:Number(flowDayState(st).missionAmount||0),
+      ballsUsedToday:Number(stats.ballsUsed||0)-dayBallsStart,
+      boxesOpenedToday:Number(stats.boxesOpened||0)-dayBoxesStart,
+      premiumGainToday:Number(st.resources?.[premiumId]||0)-dayPremiumStart
     })
   }
 
@@ -4355,10 +4385,13 @@ function renderSimulation(){
       mission:average(rows.map(x=>x.missionAmount)),
       balls:average(rows.map(x=>x.balls)),
       craft:average(rows.map(x=>x.craft)),
-      premium:average(rows.map(x=>x.premium))
+      premium:average(rows.map(x=>x.premium)),
+      ballsUsedToday:average(rows.map(x=>x.ballsUsedToday)),
+      boxesOpenedToday:average(rows.map(x=>x.boxesOpenedToday)),
+      premiumGainToday:average(rows.map(x=>x.premiumGainToday))
     }
   });
-  $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>平均最終分數</th><th>平均階段</th><th>平均製作卷剩餘</th><th>平均彈珠剩餘</th><th>平均高級捲軸累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`;
+  $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日高級捲軸增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>高級捲軸累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`;
   const premium=pc.premiumExchangeId||cfg.currencies.premiumExchangeId,normal=pc.normalExchangeId||cfg.currencies.normalExchangeId;
   $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用彈珠</th><th>開箱</th><th>製作卷消耗</th><th>翡翠支出</th><th>${escapeHtml(cfgItem(cfg,normal).name)}最終</th><th>${escapeHtml(cfgItem(cfg,premium).name)}最終</th><th>${escapeHtml(cfgItem(cfg,pc.gameTokenId).name)}最終</th><th>${escapeHtml(cfgItem(cfg,pc.craftTicketId).name)}最終</th><th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td><td>${fmt(r.craftSpent)}</td><td>${fmt(r.paidSpent)}</td><td>${fmt(r.normalFinal)}</td><td>${fmt(r.premiumFinal)}</td><td>${fmt(r.ballFinal)}</td><td>${fmt(r.craftFinal)}</td><td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
 }
