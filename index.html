@@ -958,7 +958,8 @@ button:disabled{cursor:not-allowed;opacity:.45}
           </div>
           <div class="help" id="weeklyFlowGameplayNote" style="margin:8px 0;font-weight:900"></div><div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
           <div class="sim-controls weekly-sim-controls">
-            <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="500" value="100"></div>
+            <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="100"></div>
+            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜僅分段更新進度" readonly></div>
             <div class="field"><label>每日進度獎勵</label><input class="input" value="解鎖即自動全部領取" readonly></div>
             <div class="field"><label>執行整週流程</label><button class="btn green" id="runSimulationBtn" style="width:100%">依序模擬週一～週日</button></div>
           </div>
@@ -4267,7 +4268,6 @@ function flowPlayableText(st,cfg){
   return `${cfgItem(cfg,x.ballId).name} ${fmt(x.balls)}｜${cfgItem(cfg,x.ticketId).name} ${fmt(x.tickets)}`
 }
 function flowFundMetricSpec(cfg=config){
-  normalizeFundConfig(cfg);
   return{
     basis:cfg.fund?.unlockBasis||"itemObtained",
     itemId:cfg.fund?.unlockItemId||cfg.currencies.gameTokenId
@@ -4292,8 +4292,8 @@ function flowGameplayCanObtainByPlaying(cfg,itemId){
   if(flowRewardContains(pc.hiddenVaultRewards,itemId))return true;
   return false
 }
-function flowFundProgressCapabilities(cfg=config){
-  const {basis,itemId}=flowFundMetricSpec(cfg);
+function flowFundProgressCapabilities(cfg=config,precomputedSpec=null){
+  const {basis,itemId}=precomputedSpec||flowFundMetricSpec(cfg);
   const type=batchGameplayType(cfg);
   const gp=cfg.gameplaySettings?.[type]||{};
   const caps=[];
@@ -4363,7 +4363,7 @@ function flowFundExplicitStepSources(cfg=config){
 }
 function flowFundAutoProgressDescription(cfg=config){
   const spec=flowFundMetricSpec(cfg),it=cfgItem(cfg,spec.itemId);
-  const caps=flowFundProgressCapabilities(cfg);
+  const caps=flowFundProgressCapabilities(cfg,spec);
   const explicit=flowFundExplicitStepSources(cfg);
   const parts=[];
 
@@ -4373,10 +4373,10 @@ function flowFundAutoProgressDescription(cfg=config){
   if(explicit.length)parts.push(`流程步驟可推進：${explicit.join("、")}`);
   return parts.join("；")
 }
-function flowFundPerformAdaptiveStep(st,cfg,stats,ctx={}){
-  const spec=flowFundMetricSpec(cfg);
-  const caps=flowFundProgressCapabilities(cfg);
-  const type=batchGameplayType(cfg);
+function flowFundPerformAdaptiveStep(st,cfg,stats,ctx={},compiledPlan=null){
+  const spec=compiledPlan?.spec||flowFundMetricSpec(cfg);
+  const caps=compiledPlan?.caps||flowFundProgressCapabilities(cfg,spec);
+  const type=compiledPlan?.type||batchGameplayType(cfg);
 
   if(!caps.length){
     return{
@@ -4576,9 +4576,13 @@ function flowAdvanceFundMetric(st,cfg,threshold,stats,ctx={}){
   let current=flowFundMetricValue(st,cfg);
   if(current>=target)return{ok:true,metricValue:current,steps:0};
 
-  const caps=flowFundProgressCapabilities(cfg);
+  // 這些判斷只跟活動設定有關，一次基金推進只編譯一次。
+  // 舊版每製作/投入1顆彈珠都重新掃一次整份設定，是 v86 彈珠批次變慢的主要原因。
+  const spec=flowFundMetricSpec(cfg);
+  const caps=flowFundProgressCapabilities(cfg,spec);
+  const compiledPlan={spec,caps,type:batchGameplayType(cfg)};
+
   if(!caps.length){
-    const spec=flowFundMetricSpec(cfg);
     return{
       ok:false,
       metricValue:current,
@@ -4588,7 +4592,7 @@ function flowAdvanceFundMetric(st,cfg,threshold,stats,ctx={}){
 
   let guard=0,steps=0,stagnant=0,last=current,lastAction="";
   while(current<target&&guard++<100000){
-    const r=flowFundPerformAdaptiveStep(st,cfg,stats,ctx);
+    const r=flowFundPerformAdaptiveStep(st,cfg,stats,ctx,compiledPlan);
     if(!r.ok){
       return{
         ok:false,
@@ -4988,15 +4992,40 @@ function runWeeklyFlowOnce(base,cfg,run){
 function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
 async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");if(rolling)return toast("目前遊戲正在執行");
-  const count=Math.max(1,Math.min(500,Math.floor(Number($("simulationCount").value||100))));
+  const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||100))));
   $("simulationCount").value=count;
   const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
   normalizeFundConfig(cfg);
   ensureStateSchema(base,cfg);
   if(batchGameplayType(cfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
-  $("runSimulationBtn").disabled=true;$("simulationProgress").style.width="0%";$("simulationProgressText").textContent=`準備依序執行 ${count} 次七日流程…`;batchResults=[];
-  for(let i=0;i<count;i++){const result=runWeeklyFlowOnce(base,cfg,i+1);batchResults.push(result);$("simulationProgress").style.width=`${(i+1)/count*100}%`;$("simulationProgressText").textContent=`已完成 ${i+1} / ${count} 次七日流程`;if(i%3===2)await wait(0)}
-  batchResults.meta={config:cfg,plan:clone(ensureWeeklyFlowPlan(cfg))};$("runSimulationBtn").disabled=false;renderSimulation();toast(`七日流程批次模擬完成，共 ${count} 次`)
+  $("runSimulationBtn").disabled=true;
+  $("simulationProgress").style.width="0%";
+  $("simulationProgressText").textContent=`高速計算 ${count} 次七日流程…`;
+  batchResults=[];
+
+  // UI 更新不是模擬的一部分。限制成最多約20次，避免 1/500、2/500…
+  // 每次都修改 DOM，尤其彈珠單輪運算量大時會造成 Safari 明顯卡頓。
+  const progressChunk=Math.max(1,Math.ceil(count/20));
+
+  for(let i=0;i<count;i++){
+    const result=runWeeklyFlowOnce(base,cfg,i+1);
+    batchResults.push(result);
+
+    const done=i+1;
+    if(done===count||done%progressChunk===0){
+      $("simulationProgress").style.width=`${done/count*100}%`;
+      $("simulationProgressText").textContent=done===count
+        ?`計算完成 ${count} / ${count}`
+        :`高速計算中… ${Math.round(done/count*100)}%`;
+      // 只在少量進度節點讓瀏覽器更新畫面，維持操作回應。
+      if(done<count)await wait(0)
+    }
+  }
+
+  batchResults.meta={config:cfg,plan:clone(ensureWeeklyFlowPlan(cfg))};
+  $("runSimulationBtn").disabled=false;
+  renderSimulation();
+  toast(`七日流程批次模擬完成，共 ${count} 次`)
 }
 function captureBaseline(){
   if(rolling)return toast("目前遊戲正在執行，請稍候");
