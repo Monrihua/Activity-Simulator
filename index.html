@@ -4067,7 +4067,7 @@ function flowActionTypeOptions(selected,cfg=config){
   const opts=[
     ["free","一鍵領取無課金"],["stage","本日目標階段（最後補分）"],["package","購買禮包"],["fundBuy","購買基金"],
     ["fundClaim","基金精準領取指定物品"],["box","開指定數量隨機箱"],["exchange","兌換商店"],
-    ["allBalls",isPinball?"使用剩餘彈珠":"使用剩餘骰子"],["allBoxes","開完剩餘隨機箱"]
+    ["allBalls",isPinball?"使用剩餘彈珠":"使用剩餘骰子"],["allBoxes","開完剩餘隨機箱（收尾）"]
   ];
   return opts.map(([v,l])=>`<option value="${v}" ${v===selected?"selected":""}>${l}</option>`).join("")
 }
@@ -4086,7 +4086,9 @@ function flowActionFields(action,cfg=config){
   }
   if(action.type==="box"||action.type==="allBoxes"){
     const boxes=cfg.randomBoxes||[];const select=`<select data-flow-field="boxId">${boxes.map(b=>`<option value="${escapeHtml(b.id)}" ${b.id===action.boxId?"selected":""}>${escapeHtml(b.name)}</option>`).join("")}</select>`;
-    return action.type==="box"?`${select}<input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">個；持有不足時會使用目前玩法資源補到湊足，湊到立刻開。</span>`:select
+    return action.type==="box"
+      ?`${select}<input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">個；持有不足時會使用目前玩法資源補到湊足，湊到立刻開。</span>`
+      :`${select}<span class="help">收尾動作：會等當天基金、目標階段、使用剩餘玩法代幣都完成並自動領完每日進度獎勵後，才把當時所有剩餘箱子一次開完。</span>`
   }
   if(action.type==="exchange"){
     const offers=cfg.exchangeShop||[];return `<select data-flow-field="offerId">${offers.map(o=>`<option value="${escapeHtml(o.id)}" ${o.id===action.offerId?"selected":""}>${escapeHtml(o.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次；材料不足時會使用目前玩法資源補到足夠，足夠立刻兌換。</span>`
@@ -4111,7 +4113,7 @@ function renderWeeklyFlowPlanner(){
   if(help){
     help.innerHTML=type==="pinball"
       ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。固定收益、精準基金、指定箱子與兌換先完成，最後才用彈珠補目標階段；「使用剩餘彈珠」會連剩餘製作卷一起轉成彈珠用完。`
-      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。基金精準領取現在是真正的中途檢查點：逐次擲骰到基金門檻 → 門檻達標當下立刻全領 → 只計算這次領基金實際增加的骰子 → 再繼續擲骰補本日目標階段。完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬；大富翁與彈珠的基金購買／已領階段也完全分開。`
+      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。基金精準領取會逐次擲骰到門檻 → 當下立刻全領 → 再繼續補本日目標。<strong>「開完剩餘隨機箱」固定視為收尾動作</strong>：一定等使用剩餘骰子與最後進度獎勵都完成後才開，因此最後一天新取得的箱子不會漏開。`
   }
   const plan=ensureWeeklyFlowPlan(config);
   el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
@@ -4764,10 +4766,16 @@ function runWeeklyFlowOnce(base,cfg,run){
     // watcher 會先鎖定購買後的完整門檻，等購買完成才正式啟動。
     const fundWatchers=flowBuildFundWatchers(st,cfg,actions);
 
-    // 先做所有固定步驟。stage 只是本日終點，不在這裡執行。
+    // 「開完剩餘隨機箱」是收尾動作：
+    // 它不能在使用剩餘骰子/彈珠之前執行，否則最後新解鎖的每日進度箱會留在背包。
+    const closingBoxActions=actions
+      .map((action,index)=>({action,index}))
+      .filter(x=>x.action?.type==="allBoxes");
+
+    // 先做所有固定步驟。stage 是本日終點，allBoxes 留到最後。
     for(let i=0;i<actions.length;i++){
       const action=actions[i];
-      if(action.type==="stage")continue;
+      if(action.type==="stage"||action.type==="allBoxes")continue;
 
       const r=flowExecuteAction(st,cfg,action,stats,{
         actions,index:i,day:d,
@@ -4805,6 +4813,39 @@ function runWeeklyFlowOnce(base,cfg,run){
         fundWatchers
       });
       stats.steps.push({day:d,index:actions.length,type:"stage",ok:!!r.ok,note:r.note||""});
+      flowAutoClaimStages(st,cfg,stats);
+    }
+
+    // 再自動領一次，確保剛才「使用剩餘骰子/彈珠」或最後補分所解鎖的階段都已入袋。
+    flowAutoClaimStages(st,cfg,stats);
+
+    // 最後才真正「開完剩餘隨機箱」。
+    for(const {action,index} of closingBoxActions){
+      const beforeBox=(cfg.randomBoxes||[]).find(b=>b.id===action.boxId)||(cfg.randomBoxes||[])[0];
+      const beforeCount=beforeBox?Number(st.resources[beforeBox.boxItemId]||0):0;
+
+      const r=flowExecuteAction(st,cfg,action,stats,{
+        actions,index,day:d,
+        dayGoalStage:Number(dayGoal?.stage||0),
+        dayGoalScore,
+        fundWatchers
+      });
+
+      const suffix=beforeBox
+        ?`（收尾時背包共有 ${fmt(beforeCount)} ${cfgItem(cfg,beforeBox.boxItemId).name}）`
+        :"";
+
+      stats.steps.push({
+        day:d,index,type:action.type,ok:!!r.ok,
+        note:`${r.note||""}${suffix}`
+      });
+
+      if(!r.ok){
+        stats.failures.push(
+          `${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${index+1}：${r.note||"失敗"}`
+        )
+      }
+
       flowAutoClaimStages(st,cfg,stats);
     }
 
