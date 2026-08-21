@@ -1379,6 +1379,38 @@ function migrateFundUnlockRule(fund,gameplayCfg,gameplayType,cfg,flagItemId){
   fund.unlockBasis="itemObtained";
   fund.unlockItemId=gameplayCfg.gameTokenId
 }
+function monopolyFlagItemId(cfg){
+  return (cfg.items||[]).find(x=>x.name==="旗幟")?.id||"Flag"
+}
+function monopolyFundLooksLapBased(cfg,monoFund=null){
+  const fund=monoFund||cfg.gameplaySettings?.monopoly?.fund||cfg.fund;
+  if(!fund||!Array.isArray(fund.milestones)||!fund.milestones.length)return false;
+
+  const flagId=monopolyFlagItemId(cfg);
+  const hasStartFlag=(cfg.board?.startRewards||[]).some(r=>
+    r.itemId===flagId || cfgItem(cfg,r.itemId)?.name==="旗幟"
+  );
+  if(!hasStartFlag)return false;
+
+  const legacyIds=fund.milestones.filter(m=>
+    /^fundLap\d+$/i.test(String(m.id||"")) ||
+    String(m.id||"")==="legacyFundStage"
+  ).length;
+
+  return legacyIds>=Math.max(1,Math.ceil(fund.milestones.length*.5))
+}
+function repairMonopolyLapFundUnlock(cfg){
+  const mono=cfg.gameplaySettings?.monopoly;
+  if(!mono?.fund||!monopolyFundLooksLapBased(cfg,mono.fund))return false;
+
+  const flagId=monopolyFlagItemId(cfg);
+  if(mono.fund.unlockBasis!=="itemObtained"||mono.fund.unlockItemId!==flagId){
+    mono.fund.unlockBasis="itemObtained";
+    mono.fund.unlockItemId=flagId;
+    return true
+  }
+  return false
+}
 function normalizeFundUnlockRule(fund,gameplayCfg,cfg,defaultItemId){
   if(!fund||typeof fund!=="object")return;
   if(!["itemSpent","itemObtained"].includes(fund.unlockBasis))fund.unlockBasis="itemObtained";
@@ -1743,6 +1775,9 @@ function normalizeFundConfig(cfg){
   normalizeFundUnlockRule(mono.fund,mono,cfg,flagItemId);
   normalizeFundUnlockRule(pin.fund,pin,cfg,pin.gameTokenId);
 
+  // 舊圈數基金若曾被錯誤遷移成「獲得骰子」，自動修回旗幟。
+  repairMonopolyLapFundUnlock(cfg);
+
   // 最終落點先依8格權重抽目標，再播放模擬碰釘動畫。
   if(!Array.isArray(pin.landingWeights)||pin.landingWeights.length!==8){
     pin.landingWeights=[5,10,15,20,20,15,10,5]
@@ -1820,8 +1855,20 @@ function normalizeFundConfig(cfg){
     cfg.strategyLuck[mode].diceAverage=Math.max(.1,Number(cfg.strategyLuck[mode].diceAverage||3.5));
     if(!["minimum","expected"].includes(cfg.strategyLuck[mode].boxMode))cfg.strategyLuck[mode].boxMode=mode==="africa"?"minimum":"expected"
   });
+  if(
+    cfg.gameplay.type==="monopoly" &&
+    cfg.gameplaySettings?.monopoly?.fund &&
+    monopolyFundLooksLapBased(cfg,cfg.gameplaySettings.monopoly.fund)
+  ){
+    cfg.fund=clone(cfg.gameplaySettings.monopoly.fund)
+  }
   if(!cfg.fund)cfg.fund={};
-  normalizeFundUnlockRule(cfg.fund,activeGameplay,cfg,activeGameplay?.gameTokenId||cfg.currencies.gameTokenId);
+  normalizeFundUnlockRule(
+    cfg.fund,
+    activeGameplay,
+    cfg,
+    cfg.gameplay.type==="monopoly"?monopolyFlagItemId(cfg):(activeGameplay?.gameTokenId||cfg.currencies.gameTokenId)
+  );
   if(!cfg.fund.premiumCost)cfg.fund.premiumCost={itemId:cfg.currencies?.paidCurrencyId||"emerald",amount:0};
   if(!Array.isArray(cfg.fund.milestones)){
     const legacyLaps=Math.max(0,Number(cfg.fund.plannerUnlockLaps||0));
@@ -3824,8 +3871,14 @@ function fundUnlockBasisOptions(){
   ]
 }
 function fundUnlockMetricMeta(targetState=state,cfg=config){
-  const basis=fundUnlockBasis(cfg);
-  const itemId=cfg.fund?.unlockItemId||cfg.currencies.gameTokenId;
+  let basis=fundUnlockBasis(cfg);
+  let itemId=cfg.fund?.unlockItemId||cfg.currencies.gameTokenId;
+
+  if(batchGameplayType(cfg)==="monopoly"&&monopolyFundLooksLapBased(cfg,cfg.fund)){
+    basis="itemObtained";
+    itemId=monopolyFlagItemId(cfg)
+  }
+
   const targetItem=cfgItem(cfg,itemId);
   const obtained=basis==="itemObtained";
   return{
@@ -4182,9 +4235,18 @@ function flowDropPinball(st,cfg,stats,{autoCraft=true}={}){
   if(slot===Number(ps.targetSlot)){ps.targetHits=Number(ps.targetHits||0)+1;if(ps.targetHits>=flowPinballTargetRequired(st,cfg))flowResolveHiddenChain(st,cfg,stats)}flowAutoClaimStages(st,cfg,stats);return{ok:true,slot}
 }
 function flowFundMetricValue(st,cfg){
-  const basis=cfg.fund?.unlockBasis||"itemObtained",id=cfg.fund?.unlockItemId;
+  let basis=cfg.fund?.unlockBasis||"itemObtained";
+  let id=cfg.fund?.unlockItemId;
+
+  if(batchGameplayType(cfg)==="monopoly"&&monopolyFundLooksLapBased(cfg,cfg.fund)){
+    basis="itemObtained";
+    id=monopolyFlagItemId(cfg)
+  }
+
   if(!id)return 0;
-  return basis==="itemSpent"?Number(st.spent?.[id]||0):Number(st.obtained?.[id]||0)
+  return basis==="itemSpent"
+    ?Number(st.spent?.[id]||0)
+    :Number(st.obtained?.[id]||0)
 }
 function flowPlayableSnapshot(st,cfg){
   if(batchGameplayType(cfg)==="monopoly"){
@@ -4216,6 +4278,7 @@ function flowFundWatcherKey(action,index){
   return `${index}:${action?.itemId||""}:${Number(action?.amount||0)}`
 }
 function flowBuildFundWatchers(st,cfg,actions){
+  normalizeFundConfig(cfg);
   const hasFutureFundBuy=actions.some(a=>a?.type==="fundBuy");
   return actions
     .map((action,index)=>{
@@ -4466,7 +4529,8 @@ function flowClaimMonopolyFundTarget(st,cfg,action,stats,ctx={}){
   const gain=Number(st.resources[action.itemId]||0)-beforeResource;
   const exact=Math.abs(gain-Number(action.amount||0))<1e-9;
 
-  const note=`🎯 基金檢查點 ${fmt(startMetric)} → ${fmt(reached)}：使用 ${used} 骰後立即領 ${cfgItem(cfg,action.itemId).name} +${fmt(gain)}；剩餘 ${flowPlayableText(st,cfg)}${exact?"":"（與設定數量不符）"}`;
+  const metricName=cfgItem(cfg,monopolyFlagItemId(cfg)).name;
+  const note=`🎯 基金檢查點：${metricName} ${fmt(startMetric)} → ${fmt(reached)}／${fmt(analysis.threshold)}；使用 ${used} 骰後立即領 ${cfgItem(cfg,action.itemId).name} +${fmt(gain)}；剩餘 ${flowPlayableText(st,cfg)}${exact?"":"（與設定數量不符）"}`;
 
   if(watcher){
     watcher.done=true;
@@ -4785,7 +4849,12 @@ async function runBatchSimulation(){
   const count=Math.max(1,Math.min(500,Math.floor(Number($("simulationCount").value||100))));
   $("simulationCount").value=count;
   const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
-  normalizeFundConfig(cfg);ensureStateSchema(base,cfg);
+  normalizeFundConfig(cfg);
+  if(batchGameplayType(cfg)==="monopoly"){
+    repairMonopolyLapFundUnlock(cfg);
+    if(cfg.gameplaySettings?.monopoly?.fund)cfg.fund=clone(cfg.gameplaySettings.monopoly.fund)
+  }
+  ensureStateSchema(base,cfg);
   if(batchGameplayType(cfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
   $("runSimulationBtn").disabled=true;$("simulationProgress").style.width="0%";$("simulationProgressText").textContent=`準備依序執行 ${count} 次七日流程…`;batchResults=[];
   for(let i=0;i<count;i++){const result=runWeeklyFlowOnce(base,cfg,i+1);batchResults.push(result);$("simulationProgress").style.width=`${(i+1)/count*100}%`;$("simulationProgressText").textContent=`已完成 ${i+1} / ${count} 次七日流程`;if(i%3===2)await wait(0)}
