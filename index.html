@@ -966,6 +966,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <div class="help" id="simulationProgressText" style="margin-top:5px"></div>
           <div class="sim-summary" id="simulationSummary"></div>
           <div id="weeklyDailySummary"></div>
+          <div class="fund-goal-result" id="simulationFundTrace" style="display:none;margin:10px 0"></div>
           <div class="sim-table-wrap" id="simulationResults"></div>
         </div>
 
@@ -1881,6 +1882,11 @@ function createState(){
     currentDay:0,position:Number(config.board.startIndex)||0,laps:0,resources:{},spent:{},obtained:{},
     board:[],boardVersion:0,days:Array.from({length:config.event.totalDays},createDayState),
     fundPremiumPurchased:false,fundClaims:{free:{},premium:{}},fundClaimEvents:{free:[],premium:[]},fundEventSeq:0,
+    gameplayFundStates:{
+      monopoly:{premiumPurchased:false,claims:{free:{},premium:{}},claimEvents:{free:[],premium:[]},eventSeq:0,lastFundUndo:null},
+      pinball:{premiumPurchased:false,claims:{free:{},premium:{}},claimEvents:{free:[],premium:[]},eventSeq:0,lastFundUndo:null}
+    },
+    fundStateActiveGameplay:config.gameplay.type,
     gameTokenFlow:Array.from({length:config.event.totalDays},()=>({gained:0,spent:0})),
     gameplayStates:{
       pinball:{slots:[],targetSlot:0,targetHits:0,hiddenPending:false,hiddenActive:false,hiddenRuns:0,totalDrops:0,normalDrops:0,hiddenDrops:0,boardVersion:0,lastLanding:null,hiddenSlotCounts:[],hiddenSlotRewards:[],hiddenVaultClaims:0}
@@ -1888,6 +1894,90 @@ function createState(){
     exchangePurchases:{},lastExchangeUndo:null,
     lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
+}
+function blankGameplayFundState(){
+  return{
+    premiumPurchased:false,
+    claims:{free:{},premium:{}},
+    claimEvents:{free:[],premium:[]},
+    eventSeq:0,
+    lastFundUndo:null
+  }
+}
+function snapshotFundMirror(targetState){
+  return{
+    premiumPurchased:!!targetState.fundPremiumPurchased,
+    claims:clone(targetState.fundClaims||{free:{},premium:{}}),
+    claimEvents:clone(targetState.fundClaimEvents||{free:[],premium:[]}),
+    eventSeq:Number(targetState.fundEventSeq||0),
+    lastFundUndo:clone(targetState.lastFundUndo??null)
+  }
+}
+function restoreFundMirror(targetState,snap){
+  const s=snap||blankGameplayFundState();
+  targetState.fundPremiumPurchased=!!s.premiumPurchased;
+  targetState.fundClaims=clone(s.claims||{free:{},premium:{}});
+  if(!targetState.fundClaims.free)targetState.fundClaims.free={};
+  if(!targetState.fundClaims.premium)targetState.fundClaims.premium={};
+  targetState.fundClaimEvents=clone(s.claimEvents||{free:[],premium:[]});
+  if(!Array.isArray(targetState.fundClaimEvents.free))targetState.fundClaimEvents.free=[];
+  if(!Array.isArray(targetState.fundClaimEvents.premium))targetState.fundClaimEvents.premium=[];
+  targetState.fundEventSeq=Number(s.eventSeq||0);
+  targetState.lastFundUndo=clone(s.lastFundUndo??null)
+}
+function ensureGameplayFundStateStorage(targetState=state,cfg=config){
+  const desired=batchGameplayType(cfg);
+
+  if(!targetState.gameplayFundStates||typeof targetState.gameplayFundStates!=="object"){
+    targetState.gameplayFundStates={
+      monopoly:blankGameplayFundState(),
+      pinball:blankGameplayFundState()
+    };
+
+    // 舊存檔只有一份基金：只歸給目前玩法，不複製給另一玩法。
+    const legacyActive=targetState.fundStateActiveGameplay==="pinball"?"pinball":
+      targetState.fundStateActiveGameplay==="monopoly"?"monopoly":desired;
+    targetState.gameplayFundStates[legacyActive]=snapshotFundMirror(targetState);
+    targetState.fundStateActiveGameplay=legacyActive
+  }
+
+  ["monopoly","pinball"].forEach(type=>{
+    const x=targetState.gameplayFundStates[type]&&typeof targetState.gameplayFundStates[type]==="object"
+      ?targetState.gameplayFundStates[type]
+      :(targetState.gameplayFundStates[type]=blankGameplayFundState());
+
+    if(!x.claims||typeof x.claims!=="object")x.claims={free:{},premium:{}};
+    if(!x.claims.free||typeof x.claims.free!=="object")x.claims.free={};
+    if(!x.claims.premium||typeof x.claims.premium!=="object")x.claims.premium={};
+    if(!x.claimEvents||typeof x.claimEvents!=="object")x.claimEvents={free:[],premium:[]};
+    if(!Array.isArray(x.claimEvents.free))x.claimEvents.free=[];
+    if(!Array.isArray(x.claimEvents.premium))x.claimEvents.premium=[];
+    x.premiumPurchased=!!x.premiumPurchased;
+    x.eventSeq=Number(x.eventSeq||0);
+    if(!Object.prototype.hasOwnProperty.call(x,"lastFundUndo"))x.lastFundUndo=null
+  });
+
+  let active=targetState.fundStateActiveGameplay;
+  if(active!=="monopoly"&&active!=="pinball"){
+    active=desired;
+    targetState.fundStateActiveGameplay=active;
+    targetState.gameplayFundStates[active]=snapshotFundMirror(targetState)
+  }
+
+  if(active!==desired){
+    targetState.gameplayFundStates[active]=snapshotFundMirror(targetState);
+    restoreFundMirror(targetState,targetState.gameplayFundStates[desired]);
+    targetState.fundStateActiveGameplay=desired
+  }
+
+  return targetState.gameplayFundStates[desired]
+}
+function persistActiveGameplayFundState(targetState=state,cfg=config){
+  ensureGameplayFundStateStorage(targetState,cfg);
+  const type=batchGameplayType(cfg);
+  targetState.gameplayFundStates[type]=snapshotFundMirror(targetState);
+  targetState.fundStateActiveGameplay=type;
+  return targetState.gameplayFundStates[type]
 }
 function ensureStateSchema(targetState=state,cfg=config){
   normalizeFundConfig(cfg);
@@ -1933,6 +2023,7 @@ function ensureStateSchema(targetState=state,cfg=config){
     const day=Math.max(0,Math.min(targetState.days.length-1,Number(targetState.fundPremiumClaimDay||0)));
     fundMilestones(cfg).forEach(m=>targetState.fundClaims.premium[m.id]=day)
   }
+  ensureGameplayFundStateStorage(targetState,cfg);
   if(!targetState.resources)targetState.resources={};if(!targetState.spent)targetState.spent={};
   if(!targetState.obtained||typeof targetState.obtained!=="object")targetState.obtained={};
   (cfg.items||[]).forEach(it=>{
@@ -2343,9 +2434,13 @@ async function switchGameplay(type){
     refundUnfinishedNormalPinballs()
   }
 
+  // 離開玩法前先保存該玩法自己的基金狀態。
+  persistActiveGameplayFundState(state,config);
+
   config.gameplay.type=type;
   normalizeFundConfig(config);
   ensureStateSchema(state,config);
+  persistActiveGameplayFundState(state,config);
   if(type==="pinball")ensurePinballSlots();
 
   // 批次模擬的流程與基準依玩法完全分離。
@@ -3963,7 +4058,7 @@ function renderWeeklyFlowPlanner(){
   if(help){
     help.innerHTML=type==="pinball"
       ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。固定收益、精準基金、指定箱子與兌換先完成，最後才用彈珠補目標階段；「使用剩餘彈珠」會連剩餘製作卷一起轉成彈珠用完。`
-      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。需要補進度或基金條件時會逐次擲骰；完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬。「使用剩餘骰子」只會影響大富翁流程。`
+      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。基金精準領取現在是真正的中途檢查點：逐次擲骰到基金門檻 → 門檻達標當下立刻全領 → 再繼續擲骰補本日目標階段。完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬；大富翁與彈珠的基金購買／已領階段也完全分開。`
   }
   const plan=ensureWeeklyFlowPlan(config);
   el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
@@ -3986,12 +4081,18 @@ function flowAddItem(st,cfg,id,amount){
   const n=Number(amount||0);if(!id||!n)return;
   st.resources[id]=Number(st.resources[id]||0)+n;
   st.obtained[id]=Math.max(0,Number(st.obtained[id]||0)+Math.max(0,n));
+  if(id===cfg.currencies.gameTokenId)adjustGameTokenGain(st.currentDay,n,st,cfg);
   flowDayState(st).score=Number(flowDayState(st).score||0)+cfgScorePerItem(cfg,id)*n
 }
 function flowSpend(st,cfg,cost,{actual=false}={}){
   const amount=Math.max(0,Number(cost?.amount||0)),id=cost?.itemId;if(!id)return false;
-  if(actual||!cfg.simulator?.allowInsufficientCost){if(Number(st.resources[id]||0)<amount)return false;st.resources[id]=Number(st.resources[id]||0)-amount}
-  st.spent[id]=Number(st.spent[id]||0)+amount;return true
+  if(actual||!cfg.simulator?.allowInsufficientCost){
+    if(Number(st.resources[id]||0)<amount)return false;
+    st.resources[id]=Number(st.resources[id]||0)-amount
+  }
+  st.spent[id]=Number(st.spent[id]||0)+amount;
+  if(id===cfg.currencies.gameTokenId)adjustGameTokenSpend(st.currentDay,amount,st,cfg);
+  return true
 }
 function flowAutoClaimStages(st,cfg,stats){
   const day=flowDayState(st),stages=[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));
@@ -4028,6 +4129,7 @@ function flowRollMonopoly(st,cfg,stats){
   flowMonopolyEnsureBoard(st,cfg);
   st.resources[token]=Number(st.resources[token]||0)-1;
   st.spent[token]=Number(st.spent[token]||0)+1;
+  adjustGameTokenSpend(st.currentDay,1,st,cfg);
   if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;
 
   const roll=Math.floor(Math.random()*Math.max(1,Number(cfg.board.diceSides||6)))+1;
@@ -4215,9 +4317,40 @@ function flowClaimUnlockedFund(st,cfg,stats){
   milestones.forEach(m=>{if(!fundMilestoneUnlockedForState(m,st,cfg))return;[["free",m.freeRewards||[]],["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]].forEach(([kind,rewards])=>{if(Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id))return;st.fundClaims[kind][m.id]=st.currentDay;(rewards||[]).forEach(r=>{flowAddItem(st,cfg,r.itemId,r.amount);gained[r.itemId]=Number(gained[r.itemId]||0)+Number(r.amount||0)});count++})});flowAutoClaimStages(st,cfg,stats);return{gained,count}
 }
 function flowFundTargetThreshold(st,cfg,itemId,amount){
-  const target=Math.max(1,Number(amount||1)),milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));let sum=0;
-  for(const m of milestones){const unlockedTracks=[["free",m.freeRewards||[]],["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]];unlockedTracks.forEach(([kind,rewards])=>{if(!Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id))sum+=(rewards||[]).filter(r=>r.itemId===itemId).reduce((s,r)=>s+Number(r.amount||0),0)});if(sum>=target)return{found:true,threshold:fundMilestoneTarget(m),expected:sum}}
-  return{found:false,threshold:milestones.at(-1)?fundMilestoneTarget(milestones.at(-1)):0,expected:sum}
+  const target=Math.max(1,Number(amount||1));
+  const milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));
+  let sum=0;
+
+  for(const m of milestones){
+    const unlockedTracks=[
+      ["free",m.freeRewards||[]],
+      ["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]
+    ];
+
+    unlockedTracks.forEach(([kind,rewards])=>{
+      if(!Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id)){
+        sum+=(rewards||[])
+          .filter(r=>r.itemId===itemId)
+          .reduce((s,r)=>s+Number(r.amount||0),0)
+      }
+    });
+
+    if(sum>=target){
+      return{
+        found:true,
+        exact:Math.abs(sum-target)<1e-9,
+        threshold:fundMilestoneTarget(m),
+        expected:sum
+      }
+    }
+  }
+
+  return{
+    found:false,
+    exact:false,
+    threshold:milestones.at(-1)?fundMilestoneTarget(milestones.at(-1)):0,
+    expected:sum
+  }
 }
 function flowAdvanceFundMetric(st,cfg,threshold,stats){
   const basis=cfg.fund?.unlockBasis||"itemObtained",id=cfg.fund?.unlockItemId;
@@ -4271,6 +4404,77 @@ function flowAdvanceFundMetric(st,cfg,threshold,stats){
     used++
   }
   return{ok:value()>=threshold,metricValue:value(),used}
+}
+function flowClaimMonopolyFundTarget(st,cfg,action,stats,ctx={}){
+  const watcher=Array.isArray(ctx?.fundWatchers)
+    ?ctx.fundWatchers.find(w=>w.index===ctx.index)
+    :null;
+
+  if(watcher?.done){
+    return{ok:watcher.ok!==false,note:watcher.note||"基金已在門檻當下先行領取"}
+  }
+
+  flowArmFundWatchersAfterPurchase(st,cfg,ctx);
+
+  const analysis=watcher
+    ?{
+      found:!!watcher.found,
+      exact:Math.abs(Number(watcher.expected||0)-Number(action.amount||0))<1e-9,
+      threshold:Number(watcher.threshold||0),
+      expected:Number(watcher.expected||0)
+    }
+    :flowFundTargetThreshold(st,cfg,action.itemId,action.amount);
+
+  if(!analysis.found){
+    return{
+      ok:false,
+      note:`基金剩餘獎勵不足 ${fmt(action.amount)} ${cfgItem(cfg,action.itemId).name}（最多 ${fmt(analysis.expected)}）`
+    }
+  }
+
+  // 基金只能一次全領，所以先驗證這個門檻是不是剛好會領指定數量。
+  if(!analysis.exact){
+    return{
+      ok:false,
+      note:`無法精準領 ${fmt(action.amount)} ${cfgItem(cfg,action.itemId).name}：到基金門檻 ${fmt(analysis.threshold)} 時會一次領 ${fmt(analysis.expected)}`
+    }
+  }
+
+  const startMetric=flowFundMetricValue(st,cfg);
+  const beforeResource=Number(st.resources[action.itemId]||0);
+  let used=0,guard=0;
+
+  // 一骰一骰玩；每骰後馬上檢查基金，達標就立刻停止擲骰。
+  while(flowFundMetricValue(st,cfg)<Number(analysis.threshold||0)&&guard++<50000){
+    const r=flowRollMonopoly(st,cfg,stats);
+    if(!r.ok){
+      return{
+        ok:false,
+        note:`基金尚未達標：目前 ${fmt(flowFundMetricValue(st,cfg))}／${fmt(analysis.threshold)}；${r.note}｜剩餘 ${flowPlayableText(st,cfg)}`
+      }
+    }
+    used++
+  }
+
+  const reached=flowFundMetricValue(st,cfg);
+  if(reached<Number(analysis.threshold||0)){
+    return{ok:false,note:`基金只到 ${fmt(reached)}／${fmt(analysis.threshold)}，無法領取`}
+  }
+
+  // 門檻達成當下立刻全領，沒有再多擲任何一顆。
+  flowClaimUnlockedFund(st,cfg,stats);
+  const gain=Number(st.resources[action.itemId]||0)-beforeResource;
+  const exact=Math.abs(gain-Number(action.amount||0))<1e-9;
+
+  const note=`🎯 基金檢查點 ${fmt(startMetric)} → ${fmt(reached)}：使用 ${used} 骰後立即領 ${cfgItem(cfg,action.itemId).name} +${fmt(gain)}；剩餘 ${flowPlayableText(st,cfg)}${exact?"":"（與設定數量不符）"}`;
+
+  if(watcher){
+    watcher.done=true;
+    watcher.ok=exact;
+    watcher.note=note
+  }
+
+  return{ok:exact,note}
 }
 function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
   const watcher=Array.isArray(ctx?.fundWatchers)
@@ -4451,7 +4655,11 @@ function flowExecuteAction(st,cfg,action,stats,ctx={}){
   if(action.type==="stage")return flowPlayToStage(st,cfg,action,stats,ctx);
   if(action.type==="package")return flowBuyPackage(st,cfg,action,stats);
   if(action.type==="fundBuy")return flowBuyFund(st,cfg,stats);
-  if(action.type==="fundClaim")return flowClaimFundTarget(st,cfg,action,stats,ctx);
+  if(action.type==="fundClaim"){
+    return batchGameplayType(cfg)==="monopoly"
+      ?flowClaimMonopolyFundTarget(st,cfg,action,stats,ctx)
+      :flowClaimFundTarget(st,cfg,action,stats,ctx)
+  }
   if(action.type==="box")return flowOpenBox(st,cfg,action,stats,false,ctx);
   if(action.type==="allBoxes")return flowOpenBox(st,cfg,action,stats,true,ctx);
   if(action.type==="exchange")return flowExchange(st,cfg,action,stats,ctx);
@@ -4559,7 +4767,7 @@ function runWeeklyFlowOnce(base,cfg,run){
   const craft=batchGameplayType(cfg)==="pinball"?(cfg.gameplaySettings?.pinball?.craftTicketId||""):"";
   const paid=cfg.currencies.paidCurrencyId||"emerald";
   return{
-    run,success:stats.failures.length===0,failures:stats.failures,
+    run,success:stats.failures.length===0,failures:stats.failures,steps:stats.steps,
     ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,
     craftSpent:craft?Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0):0,
     paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),
@@ -4585,6 +4793,7 @@ async function runBatchSimulation(){
 }
 function captureBaseline(){
   if(rolling)return toast("目前遊戲正在執行，請稍候");
+  persistActiveGameplayFundState(state,config);
   simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};
   localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
   batchResults=[];renderSimulation();
@@ -4632,7 +4841,13 @@ function renderSimulation(){
       :`${escapeHtml(cfgItem(b.config,token).name)} ${fmt(b.state.resources[token]||0)}`;
     $("baselineStatus").innerHTML=`${type==="pinball"?"🔮 彈珠機":"🎲 大富翁"}｜建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${resourceText}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
   }else $("baselineStatus").textContent="請在七日流程開始前建立基準，通常使用週一尚未領取任何內容的狀態。";
-  if(!batchResults.length){$("simulationSummary").innerHTML="";$("weeklyDailySummary").innerHTML="";$("simulationResults").innerHTML=`<div class="empty">設定好週一～週日流程並建立基準後，按「依序模擬週一～週日」。</div>`;return}
+  if(!batchResults.length){
+    $("simulationSummary").innerHTML="";
+    $("weeklyDailySummary").innerHTML="";
+    $("simulationResults").innerHTML=`<div class="empty">設定好週一～週日流程並建立基準後，按「依序模擬週一～週日」。</div>`;
+    const trace=$("simulationFundTrace");if(trace){trace.style.display="none";trace.innerHTML=""}
+    return
+  }
   const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config;
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
   const premiumId=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
@@ -4665,6 +4880,22 @@ function renderSimulation(){
     const tokenName=cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name;
     $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
   }
+  const trace=$("simulationFundTrace");
+  if(trace){
+    if(type==="monopoly"){
+      const fundNotes=(batchResults[0]?.steps||[])
+        .filter(x=>x.type==="fundClaim")
+        .map(x=>`${cfg.event.dayLabels?.[x.day]||`第${Number(x.day)+1}天`}：${x.note}`);
+      trace.style.display=fundNotes.length?"block":"none";
+      trace.innerHTML=fundNotes.length
+        ?`<strong>🎯 第1次模擬基金檢查點</strong><br>${fundNotes.map(escapeHtml).join("<br>")}`
+        :""
+    }else{
+      trace.style.display="none";
+      trace.innerHTML=""
+    }
+  }
+
   const premium=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
   const normal=gp.normalExchangeId||cfg.currencies.normalExchangeId;
   const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
@@ -6941,6 +7172,7 @@ function render(){
   renderWeek();renderStats();renderBoard();renderDaily();renderPackages();renderExchangeShop();renderResources();renderDistribution();renderScoreRules();renderLog();renderSimulation();renderStrategy();renderHistoryButtons();renderAutoRollControls()
 }
 function save(){
+  persistActiveGameplayFundState(state,config);
   localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
   localStorage.setItem(STORAGE_STATE,JSON.stringify(state));
   if(simulationBaseline)localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
@@ -6953,7 +7185,7 @@ function load(){
     const c=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG)||localStorage.getItem(LEGACY2_CONFIG),s=localStorage.getItem(STORAGE_STATE)||localStorage.getItem(LEGACY_STATE)||localStorage.getItem(LEGACY2_STATE);
     if(!s)return toast("沒有已儲存的進度");
     if(c){const parsed=normalizeFundConfig(JSON.parse(c));validateConfig(parsed);config=parsed}
-    state=JSON.parse(s);ensureStateSchema(state,config);state.activeStrategy=null;simulationBaseline=loadStoredBaseline();weeklyFlowPlan=null;weeklyFlowPlanGameplay=null;strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);batchResults=[];
+    state=JSON.parse(s);ensureStateSchema(state,config);persistActiveGameplayFundState(state,config);state.activeStrategy=null;simulationBaseline=loadStoredBaseline();weeklyFlowPlan=null;weeklyFlowPlanGameplay=null;strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);batchResults=[];
     undoStack=[];redoStack=[];lastAutoRollSnapshot=null;syncStateToConfig(false);ensureGameTokenFlow(state,config);render();toast("已讀取")
   }catch(e){toast(`讀取失敗：${e.message}`)}
 }
