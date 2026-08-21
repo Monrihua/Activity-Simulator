@@ -945,7 +945,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               </div>
             </div>
           </div>
-          <div class="help weekly-flow-help">
+          <div class="help weekly-flow-help" id="weeklyFlowHelp">
             每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。<br>
             <strong>固定收益優先：</strong>「本日目標階段」只是本日終點。禮包、基金精準領取、指定隨機箱、兌換商店等固定步驟會先照設定順序完成；如果當下資源不足，只逐顆投入到足以完成該固定步驟，完成當下立刻停。<br>
             <strong>基金不能晚領：</strong>精準基金現在是「中斷事件」；若當天安排購買基金，會先依購買後的免費＋進階獎勵鎖定門檻，但等「購買基金」完成後才啟動監控。不管當下是在湊箱子、湊兌換材料或最後補分，只要基金條件剛好達標就立刻插隊領取；例如840到了就先領65，不會繼續製作到更高門檻。<br>
@@ -956,7 +956,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
             <button class="btn gold small" id="loadExampleFlowBtn">套用目前範例流程</button>
             <button class="btn secondary small" id="clearWeeklyFlowBtn">清空流程</button>
           </div>
-          <div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
+          <div class="help" id="weeklyFlowGameplayNote" style="margin:8px 0;font-weight:900"></div><div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
           <div class="sim-controls weekly-sim-controls">
             <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="500" value="100"></div>
             <div class="field"><label>每日進度獎勵</label><input class="input" value="解鎖即自動全部領取" readonly></div>
@@ -1291,6 +1291,7 @@ let redoStack=[];
 let simulationBaseline=loadStoredBaseline();
 let batchResults=[];
 let weeklyFlowPlan=null;
+let weeklyFlowPlanGameplay=null;
 let strategyPlan=loadStoredStrategy();
 let strategyLuckContext="baseline";
 let strategyLuckConfigContext=null;
@@ -1842,10 +1843,30 @@ function loadStoredConfig(){
     return normalizeFundConfig(saved?JSON.parse(saved):clone(DEFAULT_CONFIG));
   }catch{return normalizeFundConfig(clone(DEFAULT_CONFIG))}
 }
-function loadStoredBaseline(){
+function batchGameplayType(cfg=config){
+  return cfg?.gameplay?.type==="pinball"?"pinball":"monopoly"
+}
+function baselineStorageKey(type=batchGameplayType()){
+  return `${STORAGE_BASELINE}:${type}`
+}
+function weeklyFlowStorageKey(type=batchGameplayType()){
+  return `${STORAGE_WEEK_FLOW}:${type}`
+}
+function loadStoredBaseline(type=batchGameplayType()){
   try{
-    const saved=localStorage.getItem(STORAGE_BASELINE);
-    return saved?JSON.parse(saved):null
+    const keyed=localStorage.getItem(baselineStorageKey(type));
+    if(keyed)return JSON.parse(keyed);
+
+    // 舊版只有一份 baseline；只有玩法吻合時才遷移，避免彈珠基準跑到大富翁。
+    const legacy=localStorage.getItem(STORAGE_BASELINE);
+    if(legacy){
+      const parsed=JSON.parse(legacy);
+      if(batchGameplayType(parsed?.config)===type){
+        localStorage.setItem(baselineStorageKey(type),JSON.stringify(parsed));
+        return parsed
+      }
+    }
+    return null
   }catch{return null}
 }
 function loadStoredStrategy(){
@@ -2326,6 +2347,13 @@ async function switchGameplay(type){
   normalizeFundConfig(config);
   ensureStateSchema(state,config);
   if(type==="pinball")ensurePinballSlots();
+
+  // 批次模擬的流程與基準依玩法完全分離。
+  weeklyFlowPlan=null;
+  weeklyFlowPlanGameplay=null;
+  simulationBaseline=loadStoredBaseline(type);
+  batchResults=[];
+
   lastAutoRollSnapshot=null;
   $("dailyDiceInput").value=config.dailyMission.maxGameTokens;
   render();
@@ -3803,6 +3831,19 @@ function flowStageNumbers(cfg=config){return [...(cfg.progressStages||[])].sort(
 function flowClampStage(cfg,n){const nums=flowStageNumbers(cfg);return nums.includes(Number(n))?Number(n):(nums[Math.min(nums.length-1,Math.max(0,Number(n||1)-1))]||1)}
 function flowExamplePlan(cfg=config){
   normalizeFundConfig(cfg);
+
+  if(batchGameplayType(cfg)==="monopoly"){
+    // 大富翁的範例不沿用彈珠攻略。
+    // 週一～週六：先領無課，再以第2階為每日目標；
+    // 週日：領無課後把剩餘骰子全部用完。
+    const target=flowClampStage(cfg,2);
+    return Array.from({length:7},(_,d)=>({
+      actions:d===6
+        ?[{type:"free"},{type:"allBalls"}]
+        :[{type:"free"},{type:"stage",stage:target}]
+    }))
+  }
+
   const pc=cfg.gameplaySettings?.pinball||{},paid=cfg.currencies?.paidCurrencyId||"emerald";
   const p500=flowFindPackage(cfg,p=>p.cost?.itemId===paid&&Number(p.cost?.amount)===500&&p.rewards?.some(r=>r.itemId===pc.craftTicketId))
     ||flowFindPackage(cfg,p=>Number(p.cost?.amount)===500);
@@ -3841,15 +3882,38 @@ function flowNormalizePlan(plan,cfg=config){
     return{actions:goal?[...fixed,goal]:fixed}
   })
 }
-function loadWeeklyFlowPlan(){
-  try{const raw=localStorage.getItem(STORAGE_WEEK_FLOW);return raw?flowNormalizePlan(JSON.parse(raw),config):null}catch{return null}
+function loadWeeklyFlowPlan(cfg=config){
+  const type=batchGameplayType(cfg);
+  try{
+    const raw=localStorage.getItem(weeklyFlowStorageKey(type));
+    if(raw)return flowNormalizePlan(JSON.parse(raw),cfg);
+
+    // v80 以前的七日流程主要是彈珠流程，只自動遷移給彈珠，不污染大富翁。
+    if(type==="pinball"){
+      const legacy=localStorage.getItem(STORAGE_WEEK_FLOW);
+      if(legacy){
+        const parsed=flowNormalizePlan(JSON.parse(legacy),cfg);
+        localStorage.setItem(weeklyFlowStorageKey(type),JSON.stringify(parsed));
+        return parsed
+      }
+    }
+    return null
+  }catch{return null}
 }
-function ensureWeeklyFlowPlan(){
-  if(!weeklyFlowPlan)weeklyFlowPlan=loadWeeklyFlowPlan()||flowExamplePlan(config);
-  weeklyFlowPlan=flowNormalizePlan(weeklyFlowPlan,config);
+function ensureWeeklyFlowPlan(cfg=config){
+  const type=batchGameplayType(cfg);
+  if(!weeklyFlowPlan||weeklyFlowPlanGameplay!==type){
+    weeklyFlowPlan=loadWeeklyFlowPlan(cfg)||flowExamplePlan(cfg);
+    weeklyFlowPlanGameplay=type
+  }
+  weeklyFlowPlan=flowNormalizePlan(weeklyFlowPlan,cfg);
   return weeklyFlowPlan
 }
-function saveWeeklyFlowPlan(){try{localStorage.setItem(STORAGE_WEEK_FLOW,JSON.stringify(weeklyFlowPlan))}catch{}}
+function saveWeeklyFlowPlan(cfg=config){
+  const type=batchGameplayType(cfg);
+  weeklyFlowPlanGameplay=type;
+  try{localStorage.setItem(weeklyFlowStorageKey(type),JSON.stringify(weeklyFlowPlan))}catch{}
+}
 function flowActionTypeOptions(selected,cfg=config){
   const isPinball=cfg.gameplay.type==="pinball";
   const opts=[
@@ -3862,7 +3926,10 @@ function flowActionTypeOptions(selected,cfg=config){
 function flowActionFields(action,cfg=config){
   const stages=[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));
   const pc=cfg.gameplaySettings?.pinball||{};
-  if(action.type==="stage")return `<select data-flow-field="stage">${stages.map(s=>`<option value="${s.stage}" ${Number(action.stage)===Number(s.stage)?"selected":""}>目標第 ${s.stage} 階（${fmt(s.requiredScore)}分）</option>`).join("")}</select><span class="help">本日終點。基金、指定箱子、兌換等固定收益會先完成；全部固定收益拿完仍不足時，才逐顆投入彈珠補到這一階。</span>`;
+  if(action.type==="stage"){
+    const playText=batchGameplayType(cfg)==="pinball"?"逐顆投入彈珠":"逐次擲骰";
+    return `<select data-flow-field="stage">${stages.map(s=>`<option value="${s.stage}" ${Number(action.stage)===Number(s.stage)?"selected":""}>目標第 ${s.stage} 階（${fmt(s.requiredScore)}分）</option>`).join("")}</select><span class="help">本日終點。基金、指定箱子、兌換等固定收益會先完成；全部固定收益拿完仍不足時，才${playText}補到這一階。</span>`
+  }
   if(action.type==="package"){
     const entries=flowPackageEntries(cfg);return `<select data-flow-field="packageKey">${entries.map(({group,pack,key})=>`<option value="${escapeHtml(key)}" ${key===action.packageKey?"selected":""}>${escapeHtml(group.name)}｜${escapeHtml(pack.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次</span>`
   }
@@ -3871,10 +3938,10 @@ function flowActionFields(action,cfg=config){
   }
   if(action.type==="box"||action.type==="allBoxes"){
     const boxes=cfg.randomBoxes||[];const select=`<select data-flow-field="boxId">${boxes.map(b=>`<option value="${escapeHtml(b.id)}" ${b.id===action.boxId?"selected":""}>${escapeHtml(b.name)}</option>`).join("")}</select>`;
-    return action.type==="box"?`${select}<input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">個；持有不足時會逐顆玩到湊足，湊到立刻開。</span>`:select
+    return action.type==="box"?`${select}<input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">個；持有不足時會使用目前玩法資源補到湊足，湊到立刻開。</span>`:select
   }
   if(action.type==="exchange"){
-    const offers=cfg.exchangeShop||[];return `<select data-flow-field="offerId">${offers.map(o=>`<option value="${escapeHtml(o.id)}" ${o.id===action.offerId?"selected":""}>${escapeHtml(o.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次；材料不足時會逐顆玩到足夠，足夠立刻兌換。</span>`
+    const offers=cfg.exchangeShop||[];return `<select data-flow-field="offerId">${offers.map(o=>`<option value="${escapeHtml(o.id)}" ${o.id===action.offerId?"selected":""}>${escapeHtml(o.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次；材料不足時會使用目前玩法資源補到足夠，足夠立刻兌換。</span>`
   }
   if(action.type==="allBalls"){
     if(cfg.gameplay.type==="pinball")return `<span class="help">把目前持有的彈珠全部投入；彈珠用完後會繼續把剩餘製作卷 1:1 製作成彈珠並投入，直到「彈珠=0、製作卷=0」才停止。途中照常自動領每日進度獎勵。</span>`;
@@ -3886,14 +3953,29 @@ function flowActionFields(action,cfg=config){
 }
 function renderWeeklyFlowPlanner(){
   const el=$("weeklyFlowPlanner");if(!el)return;
-  const plan=ensureWeeklyFlowPlan();
+  const type=batchGameplayType(config);
+  const note=$("weeklyFlowGameplayNote");
+  if(note)note.textContent=type==="pinball"
+    ?"🔮 目前編輯：彈珠機七日流程（與大富翁完全獨立）"
+    :"🎲 目前編輯：大富翁七日流程（與彈珠機完全獨立）";
+
+  const help=$("weeklyFlowHelp");
+  if(help){
+    help.innerHTML=type==="pinball"
+      ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。固定收益、精準基金、指定箱子與兌換先完成，最後才用彈珠補目標階段；「使用剩餘彈珠」會連剩餘製作卷一起轉成彈珠用完。`
+      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。需要補進度或基金條件時會逐次擲骰；完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬。「使用剩餘骰子」只會影響大富翁流程。`
+  }
+  const plan=ensureWeeklyFlowPlan(config);
   el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
 }
 function flowNewAction(type="free",cfg=config){
   const pc=cfg.gameplaySettings?.pinball||{},stage=flowStageNumbers(cfg)[0]||1,box=cfg.randomBoxes?.[0],offer=cfg.exchangeShop?.[0],pkg=flowPackageEntries(cfg)[0];
+  const fundDefault=batchGameplayType(cfg)==="pinball"
+    ?(pc.craftTicketId||fundRewardItems(cfg)[0]||"")
+    :(fundRewardItems(cfg)[0]||"");
   if(type==="stage")return{type,stage};
   if(type==="package")return{type,packageKey:pkg?.key||"",count:1};
-  if(type==="fundClaim")return{type,itemId:pc.craftTicketId||fundRewardItems(cfg)[0]||"",amount:1};
+  if(type==="fundClaim")return{type,itemId:fundDefault,amount:1};
   if(type==="box")return{type,boxId:box?.id||"",count:1};
   if(type==="allBoxes")return{type,boxId:box?.id||""};
   if(type==="exchange")return{type,offerId:offer?.id||"",count:1};
@@ -3935,6 +4017,41 @@ function flowBuyPackage(st,cfg,action,stats){
   for(let i=0;i<want;i++){if(Number(day.packagePurchases[key]||0)>=Number(pack.limit||0))break;if(!flowSpend(st,cfg,pack.cost))break;day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;(pack.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));bought++}
   flowAutoClaimStages(st,cfg,stats);return{ok:bought===want,note:`${pack.name} ${bought}/${want} 次`}
 }
+function flowMonopolyEnsureBoard(st,cfg){
+  if(!Array.isArray(st.board)||st.board.length!==Number(cfg.board?.cellCount||0))simGenerateBoard(st,cfg);
+  return st.board
+}
+function flowRollMonopoly(st,cfg,stats){
+  const token=cfg.currencies.gameTokenId;
+  if(Number(st.resources[token]||0)<1)return{ok:false,note:`${cfgItem(cfg,token).name}不足`};
+
+  flowMonopolyEnsureBoard(st,cfg);
+  st.resources[token]=Number(st.resources[token]||0)-1;
+  st.spent[token]=Number(st.spent[token]||0)+1;
+  if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;
+
+  const roll=Math.floor(Math.random()*Math.max(1,Number(cfg.board.diceSides||6)))+1;
+  for(let step=0;step<roll;step++){
+    st.position=(Number(st.position||0)+1)%Number(cfg.board.cellCount);
+    if(st.position===Number(cfg.board.startIndex)){
+      st.laps=Number(st.laps||0)+1;
+      flowDayState(st).lapsCompleted=Number(flowDayState(st).lapsCompleted||0)+1;
+      flowDayState(st).score=Number(flowDayState(st).score||0)+Number(cfg.scoreRules.pointsPerLap||0);
+      startRewards(cfg).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
+      if(cfg.board.refreshOnLap)simGenerateBoard(st,cfg)
+    }
+  }
+
+  const cell=st.board[st.position];
+  if(cell?.kind==="reward"&&cell.reward)flowAddItem(st,cfg,cell.reward.itemId,cell.reward.amount);
+  flowAutoClaimStages(st,cfg,stats);
+  return{ok:true,roll}
+}
+function flowPlayOneToken(st,cfg,stats,{autoCraft=true}={}){
+  return batchGameplayType(cfg)==="pinball"
+    ?flowDropPinball(st,cfg,stats,{autoCraft})
+    :flowRollMonopoly(st,cfg,stats)
+}
 function flowPinballEnsure(st,cfg){
   const pc=cfg.gameplaySettings?.pinball||{},ps=st.gameplayStates.pinball,count=Math.max(2,Number(pc.slotCount||8));
   if(!Array.isArray(ps.slots)||ps.slots.length!==count){ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.hiddenSlotCounts=Array.from({length:count},()=>0);ps.hiddenSlotRewards=[]}
@@ -3968,8 +4085,18 @@ function flowFundMetricValue(st,cfg){
   return basis==="itemSpent"?Number(st.spent?.[id]||0):Number(st.obtained?.[id]||0)
 }
 function flowPlayableSnapshot(st,cfg){
+  if(batchGameplayType(cfg)==="monopoly"){
+    const tokenId=cfg.currencies.gameTokenId;
+    return{
+      tokenId,
+      tokens:Number(st.resources?.[tokenId]||0),
+      ballId:tokenId,ticketId:null,balls:Number(st.resources?.[tokenId]||0),tickets:0
+    }
+  }
   const pc=cfg.gameplaySettings?.pinball||{};
   return{
+    tokenId:pc.gameTokenId,
+    tokens:Number(st.resources?.[pc.gameTokenId]||0),
     ballId:pc.gameTokenId,
     ticketId:pc.craftTicketId,
     balls:Number(st.resources?.[pc.gameTokenId]||0),
@@ -3978,6 +4105,9 @@ function flowPlayableSnapshot(st,cfg){
 }
 function flowPlayableText(st,cfg){
   const x=flowPlayableSnapshot(st,cfg);
+  if(batchGameplayType(cfg)==="monopoly"){
+    return `${cfgItem(cfg,x.tokenId).name} ${fmt(x.tokens)}`
+  }
   return `${cfgItem(cfg,x.ballId).name} ${fmt(x.balls)}｜${cfgItem(cfg,x.ticketId).name} ${fmt(x.tickets)}`
 }
 function flowFundWatcherKey(action,index){
@@ -4053,7 +4183,7 @@ function flowPlayToStage(st,cfg,action,stats,ctx={}){
 
   let used=0,guard=0,lastFailure="";
   while(Number(flowDayState(st).score||0)<Number(stage.requiredScore||0)&&guard++<50000){
-    const r=flowDropPinball(st,cfg,stats,{autoCraft:true});
+    const r=flowPlayOneToken(st,cfg,stats,{autoCraft:true});
     if(!r.ok){lastFailure=r.note||"目前資源不足";break}
     used++;
 
@@ -4067,14 +4197,14 @@ function flowPlayToStage(st,cfg,action,stats,ctx={}){
     return{
       ok:true,
       reachedStage:true,
-      note:`逐顆投入 ${used} 顆後達成第${stage.stage}階｜剩餘 ${flowPlayableText(st,cfg)}`
+      note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":"逐次擲骰"} ${used} 次後達成第${stage.stage}階｜剩餘 ${flowPlayableText(st,cfg)}`
     }
   }
 
   return{
     ok:true,
     needsSupport:true,
-    note:`逐顆投入 ${used} 顆後仍未達第${stage.stage}階；${lastFailure||"目前無法繼續"}｜剩餘 ${flowPlayableText(st,cfg)}`
+    note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":"逐次擲骰"} ${used} 次後仍未達第${stage.stage}階；${lastFailure||"目前無法繼續"}｜剩餘 ${flowPlayableText(st,cfg)}`
   }
 }
 function flowBuyFund(st,cfg,stats){
@@ -4094,35 +4224,53 @@ function flowAdvanceFundMetric(st,cfg,threshold,stats){
   const value=()=>basis==="itemSpent"?Number(st.spent[id]||0):Number(st.obtained[id]||0);
   if(value()>=threshold)return{ok:true,metricValue:value()};
 
+  // 大富翁：基金條件通常是獲得旗幟/完成圈數所帶來的物品。
+  // 逐次擲骰，基金門檻一到就停。
+  if(batchGameplayType(cfg)==="monopoly"){
+    let guard=0,used=0;
+    while(value()<threshold&&guard++<50000){
+      const r=flowRollMonopoly(st,cfg,stats);
+      if(!r.ok)return{ok:false,note:`${r.note}，基金條件停在 ${fmt(value())}／${fmt(threshold)}`};
+      used++
+    }
+    return{ok:value()>=threshold,metricValue:value(),used}
+  }
+
   const pc=cfg.gameplaySettings?.pinball||{};
-  if(!(basis==="itemSpent"&&id===pc.craftTicketId)){
-    return{ok:false,note:`目前只支援以彈珠流程自動推進「消耗${cfgItem(cfg,id).name}」基金條件`}
+
+  // 彈珠基金若是「消耗製作卷」，每次只製作1顆，才能精準停在門檻。
+  if(basis==="itemSpent"&&id===pc.craftTicketId){
+    const cap=Math.max(1,Number(pc.ballCapacity||200));
+    const ball=pc.gameTokenId,ticket=pc.craftTicketId;
+    let guard=0,dropped=0,crafted=0;
+
+    while(value()<threshold&&guard++<50000){
+      if(Number(st.resources[ticket]||0)>=1&&Number(st.resources[ball]||0)<cap){
+        if(flowConvertCraft(st,cfg,1)<1)return{ok:false,note:`無法製作彈珠，基金條件停在 ${fmt(value())}／${fmt(threshold)}`};
+        crafted++;
+        if(value()>=threshold)return{ok:true,metricValue:value(),dropped,crafted}
+      }
+
+      if(Number(st.resources[ball]||0)>=1){
+        const drop=flowDropPinball(st,cfg,stats,{autoCraft:false});
+        if(!drop.ok)return{ok:false,note:"無法繼續使用玩法資源"};
+        dropped++;
+        continue
+      }
+
+      return{ok:false,note:`資源不足，基金條件停在 ${fmt(value())}／${fmt(threshold)}`}
+    }
+    return{ok:value()>=threshold,metricValue:value(),dropped,crafted}
   }
 
-  const cap=Math.max(1,Number(pc.ballCapacity||200));
-  const ball=pc.gameTokenId,ticket=pc.craftTicketId;
-  let guard=0,dropped=0,crafted=0;
-
+  // 其他彈珠基金條件：直接逐顆玩到條件達標。
+  let guard=0,used=0;
   while(value()<threshold&&guard++<50000){
-    // 能製作時每次只做1顆；剛好碰到門檻就立即停下領基金。
-    if(Number(st.resources[ticket]||0)>=1&&Number(st.resources[ball]||0)<cap){
-      if(flowConvertCraft(st,cfg,1)<1)return{ok:false,note:`無法製作彈珠，基金條件停在 ${fmt(value())}／${fmt(threshold)}`};
-      crafted++;
-      if(value()>=threshold)return{ok:true,metricValue:value(),dropped,crafted}
-    }
-
-    // 製作卷不足或容量滿時，先丟1顆，讓進度獎勵有機會補回資源。
-    if(Number(st.resources[ball]||0)>=1){
-      const drop=flowDropPinball(st,cfg,stats,{autoCraft:false});
-      if(!drop.ok)return{ok:false,note:"無法繼續投入彈珠"};
-      dropped++;
-      continue
-    }
-
-    return{ok:false,note:`資源不足，基金條件停在 ${fmt(value())}／${fmt(threshold)}`}
+    const r=flowDropPinball(st,cfg,stats,{autoCraft:true});
+    if(!r.ok)return{ok:false,note:`${r.note}，基金條件停在 ${fmt(value())}／${fmt(threshold)}`};
+    used++
   }
-
-  return{ok:value()>=threshold,metricValue:value(),dropped,crafted}
+  return{ok:value()>=threshold,metricValue:value(),used}
 }
 function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
   const watcher=Array.isArray(ctx?.fundWatchers)
@@ -4176,11 +4324,11 @@ function flowPlayUntilResource(st,cfg,itemId,required,stats,label="指定資源"
   let guard=0,used=0;
 
   while(Number(st.resources[itemId]||0)<need&&guard++<50000){
-    const r=flowDropPinball(st,cfg,stats,{autoCraft:true});
+    const r=flowPlayOneToken(st,cfg,stats,{autoCraft:true});
     if(!r.ok){
       return{
         ok:false,used,
-        note:`${label}仍不足：目前 ${fmt(st.resources[itemId]||0)}／${fmt(need)}；${r.note||"無法繼續投入彈珠"}｜剩餘 ${flowPlayableText(st,cfg)}`
+        note:`${label}仍不足：目前 ${fmt(st.resources[itemId]||0)}／${fmt(need)}；${r.note||"無法繼續使用玩法資源"}｜剩餘 ${flowPlayableText(st,cfg)}`
       }
     }
     used++;
@@ -4231,7 +4379,7 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
 
   return{
     ok:true,
-    note:`${box.name} ${before<want?`先逐顆投入 ${prep.used} 顆湊足 → `:""}開 ${want} 個 → ${cfgItem(cfg,box.rewardItemId).name}×${fmt(total)}`
+    note:`${box.name} ${before<want?`先使用玩法資源 ${prep.used} 次湊足 → `:""}開 ${want} 個 → ${cfgItem(cfg,box.rewardItemId).name}×${fmt(total)}`
   }
 }
 function flowExchange(st,cfg,action,stats,ctx={}){
@@ -4262,17 +4410,27 @@ function flowExchange(st,cfg,action,stats,ctx={}){
 
   return{
     ok:true,
-    note:`${offer.name} ${before<required?`先逐顆投入 ${prep.used} 顆湊材料 → `:""}兌換 ${want} 次`
+    note:`${offer.name} ${before<required?`先使用玩法資源 ${prep.used} 次湊材料 → `:""}兌換 ${want} 次`
   }
 }
 function flowUseAllBalls(st,cfg,stats,ctx={}){
+  if(batchGameplayType(cfg)==="monopoly"){
+    const token=cfg.currencies.gameTokenId;
+    let used=0,guard=0;
+    while(Number(st.resources[token]||0)>0&&guard++<100000){
+      const r=flowRollMonopoly(st,cfg,stats);
+      if(!r.ok)break;
+      used++;
+      flowCheckFundInterrupts(st,cfg,ctx,stats)
+    }
+    return{ok:true,note:`已使用剩餘${cfgItem(cfg,token).name}：共 ${used} 次｜剩餘 ${fmt(st.resources[token]||0)}`}
+  }
+
   const pc=cfg.gameplaySettings?.pinball||{};
   const ball=pc.gameTokenId||cfg.currencies.gameTokenId;
   const ticket=pc.craftTicketId;
   let used=0,guard=0;
 
-  // 「剩下的都用一用」= 已製作彈珠 + 所有仍可轉換的製作卷。
-  // flowDropPinball(autoCraft:true) 會在彈珠歸零時每次自動製作1顆再投入。
   while(
     (Number(st.resources[ball]||0)>0 || Number(st.resources[ticket]||0)>0) &&
     guard++<100000
@@ -4280,7 +4438,6 @@ function flowUseAllBalls(st,cfg,stats,ctx={}){
     const r=flowDropPinball(st,cfg,stats,{autoCraft:true});
     if(!r.ok)break;
     used++;
-
     flowCheckFundInterrupts(st,cfg,ctx,stats);
   }
 
@@ -4305,7 +4462,7 @@ function flowReachedStage(st,cfg){const score=Number(flowDayState(st).score||0),
 function runWeeklyFlowOnce(base,cfg,run){
   const st=clone(base);ensureStateSchema(st,cfg);st.currentDay=0;
   const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[],steps:[],daily:[]};
-  const plan=flowNormalizePlan(ensureWeeklyFlowPlan(),cfg);
+  const plan=flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
 
   for(let d=0;d<Math.min(7,st.days.length);d++){
     st.currentDay=d;
@@ -4314,7 +4471,9 @@ function runWeeklyFlowOnce(base,cfg,run){
     const actions=plan[d]?.actions||[];
     const dayBallsStart=Number(stats.ballsUsed||0);
     const dayBoxesStart=Number(stats.boxesOpened||0);
-    const premiumId=cfg.gameplaySettings?.pinball?.premiumExchangeId||cfg.currencies.premiumExchangeId;
+    const activeGp=cfg.gameplaySettings?.[batchGameplayType(cfg)]||{};
+    const premiumId=activeGp.premiumExchangeId||cfg.currencies.premiumExchangeId;
+    const tokenId=activeGp.gameTokenId||cfg.currencies.gameTokenId;
     const dayPremiumStart=Number(st.resources?.[premiumId]||0);
 
     const stageAction=actions.find(a=>a?.type==="stage")||null;
@@ -4359,7 +4518,7 @@ function runWeeklyFlowOnce(base,cfg,run){
       },stats);
     }
 
-    // 固定分全部拿完後，彈珠才是最後補分手段。
+    // 固定分全部拿完後，才用目前玩法的主要代幣做最後補分。
     if(dayGoal&&Number(flowDayState(st).score||0)<dayGoalScore){
       const r=flowPlayToStage(st,cfg,{type:"stage",stage:dayGoal.stage},stats,{
         actions,index:actions.length,day:d,
@@ -4382,10 +4541,10 @@ function runWeeklyFlowOnce(base,cfg,run){
       score:Number(flowDayState(st).score||0),
       stage:Number(flowReachedStage(st,cfg)||0),
       claims:Number(flowDayState(st).claimedStages?.length||0),
-      balls:Number(st.resources?.[cfg.gameplaySettings?.pinball?.gameTokenId]||0),
-      craft:Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0),
-      premium:Number(st.resources?.[cfg.gameplaySettings?.pinball?.premiumExchangeId]||0),
-      normal:Number(st.resources?.[cfg.gameplaySettings?.pinball?.normalExchangeId]||0),
+      balls:Number(st.resources?.[tokenId]||0),
+      craft:batchGameplayType(cfg)==="pinball"?Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0):0,
+      premium:Number(st.resources?.[premiumId]||0),
+      normal:Number(st.resources?.[activeGp.normalExchangeId||cfg.currencies.normalExchangeId]||0),
       missionAmount:Number(flowDayState(st).missionAmount||0),
       ballsUsedToday:Number(stats.ballsUsed||0)-dayBallsStart,
       boxesOpenedToday:Number(stats.boxesOpened||0)-dayBoxesStart,
@@ -4393,22 +4552,58 @@ function runWeeklyFlowOnce(base,cfg,run){
     })
   }
 
-  const pc=cfg.gameplaySettings?.pinball||{},premium=pc.premiumExchangeId||cfg.currencies.premiumExchangeId,normal=pc.normalExchangeId||cfg.currencies.normalExchangeId,craft=pc.craftTicketId,paid=cfg.currencies.paidCurrencyId||"emerald";
-  return{run,success:stats.failures.length===0,failures:stats.failures,ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,craftSpent:Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0),paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),premiumFinal:Number(st.resources[premium]||0),premiumGained:Number(st.resources[premium]||0)-Number(base.resources?.[premium]||0),normalFinal:Number(st.resources[normal]||0),craftFinal:Number(st.resources[craft]||0),ballFinal:Number(st.resources[pc.gameTokenId]||0),finalState:st}
+  const gp=cfg.gameplaySettings?.[batchGameplayType(cfg)]||{};
+  const premium=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
+  const normal=gp.normalExchangeId||cfg.currencies.normalExchangeId;
+  const token=gp.gameTokenId||cfg.currencies.gameTokenId;
+  const craft=batchGameplayType(cfg)==="pinball"?(cfg.gameplaySettings?.pinball?.craftTicketId||""):"";
+  const paid=cfg.currencies.paidCurrencyId||"emerald";
+  return{
+    run,success:stats.failures.length===0,failures:stats.failures,
+    ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,
+    craftSpent:craft?Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0):0,
+    paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),
+    premiumFinal:Number(st.resources[premium]||0),
+    premiumGained:Number(st.resources[premium]||0)-Number(base.resources?.[premium]||0),
+    normalFinal:Number(st.resources[normal]||0),
+    craftFinal:craft?Number(st.resources[craft]||0):0,
+    ballFinal:Number(st.resources[token]||0),
+    finalState:st
+  }
 }
 function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
 async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");if(rolling)return toast("目前遊戲正在執行");
-  const count=Math.max(1,Math.min(500,Math.floor(Number($("simulationCount").value||100))));$("simulationCount").value=count;const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);normalizeFundConfig(cfg);ensureStateSchema(base,cfg);if(cfg.gameplay.type!=="pinball")return toast("目前七日流程版先以彈珠機玩法執行，請先切換到彈珠機再建立模擬基準");
+  const count=Math.max(1,Math.min(500,Math.floor(Number($("simulationCount").value||100))));
+  $("simulationCount").value=count;
+  const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
+  normalizeFundConfig(cfg);ensureStateSchema(base,cfg);
+  if(batchGameplayType(cfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
   $("runSimulationBtn").disabled=true;$("simulationProgress").style.width="0%";$("simulationProgressText").textContent=`準備依序執行 ${count} 次七日流程…`;batchResults=[];
   for(let i=0;i<count;i++){const result=runWeeklyFlowOnce(base,cfg,i+1);batchResults.push(result);$("simulationProgress").style.width=`${(i+1)/count*100}%`;$("simulationProgressText").textContent=`已完成 ${i+1} / ${count} 次七日流程`;if(i%3===2)await wait(0)}
-  batchResults.meta={config:cfg,plan:clone(ensureWeeklyFlowPlan())};$("runSimulationBtn").disabled=false;renderSimulation();toast(`七日流程批次模擬完成，共 ${count} 次`)
+  batchResults.meta={config:cfg,plan:clone(ensureWeeklyFlowPlan(cfg))};$("runSimulationBtn").disabled=false;renderSimulation();toast(`七日流程批次模擬完成，共 ${count} 次`)
 }
 function captureBaseline(){
-  if(rolling)return toast("目前遊戲正在執行，請稍候");simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};localStorage.setItem(STORAGE_BASELINE,JSON.stringify(simulationBaseline));batchResults=[];renderSimulation();toast("已建立七日流程模擬基準")
+  if(rolling)return toast("目前遊戲正在執行，請稍候");
+  simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};
+  localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
+  batchResults=[];renderSimulation();
+  toast(`已建立${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程模擬基準`)
 }
 function restoreBaseline(){if(!simulationBaseline||rolling)return;recordHistory("恢復模擬基準");config=clone(simulationBaseline.config);state=clone(simulationBaseline.state);syncStateToConfig(false);render();toast("已恢復到模擬基準")}
-function clearBaseline(){simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);renderSimulation();toast("已清除模擬基準")}
+function clearBaseline(){
+  const label=batchGameplayType()==="pinball"?"彈珠機":"大富翁";
+  simulationBaseline=null;batchResults=[];
+  localStorage.removeItem(baselineStorageKey());
+
+  // 若舊版單一 baseline 剛好也是目前玩法，一併清掉，避免切換後又被遷移回來。
+  try{
+    const legacy=localStorage.getItem(STORAGE_BASELINE);
+    if(legacy&&batchGameplayType(JSON.parse(legacy)?.config)===batchGameplayType())localStorage.removeItem(STORAGE_BASELINE)
+  }catch{}
+
+  renderSimulation();toast(`已清除${label}模擬基準`)
+}
 function flowBaselineWarnings(baseline){
   if(!baseline?.state)return[];
   const cfg=baseline.config||config,st=baseline.state,w=[];
@@ -4425,13 +4620,22 @@ function flowBaselineWarnings(baseline){
 function renderSimulation(){
   const has=!!simulationBaseline;$("restoreBaselineBtn").disabled=!has;$("clearBaselineBtn").disabled=!has;renderWeeklyFlowPlanner();
   if(has){
-    const b=simulationBaseline,day=b.config.event.dayLabels[b.state.currentDay]||`第${b.state.currentDay+1}天`,pc=b.config.gameplaySettings?.pinball||{},ball=pc.gameTokenId,ticket=pc.craftTicketId,date=new Date(b.createdAt).toLocaleString("zh-TW",{hour12:false});
+    const b=simulationBaseline;
+    const day=b.config.event.dayLabels[b.state.currentDay]||`第${b.state.currentDay+1}天`;
+    const type=batchGameplayType(b.config);
+    const gp=b.config.gameplaySettings?.[type]||{};
+    const token=gp.gameTokenId||b.config.currencies.gameTokenId;
+    const date=new Date(b.createdAt).toLocaleString("zh-TW",{hour12:false});
     const warnings=flowBaselineWarnings(b);
-    $("baselineStatus").innerHTML=`建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${escapeHtml(cfgItem(b.config,ball).name)} ${fmt(b.state.resources[ball]||0)}｜${escapeHtml(cfgItem(b.config,ticket).name)} ${fmt(b.state.resources[ticket]||0)}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
+    const resourceText=type==="pinball"
+      ?`${escapeHtml(cfgItem(b.config,token).name)} ${fmt(b.state.resources[token]||0)}｜${escapeHtml(cfgItem(b.config,b.config.gameplaySettings.pinball.craftTicketId).name)} ${fmt(b.state.resources[b.config.gameplaySettings.pinball.craftTicketId]||0)}`
+      :`${escapeHtml(cfgItem(b.config,token).name)} ${fmt(b.state.resources[token]||0)}`;
+    $("baselineStatus").innerHTML=`${type==="pinball"?"🔮 彈珠機":"🎲 大富翁"}｜建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${resourceText}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
   }else $("baselineStatus").textContent="請在七日流程開始前建立基準，通常使用週一尚未領取任何內容的狀態。";
   if(!batchResults.length){$("simulationSummary").innerHTML="";$("weeklyDailySummary").innerHTML="";$("simulationResults").innerHTML=`<div class="empty">設定好週一～週日流程並建立基準後，按「依序模擬週一～週日」。</div>`;return}
-  const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config,pc=cfg.gameplaySettings?.pinball||{};
-  const premiumId=pc.premiumExchangeId||cfg.currencies.premiumExchangeId;
+  const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config;
+  const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
+  const premiumId=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
   const premiumName=cfgItem(cfg,premiumId).name;
   const successPremium=successful.map(x=>Number(x.premiumGained||0));
   const successAvg=successPremium.length?average(successPremium):null;
@@ -4455,9 +4659,18 @@ function renderSimulation(){
       premiumGainToday:average(rows.map(x=>x.premiumGainToday))
     }
   });
-  $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日高級捲軸增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>高級捲軸累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`;
-  const premium=pc.premiumExchangeId||cfg.currencies.premiumExchangeId,normal=pc.normalExchangeId||cfg.currencies.normalExchangeId;
-  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用彈珠</th><th>開箱</th><th>製作卷消耗</th><th>翡翠支出</th><th>${escapeHtml(cfgItem(cfg,normal).name)}最終</th><th>${escapeHtml(cfgItem(cfg,premium).name)}最終</th><th>${escapeHtml(cfgItem(cfg,pc.gameTokenId).name)}最終</th><th>${escapeHtml(cfgItem(cfg,pc.craftTicketId).name)}最終</th><th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td><td>${fmt(r.craftSpent)}</td><td>${fmt(r.paidSpent)}</td><td>${fmt(r.normalFinal)}</td><td>${fmt(r.premiumFinal)}</td><td>${fmt(r.ballFinal)}</td><td>${fmt(r.craftFinal)}</td><td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
+  if(type==="pinball"){
+    $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+  }else{
+    const tokenName=cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name;
+    $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+  }
+  const premium=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
+  const normal=gp.normalExchangeId||cfg.currencies.normalExchangeId;
+  const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
+  const tokenName=cfgItem(cfg,tokenId).name;
+  const craftId=type==="pinball"?cfg.gameplaySettings.pinball.craftTicketId:null;
+  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用${escapeHtml(tokenName)}</th><th>開箱</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}消耗</th>`:""}<th>翡翠支出</th><th>${escapeHtml(cfgItem(cfg,normal).name)}最終</th><th>${escapeHtml(cfgItem(cfg,premium).name)}最終</th><th>${escapeHtml(tokenName)}最終</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}最終</th>`:""}<th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td>${type==="pinball"?`<td>${fmt(r.craftSpent)}</td>`:""}<td>${fmt(r.paidSpent)}</td><td>${fmt(r.normalFinal)}</td><td>${fmt(r.premiumFinal)}</td><td>${fmt(r.ballFinal)}</td>${type==="pinball"?`<td>${fmt(r.craftFinal)}</td>`:""}<td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
 }
 
 
@@ -6108,7 +6321,7 @@ function applyStrategyToGame(){
   };
   state.currentDay=0;prepareStrategyDay(0,{silent:true});
   strategyAttemptSnapshots={};strategyDaySimulationStats={};
-  simulationBaseline=null;batchResults=[];localStorage.removeItem(STORAGE_BASELINE);
+  simulationBaseline=null;batchResults=[];localStorage.removeItem(baselineStorageKey());
   log(`已套用${appliedPlan.targets?.luckMode==="africa"?"非洲":appliedPlan.targets?.luckMode==="europe"?"歐洲":"基本"}方案：每天可模擬、一鍵執行或退回重骰`);
   render();toast("已從週一開始；可自由切換日期，進入未來日期後過去日期僅供查看")
 }
@@ -6730,16 +6943,17 @@ function render(){
 function save(){
   localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
   localStorage.setItem(STORAGE_STATE,JSON.stringify(state));
-  if(simulationBaseline)localStorage.setItem(STORAGE_BASELINE,JSON.stringify(simulationBaseline));
+  if(simulationBaseline)localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
   if(strategyPlan)localStorage.setItem(STORAGE_STRATEGY,JSON.stringify(strategyPlan));
-  toast("已儲存活動設定、進度、模擬基準與攻略")
+  if(weeklyFlowPlan&&weeklyFlowPlanGameplay===batchGameplayType())saveWeeklyFlowPlan(config);
+  toast("已儲存活動設定、進度、本玩法模擬基準、七日流程與攻略")
 }
 function load(){
   try{
     const c=localStorage.getItem(STORAGE_CONFIG)||localStorage.getItem(LEGACY_CONFIG)||localStorage.getItem(LEGACY2_CONFIG),s=localStorage.getItem(STORAGE_STATE)||localStorage.getItem(LEGACY_STATE)||localStorage.getItem(LEGACY2_STATE);
     if(!s)return toast("沒有已儲存的進度");
     if(c){const parsed=normalizeFundConfig(JSON.parse(c));validateConfig(parsed);config=parsed}
-    state=JSON.parse(s);ensureStateSchema(state,config);state.activeStrategy=null;simulationBaseline=loadStoredBaseline();strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);batchResults=[];
+    state=JSON.parse(s);ensureStateSchema(state,config);state.activeStrategy=null;simulationBaseline=loadStoredBaseline();weeklyFlowPlan=null;weeklyFlowPlanGameplay=null;strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);batchResults=[];
     undoStack=[];redoStack=[];lastAutoRollSnapshot=null;syncStateToConfig(false);ensureGameTokenFlow(state,config);render();toast("已讀取")
   }catch(e){toast(`讀取失敗：${e.message}`)}
 }
@@ -7317,8 +7531,16 @@ $("captureBaselineBtn").addEventListener("click",captureBaseline);
 $("restoreBaselineBtn").addEventListener("click",restoreBaseline);
 $("clearBaselineBtn").addEventListener("click",clearBaseline);
 $("runSimulationBtn").addEventListener("click",runBatchSimulation);
-$("loadExampleFlowBtn").addEventListener("click",()=>{weeklyFlowPlan=flowExamplePlan(config);saveWeeklyFlowPlan();batchResults=[];renderSimulation();toast("已套用目前範例七日流程")});
-$("clearWeeklyFlowBtn").addEventListener("click",()=>{weeklyFlowPlan=Array.from({length:7},()=>({actions:[]}));saveWeeklyFlowPlan();batchResults=[];renderSimulation();toast("已清空七日流程")});
+$("loadExampleFlowBtn").addEventListener("click",()=>{
+  weeklyFlowPlan=flowExamplePlan(config);weeklyFlowPlanGameplay=batchGameplayType();
+  saveWeeklyFlowPlan(config);batchResults=[];renderSimulation();
+  toast(`已套用${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}範例七日流程`)
+});
+$("clearWeeklyFlowBtn").addEventListener("click",()=>{
+  weeklyFlowPlan=Array.from({length:7},()=>({actions:[]}));weeklyFlowPlanGameplay=batchGameplayType();
+  saveWeeklyFlowPlan(config);batchResults=[];renderSimulation();
+  toast(`只清空${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程`)
+});
 $("weeklyFlowPlanner").addEventListener("click",e=>{
   const plan=ensureWeeklyFlowPlan(),add=e.target.closest("[data-flow-add]");
   if(add){const d=Number(add.dataset.flowAdd);plan[d].actions.push(flowNewAction("free",config));saveWeeklyFlowPlan();renderWeeklyFlowPlanner();return}
