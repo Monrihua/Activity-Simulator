@@ -4111,7 +4111,7 @@ function renderWeeklyFlowPlanner(){
   if(help){
     help.innerHTML=type==="pinball"
       ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。固定收益、精準基金、指定箱子與兌換先完成，最後才用彈珠補目標階段；「使用剩餘彈珠」會連剩餘製作卷一起轉成彈珠用完。`
-      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。基金精準領取現在是真正的中途檢查點：逐次擲骰到基金門檻 → 門檻達標當下立刻全領 → 再繼續擲骰補本日目標階段。完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬；大富翁與彈珠的基金購買／已領階段也完全分開。`
+      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。基金精準領取現在是真正的中途檢查點：逐次擲骰到基金門檻 → 門檻達標當下立刻全領 → 只計算這次領基金實際增加的骰子 → 再繼續擲骰補本日目標階段。完成一圈、起點獎勵、格子獎勵與地圖刷新都依大富翁目前設定模擬；大富翁與彈珠的基金購買／已領階段也完全分開。`
   }
   const plan=ensureWeeklyFlowPlan(config);
   el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
@@ -4504,7 +4504,6 @@ function flowClaimMonopolyFundTarget(st,cfg,action,stats,ctx={}){
   }
 
   const startMetric=flowFundMetricValue(st,cfg);
-  const beforeResource=Number(st.resources[action.itemId]||0);
   let used=0,guard=0;
 
   // 一骰一骰玩；每骰後馬上檢查基金，達標就立刻停止擲骰。
@@ -4524,9 +4523,16 @@ function flowClaimMonopolyFundTarget(st,cfg,action,stats,ctx={}){
     return{ok:false,note:`基金只到 ${fmt(reached)}／${fmt(analysis.threshold)}，無法領取`}
   }
 
+  // 注意：基金獎勵必須從「已經停在基金門檻的這一刻」開始計算。
+  // 不能拿開始擲骰前的骰子數比較，否則會把為了跑到門檻所消耗的骰子
+  // 一起算進基金獎勵，造成 +36 被誤判成 -9 / +19 等數字。
+  const beforeClaimResource=Number(st.resources[action.itemId]||0);
+
   // 門檻達成當下立刻全領，沒有再多擲任何一顆。
   flowClaimUnlockedFund(st,cfg,stats);
-  const gain=Number(st.resources[action.itemId]||0)-beforeResource;
+
+  const afterClaimResource=Number(st.resources[action.itemId]||0);
+  const gain=afterClaimResource-beforeClaimResource;
   const exact=Math.abs(gain-Number(action.amount||0))<1e-9;
 
   const metricName=cfgItem(cfg,monopolyFlagItemId(cfg)).name;
