@@ -786,7 +786,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
               <button class="btn secondary small pinball-craft-max" id="pinballCraftMaxBtn" title="製作目前可用的最大數量">全部製作</button>
               <button class="pinball-hold-btn" id="pinballDropMainBtn">投入彈珠（長按1秒自動）</button>
             </div>
-            <label class="pinball-auto-toggle"><input type="checkbox" id="pinballSkipNormalAnimation"> 普通模式跳過動畫</label>
+            <label class="pinball-auto-toggle"><input type="checkbox" id="pinballSkipNormalAnimation"> 普通模式跳過動畫（立即結算）</label>
             <div class="pinball-queue-status" id="pinballQueueStatus">待投入 0 顆｜場上 0 顆</div>
             <div class="pinball-craft-panel" id="pinballCraftPanel">
               <div class="pinball-craft-head">
@@ -2531,7 +2531,10 @@ function pinballRequestedCount(){return 1}
 function updatePinballDropButton(){
   const btn=$("pinballDropMainBtn");if(!btn)return;
   btn.classList.toggle("holding",pinballHoldActive);
-  btn.textContent=pinballHoldActive?"停止自動投入":"投入彈珠（長按1秒自動）"
+  const instant=pinballSkipNormalAnimation();
+  btn.textContent=pinballHoldActive
+    ?(instant?"停止使用全部":"停止自動投入")
+    :(instant?"投入彈珠（長按1秒使用全部）":"投入彈珠（長按1秒自動）")
 }
 function maybeAutoStartPinballHidden(){
   const ps=ensurePinballSlots();
@@ -2580,17 +2583,26 @@ async function processPinballQueue(){
       pinballActiveBalls++;
       updatePinballQueueStatus();
 
-      // Start each ball independently; do not await completion before launching the next.
-      dropPinballOnce({silent:true,fast:pinballSkipNormalAnimation(),concurrent:true}).finally(()=>{
+      if(pinballSkipNormalAnimation()){
+        // 真正的跳過動畫：這一顆立刻完成「扣球 → 抽落點 → 發獎 → 特殊格判定」。
+        // 不再保留原本每顆 125ms 的發射等待。
+        try{
+          await dropPinballOnce({silent:true,fast:true,concurrent:true})
+        }finally{
+          pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
+          updatePinballQueueStatus()
+        }
+        if(pinballState().hiddenPending)break;
+        continue
+      }
+
+      // 有動畫時才允許多顆同時存在於場上。
+      dropPinballOnce({silent:true,fast:false,concurrent:true}).finally(()=>{
         pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
         updatePinballQueueStatus()
       });
 
-      // Small launch gap so several balls can coexist on board.
       await wait(125);
-
-      // If the previous ball triggered hidden pending, dropPinballOnce will set it;
-      // we stop feeding more normal balls after the state becomes pending.
       if(pinballState().hiddenPending)break
     }
   }finally{
@@ -2598,8 +2610,49 @@ async function processPinballQueue(){
     updatePinballQueueStatus()
   }
 }
+async function runPinballInstantUseAll(){
+  if(pinballQueueRunning)return;
+  pinballHoldActive=true;
+  updatePinballDropButton();
+
+  try{
+    let guard=0;
+    while(pinballHoldActive&&guard++<100000){
+      const ps=ensurePinballSlots();
+
+      // 若途中觸發隱藏模式，正常模式先停；等隱藏模式完成後再繼續剩餘普通彈珠。
+      if(ps.hiddenPending||ps.hiddenActive){
+        maybeAutoStartPinballHidden();
+        await wait(20);
+        continue
+      }
+
+      const token=config.currencies.gameTokenId;
+      if(Number(state.resources[token]||0)<1)break;
+
+      pinballActiveBalls++;
+      updatePinballQueueStatus();
+      try{
+        await dropPinballOnce({silent:true,fast:true,concurrent:true})
+      }finally{
+        pinballActiveBalls=Math.max(0,pinballActiveBalls-1);
+        updatePinballQueueStatus()
+      }
+    }
+  }finally{
+    stopPinballHold()
+  }
+}
 function startPinballHold(){
   if(pinballHoldActive)return;
+
+  // 開啟「普通模式跳過動畫」後，長按不再每180ms慢慢排隊，
+  // 而是直接把目前可用普通彈珠逐顆瞬間結算。
+  if(pinballSkipNormalAnimation()){
+    runPinballInstantUseAll();
+    return
+  }
+
   pinballHoldActive=true;
   updatePinballDropButton();
   enqueuePinballs(pinballRequestedCount());
@@ -3797,11 +3850,12 @@ function ensureWeeklyFlowPlan(){
   return weeklyFlowPlan
 }
 function saveWeeklyFlowPlan(){try{localStorage.setItem(STORAGE_WEEK_FLOW,JSON.stringify(weeklyFlowPlan))}catch{}}
-function flowActionTypeOptions(selected){
+function flowActionTypeOptions(selected,cfg=config){
+  const isPinball=cfg.gameplay.type==="pinball";
   const opts=[
     ["free","一鍵領取無課金"],["stage","本日目標階段（最後補分）"],["package","購買禮包"],["fundBuy","購買基金"],
     ["fundClaim","基金精準領取指定物品"],["box","開指定數量隨機箱"],["exchange","兌換商店"],
-    ["allBalls","使用剩餘彈珠"],["allBoxes","開完剩餘隨機箱"]
+    ["allBalls",isPinball?"使用剩餘彈珠":"使用剩餘骰子"],["allBoxes","開完剩餘隨機箱"]
   ];
   return opts.map(([v,l])=>`<option value="${v}" ${v===selected?"selected":""}>${l}</option>`).join("")
 }
@@ -3822,7 +3876,10 @@ function flowActionFields(action,cfg=config){
   if(action.type==="exchange"){
     const offers=cfg.exchangeShop||[];return `<select data-flow-field="offerId">${offers.map(o=>`<option value="${escapeHtml(o.id)}" ${o.id===action.offerId?"selected":""}>${escapeHtml(o.name)}</option>`).join("")}</select><input class="input flow-small" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span class="help">次；材料不足時會逐顆玩到足夠，足夠立刻兌換。</span>`
   }
-  if(action.type==="allBalls")return `<span class="help">把目前持有的彈珠全部投入；彈珠用完後會繼續把剩餘製作卷 1:1 製作成彈珠並投入，直到「彈珠=0、製作卷=0」才停止。途中照常自動領每日進度獎勵。</span>`;
+  if(action.type==="allBalls"){
+    if(cfg.gameplay.type==="pinball")return `<span class="help">把目前持有的彈珠全部投入；彈珠用完後會繼續把剩餘製作卷 1:1 製作成彈珠並投入，直到「彈珠=0、製作卷=0」才停止。途中照常自動領每日進度獎勵。</span>`;
+    return `<span class="help">使用目前剩餘骰子。此步驟名稱會依目前玩法顯示，不再出現彈珠用語。</span>`
+  }
   if(action.type==="fundBuy")return `<span class="help">購買進階基金，不會立即領獎。</span>`;
   if(action.type==="free")return `<span class="help">每日任務＋本日無課金禮包；首日也會包含登入贈送。</span>`;
   return""
@@ -3830,7 +3887,7 @@ function flowActionFields(action,cfg=config){
 function renderWeeklyFlowPlanner(){
   const el=$("weeklyFlowPlanner");if(!el)return;
   const plan=ensureWeeklyFlowPlan();
-  el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
+  el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
 }
 function flowNewAction(type="free",cfg=config){
   const pc=cfg.gameplaySettings?.pinball||{},stage=flowStageNumbers(cfg)[0]||1,box=cfg.randomBoxes?.[0],offer=cfg.exchangeShop?.[0],pkg=flowPackageEntries(cfg)[0];
@@ -4337,7 +4394,7 @@ function runWeeklyFlowOnce(base,cfg,run){
   }
 
   const pc=cfg.gameplaySettings?.pinball||{},premium=pc.premiumExchangeId||cfg.currencies.premiumExchangeId,normal=pc.normalExchangeId||cfg.currencies.normalExchangeId,craft=pc.craftTicketId,paid=cfg.currencies.paidCurrencyId||"emerald";
-  return{run,success:stats.failures.length===0,failures:stats.failures,ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,craftSpent:Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0),paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),premiumFinal:Number(st.resources[premium]||0),normalFinal:Number(st.resources[normal]||0),craftFinal:Number(st.resources[craft]||0),ballFinal:Number(st.resources[pc.gameTokenId]||0),finalState:st}
+  return{run,success:stats.failures.length===0,failures:stats.failures,ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,craftSpent:Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0),paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),premiumFinal:Number(st.resources[premium]||0),premiumGained:Number(st.resources[premium]||0)-Number(base.resources?.[premium]||0),normalFinal:Number(st.resources[normal]||0),craftFinal:Number(st.resources[craft]||0),ballFinal:Number(st.resources[pc.gameTokenId]||0),finalState:st}
 }
 function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
 async function runBatchSimulation(){
@@ -4373,8 +4430,15 @@ function renderSimulation(){
     $("baselineStatus").innerHTML=`建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${escapeHtml(cfgItem(b.config,ball).name)} ${fmt(b.state.resources[ball]||0)}｜${escapeHtml(cfgItem(b.config,ticket).name)} ${fmt(b.state.resources[ticket]||0)}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
   }else $("baselineStatus").textContent="請在七日流程開始前建立基準，通常使用週一尚未領取任何內容的狀態。";
   if(!batchResults.length){$("simulationSummary").innerHTML="";$("weeklyDailySummary").innerHTML="";$("simulationResults").innerHTML=`<div class="empty">設定好週一～週日流程並建立基準後，按「依序模擬週一～週日」。</div>`;return}
-  const success=batchResults.filter(x=>x.success).length,cfg=batchResults.meta?.config||simulationBaseline.config,pc=cfg.gameplaySettings?.pinball||{};
-  $("simulationSummary").innerHTML=`<div class="sim-stat"><div class="k">完整流程成功率</div><div class="v">${fmt(success/batchResults.length*100)}%</div></div><div class="sim-stat"><div class="k">平均使用彈珠</div><div class="v">${fmt(average(batchResults.map(x=>x.ballsUsed)))}</div></div><div class="sim-stat"><div class="k">平均開箱</div><div class="v">${fmt(average(batchResults.map(x=>x.boxesOpened)))}</div></div><div class="sim-stat"><div class="k">平均消耗製作卷</div><div class="v">${fmt(average(batchResults.map(x=>x.craftSpent)))}</div></div>`;
+  const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config,pc=cfg.gameplaySettings?.pinball||{};
+  const premiumId=pc.premiumExchangeId||cfg.currencies.premiumExchangeId;
+  const premiumName=cfgItem(cfg,premiumId).name;
+  const successPremium=successful.map(x=>Number(x.premiumGained||0));
+  const successAvg=successPremium.length?average(successPremium):null;
+  const successMin=successPremium.length?Math.min(...successPremium):null;
+  const successMax=successPremium.length?Math.max(...successPremium):null;
+  const statValue=v=>v===null?"—":fmt(v);
+  $("simulationSummary").innerHTML=`<div class="sim-stat"><div class="k">完整流程成功率</div><div class="v">${fmt(success/batchResults.length*100)}%</div></div><div class="sim-stat"><div class="k">平均獲得${escapeHtml(premiumName)}（只算成功）</div><div class="v">${statValue(successAvg)}</div></div><div class="sim-stat"><div class="k">最少獲得（只算成功）</div><div class="v">${statValue(successMin)}</div></div><div class="sim-stat"><div class="k">最高獲得（只算成功）</div><div class="v">${statValue(successMax)}</div></div>`;
   const days=Array.from({length:7},(_,d)=>{
     const rows=batchResults.map(r=>r.daily?.[d]).filter(Boolean);
     return{
@@ -6842,7 +6906,7 @@ function renderSettings(){
         <div class="field"><label>隱藏模式免費粉色彈珠數</label>${pathInput("gameplaySettings.pinball.hiddenBalls",c.gameplaySettings.pinball.hiddenBalls,"number",'min="1" step="1"')}</div>
         <div class="field"><label>隱藏模式單格獎勵門檻</label>${pathInput("gameplaySettings.pinball.hiddenSlotRequired",c.gameplaySettings.pinball.hiddenSlotRequired,"number",'min="1" step="1"')}</div>
       </div>
-      <div class="help">普通模式 8 格內容固定；勾選「普通模式跳過動畫」時，綠色彈珠會直接結算落點。隱藏模式達標後永遠自動開始。</div>
+      <div class="help">普通模式 8 格內容固定；勾選「普通模式跳過動畫」時，單擊會立即結算1顆；長按1秒會直接使用全部目前彈珠，不再等待普通掉落動畫。隱藏模式達標後永遠自動開始。</div>
     </div>
 
     <div class="editor-head"><div><h3>固定 8 格、紅標門檻與最終落點權重</h3><div class="help">由左到右分別設定每格獎勵、紅色標記出現在該格時的累積門檻，以及彈珠最終落入該格的權重。</div></div></div>
@@ -7192,6 +7256,7 @@ $("claimAllStagesBtn").addEventListener("click",claimAllStages);
 $("refundAllStagesBtn").addEventListener("click",refundAllStages);
 $("rollBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
 $("rollSelectedBtn").addEventListener("click",()=>rollMultiple(selectedRollCount));
+$("pinballSkipNormalAnimation")?.addEventListener("change",updatePinballDropButton);
 const pinballHoldBtn=$("pinballDropMainBtn");
 pinballHoldBtn.addEventListener("pointerdown",onPinballDropPointerDown);
 ["pointerup","pointercancel","pointerleave"].forEach(name=>pinballHoldBtn.addEventListener(name,onPinballDropPointerUp));
