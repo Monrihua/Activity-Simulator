@@ -959,7 +959,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
           <div class="help" id="weeklyFlowGameplayNote" style="margin:8px 0;font-weight:900"></div><div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
           <div class="sim-controls weekly-sim-controls">
             <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="100"></div>
-            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜僅分段更新進度" readonly></div>
+            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜設定預編譯＋分段更新" readonly></div>
             <div class="field"><label>每日進度獎勵</label><input class="input" value="解鎖即自動全部領取" readonly></div>
             <div class="field"><label>執行整週流程</label><button class="btn green" id="runSimulationBtn" style="width:100%">依序模擬週一～週日</button></div>
           </div>
@@ -2017,8 +2017,8 @@ function persistActiveGameplayFundState(targetState=state,cfg=config){
   targetState.fundStateActiveGameplay=type;
   return targetState.gameplayFundStates[type]
 }
-function ensureStateSchema(targetState=state,cfg=config){
-  normalizeFundConfig(cfg);
+function ensureStateSchema(targetState=state,cfg=config,{skipNormalize=false}={}){
+  if(!skipNormalize)normalizeFundConfig(cfg);
   if(!Array.isArray(targetState.days))targetState.days=[];
   const hadDailyLapData=targetState.days.some(day=>Object.prototype.hasOwnProperty.call(day,"lapsCompleted"));
   while(targetState.days.length<Number(cfg.event.totalDays))targetState.days.push(createDayState());
@@ -3618,7 +3618,7 @@ function fundRewardItems(cfg=config){
   return ids
 }
 function fundGoalAnalysis(itemId,goal,track="all",cfg=config){
-  const milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));
+  const milestones=flowSortedFundMilestones(cfg);
   const target=Math.max(0,Number(goal||0));
   let cumulative=0;
   for(let i=0;i<milestones.length;i++){
@@ -4126,13 +4126,40 @@ function flowNewAction(type="free",cfg=config){
   if(type==="exchange")return{type,offerId:offer?.id||"",count:1};
   return{type}
 }
+const FLOW_BATCH_CFG_CACHE=new WeakMap();
+function flowBatchCfgCache(cfg){
+  let c=FLOW_BATCH_CFG_CACHE.get(cfg);
+  if(c)return c;
+
+  c={
+    sortedStages:[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)),
+    sortedFundMilestones:[...(cfg.fund?.milestones||[])].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b)),
+    scoreMap:new Map((cfg.scoreRules?.pointsPerItemObtained||[]).map(x=>[x.itemId,Number(x.points||0)])),
+    itemMap:new Map((cfg.items||[]).map(x=>[x.id,x])),
+    startRewards:cfg.board?.startRewards||[]
+  };
+  FLOW_BATCH_CFG_CACHE.set(cfg,c);
+  return c
+}
+function flowCfgItemFast(cfg,id){
+  return flowBatchCfgCache(cfg).itemMap.get(id)||{id,name:id,unit:"",icon:"❔"}
+}
+function flowScorePerItemFast(cfg,id){
+  return Number(flowBatchCfgCache(cfg).scoreMap.get(id)||0)
+}
+function flowSortedStages(cfg){
+  return flowBatchCfgCache(cfg).sortedStages
+}
+function flowSortedFundMilestones(cfg){
+  return flowBatchCfgCache(cfg).sortedFundMilestones
+}
 function flowDayState(st){return st.days[Math.max(0,Math.min(st.days.length-1,Number(st.currentDay||0)))]}
 function flowAddItem(st,cfg,id,amount){
   const n=Number(amount||0);if(!id||!n)return;
   st.resources[id]=Number(st.resources[id]||0)+n;
   st.obtained[id]=Math.max(0,Number(st.obtained[id]||0)+Math.max(0,n));
   if(id===cfg.currencies.gameTokenId)adjustGameTokenGain(st.currentDay,n,st,cfg);
-  flowDayState(st).score=Number(flowDayState(st).score||0)+cfgScorePerItem(cfg,id)*n
+  flowDayState(st).score=Number(flowDayState(st).score||0)+flowScorePerItemFast(cfg,id)*n
 }
 function flowSpend(st,cfg,cost,{actual=false}={}){
   const amount=Math.max(0,Number(cost?.amount||0)),id=cost?.itemId;if(!id)return false;
@@ -4145,13 +4172,22 @@ function flowSpend(st,cfg,cost,{actual=false}={}){
   return true
 }
 function flowAutoClaimStages(st,cfg,stats){
-  const day=flowDayState(st),stages=[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));
-  let claimed=0,guard=0;
-  while(guard++<stages.length+3){
-    const ready=stages.filter(s=>Number(day.score||0)>=Number(s.requiredScore||0)&&!day.claimedStages.includes(s.stage));
-    if(!ready.length)break;
-    ready.forEach(s=>{day.claimedStages.push(s.stage);(s.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));claimed++})
+  const day=flowDayState(st),stages=flowSortedStages(cfg);
+  let claimed=0;
+
+  // 階段數通常很少，直接單次順序掃描即可；
+  // 不再每擲1骰/每投1球反覆 sort + filter + includes 多輪。
+  const claimedSet=new Set(day.claimedStages||[]);
+  for(const s of stages){
+    if(Number(day.score||0)<Number(s.requiredScore||0))break;
+    if(claimedSet.has(s.stage))continue;
+
+    day.claimedStages.push(s.stage);
+    claimedSet.add(s.stage);
+    (s.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
+    claimed++
   }
+
   if(stats)stats.stageClaims+=claimed;
   return claimed
 }
@@ -4168,8 +4204,38 @@ function flowBuyPackage(st,cfg,action,stats){
   for(let i=0;i<want;i++){if(Number(day.packagePurchases[key]||0)>=Number(pack.limit||0))break;if(!flowSpend(st,cfg,pack.cost))break;day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;(pack.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));bought++}
   flowAutoClaimStages(st,cfg,stats);return{ok:bought===want,note:`${pack.name} ${bought}/${want} 次`}
 }
+function flowGenerateMonopolyBoardFast(sim,cfg){
+  const count=Number(cfg.board.cellCount),start=Number(cfg.board.startIndex),usable=count-1;
+  const types=cfg.cellTypes.filter(x=>Number(x.distributionWeight)>0);
+  const totalWeight=types.reduce((s,x)=>s+Number(x.distributionWeight),0);
+  const exact=types.map(type=>({type,value:usable*Number(type.distributionWeight)/totalWeight}));
+  const counts=exact.map(x=>Math.floor(x.value));
+  let remain=usable-counts.reduce((a,b)=>a+b,0);
+
+  const order=exact.map((x,i)=>({i,f:x.value-Math.floor(x.value),r:Math.random()}))
+    .sort((a,b)=>b.f-a.f||a.r-b.r);
+  for(let i=0;i<remain;i++)counts[order[i%order.length].i]++;
+
+  const pool=[];
+  counts.forEach((n,i)=>{for(let k=0;k<n;k++)pool.push(types[i])});
+  shuffle(pool);
+
+  sim.board=new Array(count);
+  sim.board[start]={
+    kind:"start",typeId:"start",reward:null,
+    rewards:clone(flowBatchCfgCache(cfg).startRewards)
+  };
+
+  let p=0;
+  for(let i=0;i<count;i++){
+    if(i===start)continue;
+    const type=pool[p++],reward=clone(weightedPick(type.rewards));
+    sim.board[i]={kind:"reward",typeId:type.id,reward}
+  }
+  sim.boardVersion=Number(sim.boardVersion||0)+1
+}
 function flowMonopolyEnsureBoard(st,cfg){
-  if(!Array.isArray(st.board)||st.board.length!==Number(cfg.board?.cellCount||0))simGenerateBoard(st,cfg);
+  if(!Array.isArray(st.board)||st.board.length!==Number(cfg.board?.cellCount||0))flowGenerateMonopolyBoardFast(st,cfg);
   return st.board
 }
 function flowRollMonopoly(st,cfg,stats){
@@ -4189,8 +4255,8 @@ function flowRollMonopoly(st,cfg,stats){
       st.laps=Number(st.laps||0)+1;
       flowDayState(st).lapsCompleted=Number(flowDayState(st).lapsCompleted||0)+1;
       flowDayState(st).score=Number(flowDayState(st).score||0)+Number(cfg.scoreRules.pointsPerLap||0);
-      startRewards(cfg).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
-      if(cfg.board.refreshOnLap)simGenerateBoard(st,cfg)
+      flowBatchCfgCache(cfg).startRewards.forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
+      if(cfg.board.refreshOnLap)flowGenerateMonopolyBoardFast(st,cfg)
     }
   }
 
@@ -4427,7 +4493,6 @@ function flowFundWatcherKey(action,index){
   return `${index}:${action?.itemId||""}:${Number(action?.amount||0)}`
 }
 function flowBuildFundWatchers(st,cfg,actions){
-  normalizeFundConfig(cfg);
   return actions
     .map((action,index)=>{
       if(action?.type!=="fundClaim")return null;
@@ -4532,8 +4597,33 @@ function flowBuyFund(st,cfg,stats){
   if(st.fundPremiumPurchased)return{ok:true,note:"基金已購買"};if(!flowSpend(st,cfg,cfg.fund.premiumCost))return{ok:false,note:"基金購買成本不足"};st.fundPremiumPurchased=true;return{ok:true,note:"已購買基金"}
 }
 function flowClaimUnlockedFund(st,cfg,stats){
-  const milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));const gained={};let count=0;
-  milestones.forEach(m=>{if(!fundMilestoneUnlockedForState(m,st,cfg))return;[["free",m.freeRewards||[]],["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]].forEach(([kind,rewards])=>{if(Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id))return;st.fundClaims[kind][m.id]=st.currentDay;(rewards||[]).forEach(r=>{flowAddItem(st,cfg,r.itemId,r.amount);gained[r.itemId]=Number(gained[r.itemId]||0)+Number(r.amount||0)});count++})});flowAutoClaimStages(st,cfg,stats);return{gained,count}
+  const milestones=flowSortedFundMilestones(cfg);
+  const currentMetric=flowFundMetricValue(st,cfg);
+  const gained={};
+  let count=0;
+
+  for(const m of milestones){
+    if(fundMilestoneTarget(m)>currentMetric+1e-9)break;
+
+    const tracks=[
+      ["free",m.freeRewards||[]],
+      ["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]
+    ];
+
+    for(const [kind,rewards] of tracks){
+      if(Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id))continue;
+      st.fundClaims[kind][m.id]=st.currentDay;
+
+      for(const r of rewards){
+        flowAddItem(st,cfg,r.itemId,r.amount);
+        gained[r.itemId]=Number(gained[r.itemId]||0)+Number(r.amount||0)
+      }
+      count++
+    }
+  }
+
+  flowAutoClaimStages(st,cfg,stats);
+  return{gained,count}
 }
 function flowFundTargetThreshold(st,cfg,itemId,amount){
   const target=Math.max(1,Number(amount||1));
@@ -4837,11 +4927,21 @@ function flowExecuteAction(st,cfg,action,stats,ctx={}){
   if(action.type==="allBalls")return flowUseAllBalls(st,cfg,stats,ctx);
   return{ok:false,note:`未知步驟 ${action.type}`}
 }
-function flowReachedStage(st,cfg){const score=Number(flowDayState(st).score||0),list=[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore));return list.filter(s=>score>=Number(s.requiredScore||0)).at(-1)?.stage||0}
-function runWeeklyFlowOnce(base,cfg,run){
-  const st=clone(base);ensureStateSchema(st,cfg);st.currentDay=0;
+function flowReachedStage(st,cfg){
+  const score=Number(flowDayState(st).score||0),list=flowSortedStages(cfg);
+  let reached=0;
+  for(const s of list){
+    if(score<Number(s.requiredScore||0))break;
+    reached=s.stage
+  }
+  return reached
+}
+function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
+  const st=clone(base);
+  ensureStateSchema(st,cfg,{skipNormalize:true});
+  st.currentDay=0;
   const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[],steps:[],daily:[]};
-  const plan=flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
+  const plan=compiledPlan||flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
 
   for(let d=0;d<Math.min(7,st.days.length);d++){
     st.currentDay=d;
@@ -5007,8 +5107,13 @@ async function runBatchSimulation(){
   // 每次都修改 DOM，尤其彈珠單輪運算量大時會造成 Safari 明顯卡頓。
   const progressChunk=Math.max(1,Math.ceil(count/20));
 
+  // 1000次共用同一份只讀活動設定，先把高頻查詢編譯/快取一次。
+  FLOW_BATCH_CFG_CACHE.delete(cfg);
+  flowBatchCfgCache(cfg);
+  const compiledPlan=flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
+
   for(let i=0;i<count;i++){
-    const result=runWeeklyFlowOnce(base,cfg,i+1);
+    const result=runWeeklyFlowOnce(base,cfg,i+1,compiledPlan);
     batchResults.push(result);
 
     const done=i+1;
@@ -5022,7 +5127,7 @@ async function runBatchSimulation(){
     }
   }
 
-  batchResults.meta={config:cfg,plan:clone(ensureWeeklyFlowPlan(cfg))};
+  batchResults.meta={config:cfg,plan:clone(compiledPlan)};
   $("runSimulationBtn").disabled=false;
   renderSimulation();
   toast(`七日流程批次模擬完成，共 ${count} 次`)
