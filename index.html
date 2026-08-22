@@ -1206,6 +1206,41 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   }
 }
 
+
+.free-plan-compare{
+  margin:12px 0 14px;padding:12px;border:2px solid #d9e7ef;border-radius:16px;
+  background:linear-gradient(180deg,#fbfeff,#f3f9fc)
+}
+.free-plan-compare-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap
+}
+.free-plan-compare-head h3{margin:0 0 4px}
+.free-plan-compare-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.free-plan-compare-meta{
+  margin-top:9px;padding:9px 11px;border-radius:11px;background:#eef7fb;
+  color:#4f6477;font-size:12px;line-height:1.55
+}
+.free-plan-compare-table{margin-top:10px;overflow:auto;border:2px solid #dce5ed;border-radius:13px;background:#fff}
+.free-plan-compare-table table{width:100%;border-collapse:collapse;min-width:760px}
+.free-plan-compare-table th,.free-plan-compare-table td{
+  padding:9px 8px;border-bottom:1px solid #e1e8ee;text-align:center;white-space:nowrap
+}
+.free-plan-compare-table th{background:#eaf3f8;color:#42566a;font-weight:1000}
+.free-plan-compare-table tbody tr:last-child td{border-bottom:0}
+.free-plan-compare-table tbody tr:first-child{background:#fafcfd}
+.free-plan-compare-table .plan-name{text-align:left;font-weight:1000}
+.free-plan-compare-table .gem-days{font-weight:900;color:#b45309}
+.free-plan-compare-table .value-strong{font-weight:1000;color:#126a52}
+.free-plan-progress{margin-top:9px;height:9px;border-radius:999px;background:#dfeaf0;overflow:hidden}
+.free-plan-progress>div{height:100%;width:0;background:linear-gradient(90deg,#4fbd78,#46a4dd)}
+@media(max-width:720px){
+  .free-plan-compare{padding:9px}
+  .free-plan-compare-head{display:block}
+  .free-plan-compare-actions{margin-top:8px}
+  .free-plan-compare-actions .btn{width:100%}
+  .free-plan-compare-table table{min-width:690px}
+}
+
 </style>
 </head>
 <body>
@@ -1342,8 +1377,8 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
             <div class="daily-claim-actions">
               <button class="btn" id="claimDailyBtn">領取每日代幣</button>
               <button class="btn secondary" id="refundDailyBtn">退回每日</button>
-              <button class="btn green" id="claimFreeDailyBtn">一鍵領取無課金</button>
-              <button class="btn secondary" id="refundFreeDailyBtn">退回無課金</button>
+              <button class="btn green" id="claimFreeDailyBtn">一鍵無課+寶石</button>
+              <button class="btn secondary" id="refundFreeDailyBtn">退回無課+寶石</button>
             </div>
           </div>
 
@@ -1444,6 +1479,23 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
               </div>
             </div>
           </div>
+
+          <section class="free-plan-compare">
+            <div class="free-plan-compare-head">
+              <div>
+                <h3>💎 無課寶石天數比較</h3>
+                <div class="help">另列「7天只領任務」基準，再比較寶石代幣買滿 1～7 天。所有玩法資源保留到最後一天一次用完拼進度。</div>
+              </div>
+              <div class="free-plan-compare-actions">
+                <button class="btn green small" id="runFreePlanCompareBtn">比較寶石 1～7 天</button>
+              </div>
+            </div>
+            <div class="free-plan-compare-meta" id="freePlanCompareMeta">請先建立七日流程模擬基準。比較會自動讀取目前玩法的寶石代幣禮包、普通代幣與高級代幣設定。</div>
+            <div class="free-plan-progress"><div id="freePlanCompareProgress"></div></div>
+            <div class="help" id="freePlanCompareProgressText" style="margin-top:5px"></div>
+            <div id="freePlanCompareResults"></div>
+          </section>
+
           <div class="help weekly-flow-help" id="weeklyFlowHelp">
             每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。<br>
             <strong>固定收益優先：</strong>「本日目標階段」只是本日終點。禮包、基金精準領取、指定隨機箱、兌換商店等固定步驟會先照設定順序完成；如果當下資源不足，只逐顆投入到足以完成該固定步驟，完成當下立刻停。<br>
@@ -1790,6 +1842,7 @@ let undoStack=[];
 let redoStack=[];
 let simulationBaseline=loadStoredBaseline();
 let batchResults=[];
+let freePlayerCompareResults=null;
 let weeklyFlowPlan=null;
 let weeklyFlowPlanGameplay=null;
 let strategyPlan=loadStoredStrategy();
@@ -2985,6 +3038,7 @@ async function switchGameplay(type){
   weeklyFlowPlanGameplay=null;
   simulationBaseline=loadStoredBaseline(type);
   batchResults=[];
+  freePlayerCompareResults=null;
 
   lastAutoRollSnapshot=null;
   $("dailyDiceInput").value=config.dailyMission.maxGameTokens;
@@ -4009,9 +4063,9 @@ function claimFreeDailyBundle(){
     const key=`${group.id}:${pack.id}`,bought=Number(day.packagePurchases[key]||0);
     return{group,pack,key,remain:Math.max(0,Number(pack.limit||0)-bought)}
   });
-  if(!canDoMission&&!pending.some(x=>x.remain>0))return toast("本日無課金內容已全部領取");
+  if(!canDoMission&&!pending.some(x=>x.remain>0))return toast("本日無課+寶石內容已全部領取");
 
-  recordHistory(`一鍵領無課金：${noPayDailyBundleLabel(config)}`);
+  recordHistory(`一鍵無課+寶石：${noPayDailyBundleLabel(config)}`);
   const undo={day:state.currentDay,mission:false,missionAmount:0,missionItemId:null,firstLogin:false,firstLoginAmount:0,firstLoginItemId:null,packages:[]};
 
   if(canDoMission){
@@ -4036,7 +4090,7 @@ function claimFreeDailyBundle(){
     let boughtNow=0;
     for(let n=0;n<remain;n++){
       if(!canSpend(pack.cost))break;
-      spend(pack.cost,`一鍵領無課金・${pack.name}`);
+      spend(pack.cost,`一鍵無課+寶石・${pack.name}`);
       day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;
       (pack.rewards||[]).forEach(r=>addItem(r.itemId,r.amount,pack.name,true));
       boughtNow++
@@ -4053,7 +4107,7 @@ function claimFreeDailyBundle(){
 }
 function refundFreeDailyBundle(){
   const day=dayState(),u=day.freeBundleUndo;
-  if(!u)return toast("沒有可退回的一鍵無課金領取");
+  if(!u)return toast("沒有可退回的一鍵無課+寶石");
   recordHistory(`退回${config.event.dayLabels[state.currentDay]}一鍵無課金`);
   let negative=false;
 
@@ -4100,9 +4154,9 @@ function refundFreeDailyBundle(){
   });
 
   day.freeBundleUndo=null;
-  log("退回上次一鍵無課金領取");
+  log("退回上次一鍵無課+寶石");
   render();
-  toast(negative?"已退回；部分獎勵已使用，因此資源可能為負數。":"已退回上次一鍵無課金領取")
+  toast(negative?"已退回；部分獎勵已使用，因此資源可能為負數。":"已退回上次一鍵無課+寶石")
 }
 function refundDailyClaim(){
   if(!dayState().missionClaimed)return toast("本日尚未領取每日任務");
@@ -4583,7 +4637,7 @@ function saveWeeklyFlowPlan(cfg=config){
 function flowActionTypeOptions(selected,cfg=config){
   const isPinball=cfg.gameplay.type==="pinball";
   const opts=[
-    ["free","一鍵領取無課金"],["stage","本日目標階段（最後補分）"],["package","購買禮包"],["fundBuy","購買基金"],
+    ["free","一鍵無課+寶石"],["stage","本日目標階段（最後補分）"],["package","購買禮包"],["fundBuy","購買基金"],
     ["fundClaim","基金精準領取指定物品"],["box","開指定數量隨機箱"],["exchange","兌換商店"],
     ["allBalls",isPinball?"使用剩餘彈珠":"使用剩餘骰子"],["allBoxes","開完剩餘隨機箱（收尾）"]
   ];
@@ -4653,7 +4707,7 @@ function flowActionFields(action,cfg=config){
   }
 
   if(action.type==="fundBuy")return `<span class="help">購買進階基金，不會立即領獎。</span>`;
-  if(action.type==="free")return `<span class="help">每日任務＋本日無課金禮包；首日也會包含登入贈送。</span>`;
+  if(action.type==="free")return `<span class="help">每日任務＋免費內容＋寶石代幣禮包；首日也會包含登入贈送。</span>`;
   return""
 }
 function renderWeeklyFlowPlanner(){
@@ -5650,6 +5704,302 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   }
 }
 function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
+
+function freeCompareGemTokenPackages(cfg=config){
+  const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
+  const missionId=dailyMissionRewardItemId(cfg);
+  const gameId=gp.gameTokenId||cfg.currencies?.gameTokenId;
+  const targetIds=new Set([missionId,gameId].filter(Boolean));
+  const entries=[];
+
+  (cfg.packageGroups||[]).forEach(group=>{
+    (group.packages||[]).forEach(pack=>{
+      if(!pack?.cost?.itemId||Number(pack.cost.amount||0)<=0)return;
+      if(!(pack.rewards||[]).some(r=>targetIds.has(r.itemId)&&Number(r.amount||0)>0))return;
+      entries.push({group,pack})
+    })
+  });
+
+  if(!entries.length)return{costItemId:null,packages:[]};
+
+  // 優先沿用既有 gemDice；若使用者改了系統 ID，就依「寶石」物品名稱判斷。
+  const legacy=entries.find(x=>x.pack.id==="gemDice");
+  let costItemId=legacy?.pack?.cost?.itemId||null;
+
+  if(!costItemId){
+    const named=entries.find(x=>{
+      const name=String(cfgItem(cfg,x.pack.cost.itemId)?.name||"");
+      return /寶石/.test(name)&&!/翡翠/.test(name)
+    });
+    costItemId=named?.pack?.cost?.itemId||null
+  }
+
+  if(!costItemId)return{costItemId:null,packages:[]};
+
+  return{
+    costItemId,
+    packages:entries.filter(x=>x.pack.cost.itemId===costItemId)
+  }
+}
+function freeComparePackageDailyCost(info){
+  return(info.packages||[]).reduce((sum,{pack})=>sum+Math.max(0,Number(pack.cost?.amount||0))*Math.max(0,Number(pack.limit||0)),0)
+}
+function freeComparePackageDailyTokenText(info,cfg=config){
+  const map=new Map();
+  (info.packages||[]).forEach(({pack})=>{
+    const limit=Math.max(0,Number(pack.limit||0));
+    (pack.rewards||[]).forEach(r=>map.set(r.itemId,Number(map.get(r.itemId)||0)+Number(r.amount||0)*limit))
+  });
+  return[...map.entries()].map(([id,n])=>`${cfgItem(cfg,id).icon||""}${cfgItem(cfg,id).name}×${fmt(n)}`).join("、")||"—"
+}
+function freeCompareClaimTasksOnly(st,cfg,stats){
+  const day=flowDayState(st);
+  if(!day.missionClaimed){
+    const amount=Math.max(0,Number(cfg.dailyMission?.maxGameTokens||0));
+    const id=dailyMissionRewardItemId(cfg);
+    day.missionClaimed=true;day.missionAmount=amount;day.missionItemId=id;
+    flowAddItem(st,cfg,id,amount)
+  }
+  if(Number(st.currentDay||0)===0&&!day.firstLoginClaimed){
+    const gift=firstDayLoginGift(cfg);
+    day.firstLoginClaimed=true;day.firstLoginAmount=Number(gift.amount||0);day.firstLoginItemId=gift.itemId;
+    flowAddItem(st,cfg,gift.itemId,gift.amount)
+  }
+  flowAutoClaimStages(st,cfg,stats);
+  // 免費基金若單靠任務／首登就已達標，也立即領取。
+  flowClaimUnlockedFund(st,cfg,stats)
+}
+function freeCompareBuyGemTokens(st,cfg,info,stats){
+  const day=flowDayState(st);
+  let spent=0;
+
+  (info.packages||[]).forEach(({group,pack})=>{
+    const key=`${group.id}:${pack.id}`;
+    const bought=Math.max(0,Number(day.packagePurchases?.[key]||0));
+    const remain=Math.max(0,Math.floor(Number(pack.limit||0)-bought));
+
+    for(let i=0;i<remain;i++){
+      const cost=Math.max(0,Number(pack.cost?.amount||0));
+      day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;
+      st.spent[pack.cost.itemId]=Number(st.spent[pack.cost.itemId]||0)+cost;
+      spent+=cost;
+      (pack.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount))
+    }
+  });
+
+  flowAutoClaimStages(st,cfg,stats);
+  flowClaimUnlockedFund(st,cfg,stats);
+  return spent
+}
+function freeComparePlayableCount(st,cfg){
+  const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
+  if(type==="pinball"){
+    const pc=cfg.gameplaySettings?.pinball||{};
+    return Math.max(0,Number(st.resources?.[pc.gameTokenId]||0))
+      +Math.max(0,Number(st.resources?.[pc.craftTicketId]||0))
+  }
+  return Math.max(0,Number(st.resources?.[gp.gameTokenId||cfg.currencies.gameTokenId]||0))
+}
+function freeCompareBoxCount(st,cfg){
+  return(cfg.randomBoxes||[]).reduce((sum,b)=>sum+Math.max(0,Number(st.resources?.[b.boxItemId]||0)),0)
+}
+function freeCompareUseFinalDay(st,cfg,stats){
+  // 最後一天反覆執行：
+  // 免費基金領取 → 用完玩法資源 → 開完箱 → 若新獎勵又產生玩法資源則繼續。
+  let outer=0;
+
+  while(outer++<100){
+    let changed=false;
+
+    const beforeFund=Object.keys(st.fundClaims?.free||{}).length;
+    flowClaimUnlockedFund(st,cfg,stats);
+    if(Object.keys(st.fundClaims?.free||{}).length>beforeFund)changed=true;
+
+    let playGuard=0;
+    while(freeComparePlayableCount(st,cfg)>0&&playGuard++<100000){
+      const r=flowPlayOneToken(st,cfg,stats,{autoCraft:true});
+      if(!r.ok)break;
+      changed=true;
+      flowClaimUnlockedFund(st,cfg,stats)
+    }
+
+    // 每種隨機箱都開完；開箱可能增加積分並解鎖更多階段箱。
+    let boxGuard=0;
+    while(freeCompareBoxCount(st,cfg)>0&&boxGuard++<100){
+      let openedThisRound=0;
+      for(const box of (cfg.randomBoxes||[])){
+        const held=Math.max(0,Math.floor(Number(st.resources?.[box.boxItemId]||0)));
+        if(!held)continue;
+        const before=Number(stats.boxesOpened||0);
+        flowOpenBox(st,cfg,{type:"allBoxes",boxId:box.id},stats,true,{});
+        openedThisRound+=Math.max(0,Number(stats.boxesOpened||0)-before)
+      }
+      if(!openedThisRound)break;
+      changed=true;
+      flowClaimUnlockedFund(st,cfg,stats)
+    }
+
+    if(!changed||(!freeComparePlayableCount(st,cfg)&&!freeCompareBoxCount(st,cfg)))break
+  }
+}
+function runFreeCompareOnce(base,cfg,gemDays,info){
+  const st=clone(base);
+  ensureStateSchema(st,cfg,{skipNormalize:true});
+  st.currentDay=0;
+
+  const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
+  const normalId=gp.normalExchangeId||cfg.currencies?.normalExchangeId;
+  const premiumId=gp.premiumExchangeId||cfg.currencies?.premiumExchangeId;
+  const startNormal=Number(st.resources?.[normalId]||0);
+  const startPremium=Number(st.resources?.[premiumId]||0);
+  const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[]};
+
+  const dayCount=Math.min(7,Math.max(1,Number(cfg.event?.totalDays||7)));
+  const firstBuyDay=dayCount-Math.max(0,Math.min(dayCount,Number(gemDays||0)));
+  let gemSpent=0;
+
+  for(let d=0;d<dayCount;d++){
+    st.currentDay=d;
+    freeCompareClaimTasksOnly(st,cfg,stats);
+    if(gemDays>0&&d>=firstBuyDay)gemSpent+=freeCompareBuyGemTokens(st,cfg,info,stats)
+  }
+
+  st.currentDay=dayCount-1;
+  freeCompareUseFinalDay(st,cfg,stats);
+  flowAutoClaimStages(st,cfg,stats);
+  flowClaimUnlockedFund(st,cfg,stats);
+
+  return{
+    gemSpent,
+    normalGained:Number(st.resources?.[normalId]||0)-startNormal,
+    premiumGained:Number(st.resources?.[premiumId]||0)-startPremium,
+    finalScore:Number(flowDayState(st).score||0),
+    finalStage:Number(flowReachedStage(st,cfg)||0),
+    ballsUsed:Number(stats.ballsUsed||0),
+    boxesOpened:Number(stats.boxesOpened||0)
+  }
+}
+function renderFreePlayerComparison(){
+  const btn=$("runFreePlanCompareBtn");
+  if(btn)btn.disabled=!simulationBaseline;
+
+  const meta=$("freePlanCompareMeta"),out=$("freePlanCompareResults");
+  if(!meta||!out)return;
+
+  const cfg=freePlayerCompareResults?.cfg||simulationBaseline?.config||config;
+  const info=freeCompareGemTokenPackages(cfg);
+  const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
+  const normalId=gp.normalExchangeId||cfg.currencies?.normalExchangeId;
+  const premiumId=gp.premiumExchangeId||cfg.currencies?.premiumExchangeId;
+
+  if(!simulationBaseline){
+    meta.textContent="請先建立七日流程模擬基準。比較會自動讀取目前玩法的寶石代幣禮包、普通代幣與高級代幣設定。";
+    out.innerHTML="";
+    return
+  }
+
+  if(!info.packages.length){
+    meta.innerHTML=`⚠️ 找不到「寶石 → 玩法代幣」的每日禮包。請確認目前玩法的每日禮包設定中，有使用「寶石」購買 ${escapeHtml(cfgItem(cfg,dailyMissionRewardItemId(cfg)).name)} 或 ${escapeHtml(cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name)} 的禮包。`;
+    out.innerHTML="";
+    return
+  }
+
+  const costName=cfgItem(cfg,info.costItemId).name;
+  const perDay=freeComparePackageDailyCost(info);
+  meta.innerHTML=`<strong>比較規則：</strong>7天都領每日任務＋首日登入；寶石方案從活動最後一天往前買滿，例如1天＝週日、2天＝週六＋週日。玩法資源全部留到最後一天使用，免費基金與每日進度達標立即領，最後開完隨機箱；不買翡翠禮包／進階基金，也不做普通→高級兌換。<br><strong>目前每日買滿：</strong>${escapeHtml(info.packages.map(x=>x.pack.name).join("＋"))}｜${escapeHtml(costName)} ${fmt(perDay)}／天 → ${escapeHtml(freeComparePackageDailyTokenText(info,cfg))}`;
+
+  const data=freePlayerCompareResults;
+  if(!data?.rows?.length){
+    out.innerHTML=`<div class="empty" style="margin-top:9px">按「比較寶石 1～7 天」後，會列出任務基準＋7種寶石天數方案。</div>`;
+    return
+  }
+
+  const labels=cfg.event?.dayLabels||[];
+  out.innerHTML=`<div class="free-plan-compare-table"><table><thead><tr>
+    <th>方案</th>
+    <th>買滿寶石天數</th>
+    <th>購買日</th>
+    <th>${escapeHtml(costName)}支出</th>
+    <th>平均獲得 ${escapeHtml(cfgItem(cfg,normalId).name)}</th>
+    <th>平均獲得 ${escapeHtml(cfgItem(cfg,premiumId).name)}</th>
+  </tr></thead><tbody>${data.rows.map(row=>{
+    const days=row.gemDays>0
+      ?Array.from({length:row.gemDays},(_,i)=>labels[7-row.gemDays+i]||`第${8-row.gemDays+i}天`).join("＋")
+      :"—";
+    return`<tr>
+      <td class="plan-name">${row.gemDays===0?"任務基準":`寶石買滿 ${row.gemDays} 天`}</td>
+      <td class="gem-days">${row.gemDays===0?"0 天":`${row.gemDays} 天`}</td>
+      <td>${escapeHtml(days)}</td>
+      <td>${fmt(row.gemSpent)}</td>
+      <td class="value-strong">${fmt(row.normalAvg)}</td>
+      <td class="value-strong">${fmt(row.premiumAvg)}</td>
+    </tr>`
+  }).join("")}</tbody></table></div>
+  <div class="help" style="margin-top:7px">每列以 ${fmt(data.samples)} 次隨機模擬取平均；寶石支出為固定總花費，普通／高級代幣為相對於模擬基準的新增量。</div>`
+}
+async function runFreePlayerComparison(){
+  if(!simulationBaseline)return toast("請先建立模擬基準");
+  if(rolling)return toast("目前遊戲正在執行，請稍候");
+
+  const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||100))));
+  const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
+  normalizeFundConfig(cfg);
+  ensureStateSchema(base,cfg);
+
+  if(batchGameplayType(cfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
+
+  const info=freeCompareGemTokenPackages(cfg);
+  if(!info.packages.length){
+    renderFreePlayerComparison();
+    return toast("找不到目前玩法的寶石代幣禮包")
+  }
+
+  FLOW_BATCH_CFG_CACHE.delete(cfg);
+  flowBatchCfgCache(cfg);
+
+  const btn=$("runFreePlanCompareBtn");
+  btn.disabled=true;
+  $("freePlanCompareProgress").style.width="0%";
+  $("freePlanCompareProgressText").textContent=`準備比較任務基準＋寶石 1～7 天方案…`;
+
+  const scenarios=[0,1,2,3,4,5,6,7];
+  const total=scenarios.length*count;
+  const chunk=Math.max(1,Math.ceil(total/24));
+  let done=0;
+  const rows=[];
+
+  for(const gemDays of scenarios){
+    const normal=[],premium=[],spends=[];
+    for(let i=0;i<count;i++){
+      const r=runFreeCompareOnce(base,cfg,gemDays,info);
+      normal.push(r.normalGained);
+      premium.push(r.premiumGained);
+      spends.push(r.gemSpent);
+      done++;
+
+      if(done===total||done%chunk===0){
+        $("freePlanCompareProgress").style.width=`${done/total*100}%`;
+        $("freePlanCompareProgressText").textContent=`高速比較中… ${Math.round(done/total*100)}%`;
+        if(done<total)await wait(0)
+      }
+    }
+
+    rows.push({
+      gemDays,
+      gemSpent:spends.length?average(spends):0,
+      normalAvg:average(normal),
+      premiumAvg:average(premium)
+    })
+  }
+
+  freePlayerCompareResults={cfg,rows,samples:count};
+  btn.disabled=false;
+  $("freePlanCompareProgress").style.width="100%";
+  $("freePlanCompareProgressText").textContent=`完成：任務基準＋7種寶石方案，每種 ${count} 次`;
+  renderFreePlayerComparison();
+  toast("無課寶石天數比較完成")
+}
+
 async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");if(rolling)return toast("目前遊戲正在執行");
   const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||100))));
@@ -5697,13 +6047,13 @@ function captureBaseline(){
   persistActiveGameplayFundState(state,config);
   simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};
   localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
-  batchResults=[];renderSimulation();
+  batchResults=[];freePlayerCompareResults=null;renderSimulation();
   toast(`已建立${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程模擬基準`)
 }
 function restoreBaseline(){if(!simulationBaseline||rolling)return;recordHistory("恢復模擬基準");config=clone(simulationBaseline.config);state=clone(simulationBaseline.state);syncStateToConfig(false);render();toast("已恢復到模擬基準")}
 function clearBaseline(){
   const label=batchGameplayType()==="pinball"?"彈珠機":"大富翁";
-  simulationBaseline=null;batchResults=[];
+  simulationBaseline=null;batchResults=[];freePlayerCompareResults=null;
   localStorage.removeItem(baselineStorageKey());
 
   // 若舊版單一 baseline 剛好也是目前玩法，一併清掉，避免切換後又被遷移回來。
@@ -5728,7 +6078,7 @@ function flowBaselineWarnings(baseline){
   return w
 }
 function renderSimulation(){
-  const has=!!simulationBaseline;$("restoreBaselineBtn").disabled=!has;$("clearBaselineBtn").disabled=!has;renderWeeklyFlowPlanner();
+  const has=!!simulationBaseline;$("restoreBaselineBtn").disabled=!has;$("clearBaselineBtn").disabled=!has;renderWeeklyFlowPlanner();renderFreePlayerComparison();
   if(has){
     const b=simulationBaseline;
     const day=b.config.event.dayLabels[b.state.currentDay]||`第${b.state.currentDay+1}天`;
@@ -7892,7 +8242,7 @@ function renderDaily(){
     return Number(dayState().packagePurchases[key]||0)<Number(pack.limit||0)
   });
   $("claimFreeDailyBtn").disabled=dayState().missionClaimed&&!noPayPending;
-  $("claimFreeDailyBtn").textContent="一鍵領取無課金";
+  $("claimFreeDailyBtn").textContent="一鍵無課+寶石";
   $("claimFreeDailyBtn").title=`${noPayDailyBundleLabel(config)}`;
   $("refundFreeDailyBtn").disabled=!dayState().freeBundleUndo;
 
@@ -8663,6 +9013,7 @@ $("captureBaselineBtn").addEventListener("click",captureBaseline);
 $("restoreBaselineBtn").addEventListener("click",restoreBaseline);
 $("clearBaselineBtn").addEventListener("click",clearBaseline);
 $("runSimulationBtn").addEventListener("click",runBatchSimulation);
+$("runFreePlanCompareBtn").addEventListener("click",runFreePlayerComparison);
 $("loadExampleFlowBtn").addEventListener("click",()=>{
   weeklyFlowPlan=flowExamplePlan(config);weeklyFlowPlanGameplay=batchGameplayType();
   saveWeeklyFlowPlan(config);batchResults=[];renderSimulation();
