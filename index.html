@@ -5414,24 +5414,45 @@ function flowRefreshFundWatchers(st,cfg,ctx={}){
   if(!Array.isArray(watchers)||!watchers.length)return null;
 
   watchers.forEach(w=>{if(!w.done)w.armed=false});
-  const next=watchers.filter(w=>!w.done).sort((a,b)=>a.index-b.index)[0];
-  if(!next)return null;
 
-  const fundBuyBefore=actions.slice(0,next.index).some(a=>a?.type==="fundBuy");
-  if(fundBuyBefore&&!st.fundPremiumPurchased){
-    next.waitForFundBuy=true;
-    next.armed=false;
+  // 一次基金領取可能同時把後續目標物品也領進來。
+  // 依流程順序消耗「基金信用額」：同物品的下一個目標仍是追加量，
+  // 不同物品若已在前一次領基金時順便取得，就直接視為該步驟已完成。
+  let safety=0;
+  while(safety++<watchers.length+2){
+    const next=watchers.filter(w=>!w.done).sort((a,b)=>a.index-b.index)[0];
+    if(!next)return null;
+
+    const target=Math.max(1,Number(next.action?.amount||1));
+    const credit=flowFundCredit(st,next.action?.itemId);
+    if(credit+1e-9>=target){
+      flowConsumeFundCredit(st,next.action.itemId,target);
+      next.done=true;next.ok=true;next.armed=false;next.waitForFundBuy=false;
+      next.threshold=flowFundMetricValue(st,cfg);next.expected=target;next.exact=true;next.found=true;
+      next.note=`✅ ${cfgItem(cfg,next.action.itemId).name} ×${fmt(target)} 已在前一次基金領取時一併取得，本步驟直接完成`;
+      continue
+    }
+
+    const fundBuyBefore=actions.slice(0,next.index).some(a=>a?.type==="fundBuy");
+    if(fundBuyBefore&&!st.fundPremiumPurchased){
+      next.waitForFundBuy=true;
+      next.armed=false;
+      return next
+    }
+
+    next.waitForFundBuy=false;
+    const remaining=Math.max(0,target-credit);
+    const analysis=flowFundTargetThreshold(st,cfg,next.action.itemId,remaining);
+    next.creditBefore=credit;
+    next.remaining=remaining;
+    next.threshold=Number(analysis.threshold||0);
+    next.expected=Number(analysis.expected||0);
+    next.exact=!!analysis.exact;
+    next.found=!!analysis.found;
+    next.armed=true;
     return next
   }
-
-  next.waitForFundBuy=false;
-  const analysis=flowFundTargetThreshold(st,cfg,next.action.itemId,next.action.amount);
-  next.threshold=Number(analysis.threshold||0);
-  next.expected=Number(analysis.expected||0);
-  next.exact=!!analysis.exact;
-  next.found=!!analysis.found;
-  next.armed=true;
-  return next
+  return null
 }
 function flowBuildFundWatchers(st,cfg,actions){
   const watchers=actions
@@ -5461,18 +5482,21 @@ function flowCheckFundInterrupts(st,cfg,ctx={},stats){
     const current=flowFundMetricValue(st,cfg);
     if(current<Number(w.threshold||0))break;
 
-    const before=Number(st.resources[w.action.itemId]||0);
-    flowClaimUnlockedFund(st,cfg,stats);
-    const gain=Number(st.resources[w.action.itemId]||0)-before;
-    const exact=Math.abs(gain-Number(w.action.amount||0))<1e-9;
+    const target=Math.max(1,Number(w.action.amount||1));
+    const creditBefore=flowFundCredit(st,w.action.itemId);
+    const result=flowClaimUnlockedFund(st,cfg,stats);
+    const claimGain=Number(result?.gained?.[w.action.itemId]||0);
+    const creditAfter=flowFundCredit(st,w.action.itemId);
+    const enough=creditAfter+1e-9>=target;
+    if(enough)flowConsumeFundCredit(st,w.action.itemId,target);
     const meta=fundUnlockMetricMeta(st,cfg);
 
     w.done=true;
-    w.ok=exact;
-    w.note=`⚡ ${meta.label} ${fmt(current)}／${fmt(w.threshold)} 達標，立即中斷並領 ${cfgItem(cfg,w.action.itemId).name} +${fmt(gain)}${exact?"（精準）":"（與設定數量不符）"}`;
+    w.ok=enough;
+    w.note=`⚡ ${meta.label} ${fmt(current)}／${fmt(w.threshold)} 達標，立即領基金；${cfgItem(cfg,w.action.itemId).name} 本次新增 ${fmt(claimGain)}${creditBefore?`＋先前已一併取得 ${fmt(creditBefore)}`:""}，目標 ${fmt(target)} ${enough?"完成":"不足"}`;
     triggered.push(w);
 
-    if(!exact&&stats){
+    if(!enough&&stats){
       stats.failures.push(
         `${cfg.event.dayLabels?.[Number(ctx.day||0)]||`第${Number(ctx.day||0)+1}天`}：${w.note}`
       )
@@ -5539,8 +5563,32 @@ function flowClaimUnlockedFund(st,cfg,stats){
     }
   }
 
+  // 真實基金一次會把當下所有已解鎖軌道一起領取。
+  // 其他物品可能因此「順便提早領到」，先記成基金信用額，
+  // 後面的基金目標可直接承接，不應再因剩餘里程已被領空而判失敗。
+  flowAddFundCredit(st,gained);
   flowAutoClaimStages(st,cfg,stats);
   return{gained,count}
+}
+function flowFundCreditMap(st){
+  if(!st._flowFundClaimCredit||typeof st._flowFundClaimCredit!=="object")st._flowFundClaimCredit={};
+  return st._flowFundClaimCredit
+}
+function flowFundCredit(st,itemId){
+  return Math.max(0,Number(flowFundCreditMap(st)[itemId]||0))
+}
+function flowAddFundCredit(st,gained){
+  const map=flowFundCreditMap(st);
+  Object.entries(gained||{}).forEach(([id,amount])=>{
+    map[id]=Number(map[id]||0)+Math.max(0,Number(amount||0))
+  });
+  return map
+}
+function flowConsumeFundCredit(st,itemId,amount){
+  const map=flowFundCreditMap(st),need=Math.max(0,Number(amount||0));
+  const have=Math.max(0,Number(map[itemId]||0)),used=Math.min(have,need);
+  map[itemId]=Math.max(0,have-used);
+  return used
 }
 function flowFundTargetThreshold(st,cfg,itemId,amount){
   const target=Math.max(1,Number(amount||1));
@@ -5658,6 +5706,16 @@ function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
     return{ok:false,note:watcher.note}
   }
 
+  const target=Math.max(1,Number(action.amount||1));
+  const creditBefore=flowFundCredit(st,action.itemId);
+  if(creditBefore+1e-9>=target){
+    flowConsumeFundCredit(st,action.itemId,target);
+    const note=`✅ ${cfgItem(cfg,action.itemId).name} ×${fmt(target)} 已在前一次基金領取時一併取得，本步驟直接完成`;
+    if(watcher){watcher.done=true;watcher.ok=true;watcher.note=note;flowRefreshFundWatchers(st,cfg,ctx)}
+    return{ok:true,note}
+  }
+
+  const remaining=Math.max(0,target-creditBefore);
   let analysis;
   if(watcher){
     analysis={
@@ -5667,19 +5725,18 @@ function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
       expected:Number(watcher.expected||0)
     }
   }else{
-    analysis=flowFundTargetThreshold(st,cfg,action.itemId,action.amount)
+    analysis=flowFundTargetThreshold(st,cfg,action.itemId,remaining)
   }
 
   if(!analysis.found){
-    const note=`基金剩餘獎勵不足 ${fmt(action.amount)} ${cfgItem(cfg,action.itemId).name}（最多可領 ${fmt(analysis.expected)}）`;
+    const note=`基金剩餘獎勵不足：目標 ${fmt(target)} ${cfgItem(cfg,action.itemId).name}，先前基金已一併取得 ${fmt(creditBefore)}，剩餘最多再領 ${fmt(analysis.expected)}`;
     if(watcher){watcher.done=true;watcher.ok=false;watcher.note=note;flowRefreshFundWatchers(st,cfg,ctx)}
     return{ok:false,note}
   }
 
-  // 基金是「一次領取當下所有已解鎖未領階段」，
-  // 所以若該門檻本身就會超過目標量，沒有任何玩法操作能把它變成精準數字。
+  // 對「仍缺的部分」維持精準檢查；先前由其他基金目標順便取得的數量可抵用。
   if(!analysis.exact){
-    const note=`無法精準領 ${fmt(action.amount)} ${cfgItem(cfg,action.itemId).name}：基金到 ${fmt(analysis.threshold)} 時會一次領 ${fmt(analysis.expected)}`;
+    const note=`無法精準補足 ${fmt(target)} ${cfgItem(cfg,action.itemId).name}：先前已一併取得 ${fmt(creditBefore)}，但基金到 ${fmt(analysis.threshold)} 時剩餘部分會一次再領 ${fmt(analysis.expected)}`;
     if(watcher){watcher.done=true;watcher.ok=false;watcher.note=note;flowRefreshFundWatchers(st,cfg,ctx)}
     return{ok:false,note}
   }
@@ -5692,24 +5749,22 @@ function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
   }
 
   const reached=flowFundMetricValue(st,cfg);
-  const before=Number(st.resources[action.itemId]||0);
-
-  // 到門檻當下立即領，不再多做一次玩法操作。
-  flowClaimUnlockedFund(st,cfg,stats);
-
-  const gain=Number(st.resources[action.itemId]||0)-before;
-  const exact=Math.abs(gain-Number(action.amount||0))<1e-9;
+  const result=flowClaimUnlockedFund(st,cfg,stats);
+  const claimGain=Number(result?.gained?.[action.itemId]||0);
+  const creditAfter=flowFundCredit(st,action.itemId);
+  const enough=creditAfter+1e-9>=target;
+  if(enough)flowConsumeFundCredit(st,action.itemId,target);
   const meta=fundUnlockMetricMeta(st,cfg);
-  const note=`🎯 基金檢查點：${meta.label} ${fmt(startMetric)} → ${fmt(reached)}／${fmt(analysis.threshold)}；立即領 ${cfgItem(cfg,action.itemId).name} +${fmt(gain)}${exact?"（精準）":"（與設定數量不符）"}；${flowFundAutoProgressDescription(cfg)}`;
+  const note=`🎯 基金檢查點：${meta.label} ${fmt(startMetric)} → ${fmt(reached)}／${fmt(analysis.threshold)}；${cfgItem(cfg,action.itemId).name} 本次新增 ${fmt(claimGain)}${creditBefore?`＋先前已一併取得 ${fmt(creditBefore)}`:""} → 目標 ${fmt(target)} ${enough?"完成":"不足"}；${flowFundAutoProgressDescription(cfg)}`;
 
   if(watcher){
     watcher.done=true;
-    watcher.ok=exact;
+    watcher.ok=enough;
     watcher.note=note;
     flowRefreshFundWatchers(st,cfg,ctx)
   }
 
-  return{ok:exact,note}
+  return{ok:enough,note}
 }
 function flowPlayUntilResource(st,cfg,itemId,required,stats,label="指定資源",ctx={}){
   const need=Math.max(0,Number(required||0));
@@ -5928,6 +5983,8 @@ function flowReachedStage(st,cfg){
 function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   const st=clone(base);
   ensureStateSchema(st,cfg,{skipNormalize:true});
+  // 僅供本次流程判斷「前一次領基金順便帶到的其他目標物品」，每次模擬重新開始。
+  st._flowFundClaimCredit={};
   st.currentDay=0;
   const stats={ballsUsed:0,boxesOpened:0,boxOpenedByDay:{},stageClaims:0,failures:[],steps:[],daily:[]};
   const plan=compiledPlan||flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
@@ -6486,10 +6543,13 @@ async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");if(rolling)return toast("目前遊戲正在執行");
   const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||100))));
   $("simulationCount").value=count;
-  const cfg=clone(simulationBaseline.config),base=clone(simulationBaseline.state);
+  const baselineCfg=clone(simulationBaseline.config||config);
+  if(batchGameplayType(baselineCfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
+  // 基準只代表「起始進度／資源狀態」。活動規則必須使用目前畫面上的最新設定，
+  // 否則建立基準後只要調整基金、箱子、階段或獎勵，手動與批次就會跑兩套不同規則。
+  const cfg=clone(config),base=clone(simulationBaseline.state);
   normalizeFundConfig(cfg);
   ensureStateSchema(base,cfg);
-  if(batchGameplayType(cfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
   $("runSimulationBtn").disabled=true;
   $("simulationProgress").style.width="0%";
   $("simulationProgressText").textContent=`高速計算 ${count} 次七日流程…`;
@@ -6532,7 +6592,16 @@ function captureBaseline(){
   batchResults=[];renderSimulation();
   toast(`已建立${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程模擬基準`)
 }
-function restoreBaseline(){if(!simulationBaseline||rolling)return;recordHistory("恢復模擬基準");config=clone(simulationBaseline.config);state=clone(simulationBaseline.state);syncStateToConfig(false);render();toast("已恢復到模擬基準")}
+function restoreBaseline(){
+  if(!simulationBaseline||rolling)return;
+  if(batchGameplayType(simulationBaseline.config||config)!==batchGameplayType(config))return toast("這份基準屬於另一個玩法");
+  recordHistory("恢復模擬基準");
+  // 恢復的是進度狀態，不把目前已調好的活動設定退回建立基準當時的舊版本。
+  state=clone(simulationBaseline.state);
+  ensureStateSchema(state,config);
+  persistActiveGameplayFundState(state,config);
+  syncStateToConfig(false);render();toast("已用目前活動設定恢復到模擬基準")
+}
 function clearBaseline(){
   const label=batchGameplayType()==="pinball"?"彈珠機":"大富翁";
   simulationBaseline=null;batchResults=[];
@@ -6565,13 +6634,16 @@ function renderSimulation(){
     const b=simulationBaseline;
     const day=b.config.event.dayLabels[b.state.currentDay]||`第${b.state.currentDay+1}天`;
     const type=batchGameplayType(b.config);
-    const gp=b.config.gameplaySettings?.[type]||{};
-    const token=gp.gameTokenId||b.config.currencies.gameTokenId;
+    const liveCfg=type===batchGameplayType(config)?config:b.config;
+    const gp=liveCfg.gameplaySettings?.[type]||{};
+    const token=gp.gameTokenId||liveCfg.currencies.gameTokenId;
     const date=new Date(b.createdAt).toLocaleString("zh-TW",{hour12:false});
     const warnings=flowBaselineWarnings(b);
+    const configChanged=type===batchGameplayType(config)&&JSON.stringify(b.config)!==JSON.stringify(config);
+    if(configChanged)warnings.push("基準建立後活動設定已有變更；批次模擬會使用目前最新活動設定，只沿用這份基準的起始進度／資源。 ");
     const resourceText=type==="pinball"
-      ?`${escapeHtml(cfgItem(b.config,token).name)} ${fmt(b.state.resources[token]||0)}｜${escapeHtml(cfgItem(b.config,b.config.gameplaySettings.pinball.craftTicketId).name)} ${fmt(b.state.resources[b.config.gameplaySettings.pinball.craftTicketId]||0)}`
-      :`${escapeHtml(cfgItem(b.config,token).name)} ${fmt(b.state.resources[token]||0)}`;
+      ?`${escapeHtml(cfgItem(liveCfg,token).name)} ${fmt(b.state.resources[token]||0)}｜${escapeHtml(cfgItem(liveCfg,liveCfg.gameplaySettings.pinball.craftTicketId).name)} ${fmt(b.state.resources[liveCfg.gameplaySettings.pinball.craftTicketId]||0)}`
+      :`${escapeHtml(cfgItem(liveCfg,token).name)} ${fmt(b.state.resources[token]||0)}`;
     $("baselineStatus").innerHTML=`${type==="pinball"?"🔮 彈珠機":"🎲 大富翁"}｜建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${resourceText}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
   }else $("baselineStatus").textContent="請在七日流程開始前建立基準，通常使用週一尚未領取任何內容的狀態。";
   if(!batchResults.length){
