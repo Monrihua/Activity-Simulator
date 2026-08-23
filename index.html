@@ -1555,9 +1555,9 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 
           <div class="help weekly-flow-help" id="weeklyFlowHelp">
             每次模擬都會從同一基準開始跑週一 → 週日；<strong>每日進度獎勵一解鎖就立即全部領取</strong>。<br>
-            <strong>固定收益優先：</strong>「本日目標階段」只是本日終點。禮包、基金精準領取、指定隨機箱、兌換商店等固定步驟會先照設定順序完成；如果當下資源不足，只逐顆投入到足以完成該固定步驟，完成當下立刻停。<br>
+            <strong>自適應固定收益：</strong>「本日目標階段」只是本日終點。禮包等可直接取得內容先領；基金、指定箱子、兌換若暫時不足不會立刻判失敗，也不會鎖死在單一步驟。系統會掃描當天所有未完成目標；能開箱就開、能兌換就換、基金達標就領。全部都暫時卡住時才投入 1 顆玩法代幣，投入後立即重新掃描全部目標。<br>
             <strong>基金不能晚領：</strong>精準基金現在是「中斷事件」；若當天安排購買基金，會先依購買後的免費＋進階獎勵鎖定門檻，但等「購買基金」完成後才啟動監控。不管當下是在湊箱子、湊兌換材料或最後補分，只要基金條件剛好達標就立刻插隊領取；例如840到了就先領65，不會繼續製作到更高門檻。<br>
-            <strong>指定箱子採連鎖開箱：</strong>例如本日設定開70個、當下只有50個，會先立刻開這50個；如果開箱積分解鎖新的進度箱，就立即接著開。箱子暫時用完才逐顆玩到再取得箱子，如此反覆直到「本日累計」開滿70個。這樣可正確處理「開箱得分 → 解鎖下一階箱子 → 再開箱」的連鎖流程。<br>
+            <strong>指定箱子不再硬湊：</strong>例如要開230個但目前只有186個，會先開現有箱、領因此解鎖的進度，再重新檢查基金與兌換；若仍全部卡住才投入1顆彈珠。像47/50而下一階會給3箱，系統會在升階領到3箱後立即回來補滿50，不會繼續把製作卷砸光。<br>
             <strong>週日「用完剩餘彈珠」：</strong>現在會連剩餘製作卷一起全部轉成彈珠投入，不再只丟已經製作好的球。每日摘要會列出當日實際使用彈珠與開箱數，可直接核對是否接近預期的 15／70／14。
           </div>
           <div class="weekly-flow-actions">
@@ -5758,6 +5758,17 @@ function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
   }
 
   const startMetric=flowFundMetricValue(st,cfg);
+
+  // 七日流程的自適應解算器會在每一次玩法操作後重新掃描所有尚未完成目標。
+  // 在「只嘗試零額外玩法消耗」階段，基金門檻尚未到時先暫緩，
+  // 不要在這個函式裡一口氣把製作卷／彈珠砸到門檻，否則會錯過箱子、兌換、進度獎勵之間的交叉解鎖。
+  if(ctx?.noGameplaySupport&&startMetric+1e-9<Number(analysis.threshold||0)){
+    return{
+      ok:false,deferred:true,progressed:false,
+      note:`基金目標暫候：目前 ${fmt(startMetric)}／${fmt(analysis.threshold)}；先重新檢查其他固定收益與進度解鎖`
+    }
+  }
+
   const advanced=flowAdvanceFundMetric(st,cfg,analysis.threshold,stats,ctx);
   if(!advanced.ok){
     if(watcher){watcher.done=true;watcher.ok=false;watcher.note=advanced.note||"基金推進失敗";flowRefreshFundWatchers(st,cfg,ctx)}
@@ -5879,6 +5890,18 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
       continue
     }
 
+    // 自適應日流程第一輪只吃「現在已經拿得到」的固定收益。
+    // 箱子暫時不足時先把控制權交回日解算器，讓它檢查：
+    // 其他箱子／兌換／基金／進度階段是否已經可以先做。
+    // 只有整輪都沒有任何免費進展時，解算器才會再投入 1 顆玩法代幣。
+    if(ctx?.noGameplaySupport){
+      return{
+        ok:false,deferred:true,progressed:opened>openedBefore,
+        openedNow:Math.max(0,opened-openedBefore),
+        note:`${box.name}暫候：本日累計 ${opened}/${want} 個；目前沒有可直接再開的箱子，先重新檢查其他目標`
+      }
+    }
+
     const r=flowPlayOneToken(st,cfg,stats,{autoCraft:true});
     if(!r.ok){
       return{
@@ -5899,7 +5922,7 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
 
   const newlyOpened=Math.max(0,opened-openedBefore);
   return{
-    ok:true,
+    ok:true,progressed:newlyOpened>0,openedNow:newlyOpened,
     note:`${box.name} 本日累計 ${opened}/${want} 個${openedBefore?`（步驟前已開 ${openedBefore}）`:""}${initialHeld?`（當下背包 ${initialHeld}）`:""}${played?`，期間使用玩法資源 ${played} 次補進度`:""}；本步驟新開 ${newlyOpened} 個 → ${cfgItem(cfg,box.rewardItemId).name}×${fmt(total)}`
   }
 }
@@ -5920,9 +5943,15 @@ function flowExchange(st,cfg,action,stats,ctx={}){
   // 也可能讓基金剛好達標，因此不能先把 want 次所需材料全部硬湊齊後才一次兌換。
   for(let i=0;i<want;i++){
     if(Number(st.resources[offer.cost.itemId]||0)<unitCost){
+      if(ctx?.noGameplaySupport){
+        return{
+          ok:false,deferred:true,progressed:done>0,done,
+          note:`${offer.name}暫候：已完成 ${done}/${want} 次；第 ${i+1} 次材料不足，先重新檢查其他固定收益與進度獎勵`
+        }
+      }
       const prep=flowPlayUntilResource(st,cfg,offer.cost.itemId,unitCost,stats,`${offer.name}第 ${i+1} 次兌換材料`,ctx);
       played+=Number(prep.used||0);
-      if(!prep.ok)return{ok:false,note:`${offer.name}已完成 ${done}/${want} 次；${prep.note}`}
+      if(!prep.ok)return{ok:false,done,note:`${offer.name}已完成 ${done}/${want} 次；${prep.note}`}
     }
 
     if(Number(st.resources[offer.cost.itemId]||0)<unitCost){
@@ -5938,7 +5967,7 @@ function flowExchange(st,cfg,action,stats,ctx={}){
   }
 
   return{
-    ok:done===want,
+    ok:done===want,progressed:done>0,done,
     note:`${offer.name} 兌換 ${done}/${want} 次${played?`，期間使用玩法資源 ${played} 次補材料`:""}`
   }
 }
@@ -6035,10 +6064,33 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       .map((action,index)=>({action,index}))
       .filter(x=>x.action?.type==="allBoxes");
 
-    // 先做所有固定步驟。stage 是本日終點，allBoxes 留到最後。
+    // =========================================================
+    // v95：每日自適應目標解算器
+    // ---------------------------------------------------------
+    // 舊版是「目前步驟卡住 → 一直砸玩法資源直到它完成或資源歸零」。
+    // 這會錯過真實手動玩法最重要的交叉解鎖：
+    //   開箱 → 加分 → 領進度箱 → 兌換 → 加分 → 基金達標 → 再開箱
+    // 新版改成：
+    //   1. 先拿所有當下可直接取得的固定收益。
+    //   2. 箱子／兌換／基金若暫時不足，只「暫候」，不直接判失敗。
+    //   3. 每當整輪沒有任何固定收益可推進時，只投入 1 顆玩法代幣。
+    //   4. 投入後立刻重新掃描全部未完成目標。
+    // 因此像 47/50 箱，若下一階剛好給 3 箱，會升階後立刻回來完成；
+    // 230 箱也會在基金、進度、兌換之間反覆重算，不會盲目把製作卷耗光。
+    // =========================================================
+    const adaptiveTypes=new Set(["fundClaim","box","exchange"]);
+    const adaptiveEntries=actions
+      .map((action,index)=>({action,index}))
+      .filter(x=>adaptiveTypes.has(x.action?.type));
+    const adaptiveDone=new Set();
+    const adaptiveFatal=new Set();
+    const adaptiveCounts={};
+
+    // 先執行不需要「為了完成本步驟而主動玩遊戲」的固定步驟。
+    // allBalls 是使用剩餘資源的收尾意圖，稍後再做；stage 是本日最終門檻。
     for(let i=0;i<actions.length;i++){
       const action=actions[i];
-      if(action.type==="stage"||action.type==="allBoxes")continue;
+      if(action.type==="stage"||action.type==="allBoxes"||action.type==="allBalls"||adaptiveTypes.has(action.type))continue;
 
       const r=flowExecuteAction(st,cfg,action,stats,{
         actions,index:i,day:d,
@@ -6049,22 +6101,128 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
 
       stats.steps.push({day:d,index:i,type:action.type,ok:!!r.ok,note:r.note||""});
       if(!r.ok){
-        stats.failures.push(
-          `${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${i+1}：${r.note||"失敗"}`
-        )
+        stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${i+1}：${r.note||"失敗"}`)
       }
 
       flowAutoClaimStages(st,cfg,stats);
-
       if(action.type==="fundBuy"){
         flowArmFundWatchersAfterPurchase(st,cfg,{
-          day:d,index:i,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
+          actions,day:d,index:i,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
         })
       }
-
       flowCheckFundInterrupts(st,cfg,{
-        day:d,index:i,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
+        actions,day:d,index:i,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
       },stats);
+    }
+
+    // 需要資源互相支援的固定目標，以「零額外玩法消耗掃描 ↔ 只玩1次」交替處理。
+    let adaptiveGuard=0,adaptiveSupportPlays=0;
+    while(adaptiveDone.size+adaptiveFatal.size<adaptiveEntries.length&&adaptiveGuard++<200000){
+      let madeProgress=false;
+
+      for(const {action,index} of adaptiveEntries){
+        if(adaptiveDone.has(index)||adaptiveFatal.has(index))continue;
+
+        let attemptAction=action;
+        if(action.type==="exchange"){
+          const already=Math.max(0,Number(adaptiveCounts[index]||0));
+          const total=Math.max(1,Math.floor(Number(action.count||1)));
+          if(already>=total){adaptiveDone.add(index);continue}
+          attemptAction={...action,count:total-already}
+        }
+
+        const beforeScore=Number(flowDayState(st).score||0);
+        const beforeBoxes=Number(stats.boxesOpened||0);
+        const beforeMetric=flowFundMetricValue(st,cfg);
+        const beforeClaims=Number(stats.stageClaims||0);
+
+        const r=flowExecuteAction(st,cfg,attemptAction,stats,{
+          actions,index,day:d,
+          dayGoalStage:Number(dayGoal?.stage||0),
+          dayGoalScore,
+          fundWatchers,
+          noGameplaySupport:true
+        });
+
+        if(action.type==="exchange"&&Number(r.done||0)>0){
+          adaptiveCounts[index]=Number(adaptiveCounts[index]||0)+Number(r.done||0)
+        }
+
+        const changed=
+          Number(flowDayState(st).score||0)!==beforeScore ||
+          Number(stats.boxesOpened||0)!==beforeBoxes ||
+          Number(flowFundMetricValue(st,cfg))!==beforeMetric ||
+          Number(stats.stageClaims||0)!==beforeClaims ||
+          !!r.progressed;
+
+        if(r.ok){
+          adaptiveDone.add(index);
+          madeProgress=true;
+          stats.steps.push({day:d,index,type:action.type,ok:true,note:`🧩 自適應完成：${r.note||"完成"}`});
+        }else if(r.deferred){
+          if(changed){
+            madeProgress=true;
+            stats.steps.push({day:d,index,type:`${action.type}-partial`,ok:true,note:`🧩 自適應部分完成：${r.note||"暫候"}`})
+          }
+        }else{
+          adaptiveFatal.add(index);
+          stats.steps.push({day:d,index,type:action.type,ok:false,note:r.note||"失敗"});
+          stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${index+1}：${r.note||"失敗"}`);
+          madeProgress=true
+        }
+
+        flowAutoClaimStages(st,cfg,stats);
+        flowCheckFundInterrupts(st,cfg,{
+          actions,index,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
+        },stats)
+      }
+
+      if(adaptiveDone.size+adaptiveFatal.size>=adaptiveEntries.length)break;
+      if(madeProgress)continue;
+
+      // 所有未完成目標都暫時卡住：只投入一次，再重新掃描全部目標。
+      // 這是與舊版最大的差異，不再針對某一個箱子／兌換目標一路燒光製作卷。
+      const support=flowPlayOneToken(st,cfg,stats,{autoCraft:true});
+      if(!support.ok){
+        const waiting=adaptiveEntries
+          .filter(x=>!adaptiveDone.has(x.index)&&!adaptiveFatal.has(x.index))
+          .map(x=>`步驟${x.index+1}${x.action.type==="box"?"開箱":x.action.type==="exchange"?"兌換":"基金"}`)
+          .join("、");
+        const note=`自適應解算已嘗試所有可立即完成的固定收益，但沒有玩法資源可繼續；尚待 ${waiting||"固定目標"}｜${flowPlayableText(st,cfg)}`;
+        for(const {index} of adaptiveEntries){
+          if(adaptiveDone.has(index)||adaptiveFatal.has(index))continue;
+          adaptiveFatal.add(index)
+        }
+        stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}：${note}`);
+        stats.steps.push({day:d,index:-1,type:"adaptive-stop",ok:false,note});
+        break
+      }
+
+      adaptiveSupportPlays++;
+      flowAutoClaimStages(st,cfg,stats);
+      flowCheckFundInterrupts(st,cfg,{
+        actions,index:-1,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
+      },stats)
+    }
+
+    if(adaptiveGuard>=200000){
+      stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}：自適應解算超過安全上限`);
+    }
+    if(adaptiveSupportPlays){
+      stats.steps.push({day:d,index:-1,type:"adaptive-support",ok:true,note:`🧠 為解開互相依賴的固定目標，自適應投入 ${adaptiveSupportPlays} 次；每次投入後皆重新檢查基金／箱子／兌換／進度`})
+    }
+
+    // 「使用剩餘玩法資源」本身也是使用者明確指定的動作。
+    // 在固定目標解開後執行，再由本日目標階段做最後確認。
+    const closingPlayEntry=actions.map((action,index)=>({action,index})).find(x=>x.action?.type==="allBalls")||null;
+    if(closingPlayEntry){
+      const {action,index}=closingPlayEntry;
+      const r=flowExecuteAction(st,cfg,action,stats,{
+        actions,index,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
+      });
+      stats.steps.push({day:d,index,type:action.type,ok:!!r.ok,note:r.note||""});
+      if(!r.ok)stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${index+1}：${r.note||"失敗"}`);
+      flowAutoClaimStages(st,cfg,stats)
     }
 
     // 固定分全部拿完後，才用目前玩法的主要代幣做最後補分。
@@ -6115,13 +6273,13 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
     // 收尾步驟本身也可能再產生「可玩的代幣」或其他收尾箱。
     // 例如：開箱得分 → 解鎖製作卷；或 A 箱解鎖 B 箱、B 箱又解鎖 A 箱。
     // 只要本日有設定「使用剩餘玩法資源」或「開完剩餘箱」，就反覆收斂到不再新增。
-    const closingPlay=actions.map((action,index)=>({action,index})).find(x=>x.action?.type==="allBalls")||null;
-    if(closingPlay||closingBoxActions.length){
+    const settlePlay=closingPlayEntry;
+    if(settlePlay||closingBoxActions.length){
       let settleGuard=0;
       while(settleGuard++<50){
         let changed=false;
 
-        if(closingPlay){
+        if(settlePlay){
           const playable=flowPlayableSnapshot(st,cfg);
           const totalPlayable=batchGameplayType(cfg)==="pinball"
             ?Math.max(0,Number(playable.balls||0))+Math.max(0,Number(playable.tickets||0))
@@ -6129,12 +6287,12 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
           if(totalPlayable>0){
             const beforeUsed=Number(stats.ballsUsed||0);
             const r=flowUseAllBalls(st,cfg,stats,{
-              actions,index:closingPlay.index,day:d,
+              actions,index:settlePlay.index,day:d,
               dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
             });
             const delta=Number(stats.ballsUsed||0)-beforeUsed;
             if(delta>0)changed=true;
-            stats.steps.push({day:d,index:closingPlay.index,type:"allBalls-settle",ok:!!r.ok,note:`收尾補跑：${r.note||""}`});
+            stats.steps.push({day:d,index:settlePlay.index,type:"allBalls-settle",ok:!!r.ok,note:`收尾補跑：${r.note||""}`});
             if(!r.ok)stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}收尾：${r.note||"使用剩餘玩法資源失敗"}`);
             flowAutoClaimStages(st,cfg,stats)
           }
@@ -6709,7 +6867,20 @@ function renderSimulation(){
     const targetRates=days.filter(x=>x.targetStage>0);
     const avgTargetRate=targetRates.length?average(targetRates.map(x=>x.targetRate)):100;
     const minTarget=targetRates.length?targetRates.reduce((a,b)=>a.targetRate<=b.targetRate?a:b):null;
-    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>判定說明：</strong>上方「完整流程成功率」要求整週所有固定步驟與每日目標都沒有失敗；不是單日成功率。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%；七天目標平均達成率 ${fmt(avgTargetRate)}%。`:""}</div>`;
+    const planUsed=batchResults.meta?.plan||[];
+    const missionId=dailyMissionRewardItemId(cfg);
+    const missionRule=`${cfgItem(cfg,missionId).name}×${fmt(cfg.dailyMission?.maxGameTokens||0)}`;
+    const freePackRule=noPayDicePackages(cfg).map(({pack})=>{
+      const rewards=(pack.rewards||[]).map(r=>`${cfgItem(cfg,r.itemId).name}×${fmt(Number(r.amount||0)*Number(pack.limit||0))}`).join("＋");
+      return `${pack.name}(${rewards||"無獎勵"})`
+    }).join("、")||"無";
+    const firstDayPackRule=(planUsed?.[0]?.actions||[]).filter(a=>a?.type==="package").map(a=>{
+      const found=flowPackageByKey(cfg,a.packageKey);
+      if(!found)return"找不到指定禮包";
+      const rewards=(found.pack.rewards||[]).map(r=>`${cfgItem(cfg,r.itemId).name}×${fmt(Number(r.amount||0)*Number(a.count||1))}`).join("＋");
+      return `${found.pack.name}(${rewards||"無獎勵"})`
+    }).join("、")||"無";
+    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，現在會在每投入1次玩法資源後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
     $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>本日無失敗率</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td><strong>${fmt(x.targetRate)}%</strong></td><td>${fmt(x.cleanRate)}%</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
   }else{
     const tokenName=cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name;
