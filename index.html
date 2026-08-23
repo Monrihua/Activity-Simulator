@@ -5187,9 +5187,25 @@ function flowPlayOneToken(st,cfg,stats,{autoCraft=true}={}){
     ?flowDropPinball(st,cfg,stats,{autoCraft})
     :flowRollMonopoly(st,cfg,stats)
 }
+function flowSyncPinballRuleState(st,cfg){
+  const pc=cfg.gameplaySettings?.pinball||{},ps=st.gameplayStates.pinball,count=Math.max(2,Number(pc.slotCount||8));
+  // baseline 只保存進度，不應把建立基準當時的「8格獎勵規則」一起凍結。
+  // 正常模式每格獎勵是活動設定本身，不是隨機局面，因此批次每輪開始都以目前最新設定覆寫。
+  ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));
+  if(!Number.isFinite(Number(ps.targetSlot))||Number(ps.targetSlot)<0||Number(ps.targetSlot)>=count){
+    ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false
+  }
+  ps.targetSlot=Math.max(0,Math.min(count-1,Number(ps.targetSlot||0)));
+  if(!Array.isArray(ps.hiddenSlotCounts)||ps.hiddenSlotCounts.length!==count)ps.hiddenSlotCounts=Array.from({length:count},()=>0);
+  if(!Array.isArray(ps.hiddenSlotRewards)||ps.hiddenSlotRewards.length!==count)ps.hiddenSlotRewards=[];
+  return ps
+}
 function flowPinballEnsure(st,cfg){
   const pc=cfg.gameplaySettings?.pinball||{},ps=st.gameplayStates.pinball,count=Math.max(2,Number(pc.slotCount||8));
-  if(!Array.isArray(ps.slots)||ps.slots.length!==count){ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.hiddenSlotCounts=Array.from({length:count},()=>0);ps.hiddenSlotRewards=[]}
+  if(!Array.isArray(ps.slots)||ps.slots.length!==count){
+    ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));
+    ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.hiddenSlotCounts=Array.from({length:count},()=>0);ps.hiddenSlotRewards=[]
+  }
   ps.targetSlot=Math.max(0,Math.min(count-1,Number(ps.targetSlot||0)));return ps
 }
 function flowPinballTargetRequired(st,cfg){const pc=cfg.gameplaySettings.pinball,ps=flowPinballEnsure(st,cfg);return Math.max(1,Math.floor(Number(pc.targetHitRequirements?.[ps.targetSlot]||20)))}
@@ -5983,6 +5999,7 @@ function flowReachedStage(st,cfg){
 function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   const st=clone(base);
   ensureStateSchema(st,cfg,{skipNormalize:true});
+  if(batchGameplayType(cfg)==="pinball")flowSyncPinballRuleState(st,cfg);
   // 僅供本次流程判斷「前一次領基金順便帶到的其他目標物品」，每次模擬重新開始。
   st._flowFundClaimCredit={};
   st.currentDay=0;
@@ -5991,6 +6008,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
 
   for(let d=0;d<Math.min(7,st.days.length);d++){
     st.currentDay=d;
+    const dayFailureStart=stats.failures.length;
     if(cfg.gameplay.type==="pinball")flowPinballEnsure(st,cfg);
 
     const actions=plan[d]?.actions||[];
@@ -6151,6 +6169,10 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       day:d,
       score:Number(flowDayState(st).score||0),
       stage:Number(flowReachedStage(st,cfg)||0),
+      targetStage:Number(dayGoal?.stage||0),
+      targetScore:Number(dayGoalScore||0),
+      targetHit:!dayGoal||Number(flowDayState(st).score||0)+1e-9>=Number(dayGoalScore||0),
+      dayFailureCount:Math.max(0,stats.failures.length-dayFailureStart),
       claims:Number(flowDayState(st).claimedStages?.length||0),
       balls:Number(st.resources?.[tokenId]||0),
       craft:batchGameplayType(cfg)==="pinball"?Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0):0,
@@ -6676,11 +6698,19 @@ function renderSimulation(){
       premium:average(rows.map(x=>x.premium)),
       ballsUsedToday:average(rows.map(x=>x.ballsUsedToday)),
       boxesOpenedToday:average(rows.map(x=>x.boxesOpenedToday)),
-      premiumGainToday:average(rows.map(x=>x.premiumGainToday))
+      premiumGainToday:average(rows.map(x=>x.premiumGainToday)),
+      targetStage:Number(rows.find(x=>Number(x.targetStage||0)>0)?.targetStage||0),
+      targetScore:Number(rows.find(x=>Number(x.targetScore||0)>0)?.targetScore||0),
+      targetRate:rows.length?rows.filter(x=>x.targetHit!==false).length/rows.length*100:0,
+      cleanRate:rows.length?rows.filter(x=>Number(x.dayFailureCount||0)===0).length/rows.length*100:0
     }
   });
   if(type==="pinball"){
-    $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+    const targetRates=days.filter(x=>x.targetStage>0);
+    const avgTargetRate=targetRates.length?average(targetRates.map(x=>x.targetRate)):100;
+    const minTarget=targetRates.length?targetRates.reduce((a,b)=>a.targetRate<=b.targetRate?a:b):null;
+    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>判定說明：</strong>上方「完整流程成功率」要求整週所有固定步驟與每日目標都沒有失敗；不是單日成功率。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%；七天目標平均達成率 ${fmt(avgTargetRate)}%。`:""}</div>`;
+    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>本日無失敗率</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td><strong>${fmt(x.targetRate)}%</strong></td><td>${fmt(x.cleanRate)}%</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
   }else{
     const tokenName=cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name;
     $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
