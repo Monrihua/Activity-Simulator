@@ -6863,9 +6863,12 @@ function renderSimulation(){
       cleanRate:rows.length?rows.filter(x=>Number(x.dayFailureCount||0)===0).length/rows.length*100:0
     }
   });
-  if(type==="pinball"){
+  {
+    // v6：大富翁／彈珠機共用同一套每日診斷與統計欄位。
+    // 只有真正屬於彈珠機的「製作卷剩餘」維持玩法專屬欄位。
+    const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
+    const tokenName=cfgItem(cfg,tokenId).name;
     const targetRates=days.filter(x=>x.targetStage>0);
-    const avgTargetRate=targetRates.length?average(targetRates.map(x=>x.targetRate)):100;
     const minTarget=targetRates.length?targetRates.reduce((a,b)=>a.targetRate<=b.targetRate?a:b):null;
     const planUsed=batchResults.meta?.plan||[];
     const missionId=dailyMissionRewardItemId(cfg);
@@ -6880,11 +6883,10 @@ function renderSimulation(){
       const rewards=(found.pack.rewards||[]).map(r=>`${cfgItem(cfg,r.itemId).name}×${fmt(Number(r.amount||0)*Number(a.count||1))}`).join("＋");
       return `${found.pack.name}(${rewards||"無獎勵"})`
     }).join("、")||"無";
-    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，現在會在每投入1次玩法資源後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
-    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>本日無失敗率</th><th>每日任務實領</th><th>當日使用彈珠</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>製作卷剩餘</th><th>彈珠剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td><strong>${fmt(x.targetRate)}%</strong></td><td>${fmt(x.cleanRate)}%</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.craft)}</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
-  }else{
-    const tokenName=cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name;
-    $("weeklyDailySummary").innerHTML=`<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th><th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td><td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
+    const craftHead=type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,cfg.gameplaySettings.pinball.craftTicketId).name)}剩餘</th>`:"";
+    const craftCell=x=>type==="pinball"?`<td>${fmt(x.craft)}</td>`:"";
+    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>本日無失敗率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.cleanRate)}%</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
   }
   const trace=$("simulationFundTrace");
   if(trace){
