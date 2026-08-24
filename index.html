@@ -1567,7 +1567,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
           <div class="help" id="weeklyFlowGameplayNote" style="margin:8px 0;font-weight:900"></div><div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
           <div class="sim-controls weekly-sim-controls">
             <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="100"></div>
-            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜設定預編譯＋分段更新" readonly></div>
+            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜自適應快取＋分段更新" readonly></div>
             <div class="field"><label>每日進度獎勵</label><input class="input" value="解鎖即自動全部領取" readonly></div>
             <div class="field"><label>執行整週流程</label><button class="btn green" id="runSimulationBtn" style="width:100%">依序模擬週一～週日</button></div>
           </div>
@@ -4771,7 +4771,7 @@ function simGenerateBoard(sim,cfg){
   let p=0;
   for(let i=0;i<count;i++){
     if(i===start)continue;
-    const type=pool[p++],reward=clone(weightedPick(type.rewards));
+    const type=pool[p++],picked=flowWeightedPickFast(type.rewards),reward=picked?{...picked}:null;
     sim.board[i]={kind:"reward",typeId:type.id,reward}
   }
   sim.boardVersion=Number(sim.boardVersion||0)+1
@@ -4819,9 +4819,7 @@ function flowPackageEntries(cfg=config){
   return rows
 }
 function flowPackageByKey(cfg,key){
-  const [groupId,packageId]=String(key||"").split("::");
-  const group=(cfg.packageGroups||[]).find(x=>x.id===groupId),pack=group?.packages?.find(x=>x.id===packageId);
-  return group&&pack?{group,pack}:null
+  return flowBatchCfgCache(cfg).packageMap.get(String(key||""))||null
 }
 function flowFindPackage(cfg,predicate){return flowPackageEntries(cfg).find(({group,pack})=>predicate(pack,group))||null}
 function flowStageNumbers(cfg=config){return [...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)).map(x=>Number(x.stage))}
@@ -5022,16 +5020,76 @@ function flowBatchCfgCache(cfg){
   let c=FLOW_BATCH_CFG_CACHE.get(cfg);
   if(c)return c;
 
+  const packageMap=new Map();
+  (cfg.packageGroups||[]).forEach(group=>(group.packages||[]).forEach(pack=>{
+    packageMap.set(`${group.id}::${pack.id}`,{group,pack})
+  }));
   c={
     sortedStages:[...(cfg.progressStages||[])].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)),
     sortedFundMilestones:[...(cfg.fund?.milestones||[])].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b)),
     scoreMap:new Map((cfg.scoreRules?.pointsPerItemObtained||[]).map(x=>[x.itemId,Number(x.points||0)])),
     itemMap:new Map((cfg.items||[]).map(x=>[x.id,x])),
+    packageMap,
+    boxMap:new Map((cfg.randomBoxes||[]).map(x=>[x.id,x])),
+    exchangeMap:new Map((cfg.exchangeShop||[]).map(x=>[x.id,x])),
     startRewards:cfg.board?.startRewards||[]
   };
   FLOW_BATCH_CFG_CACHE.set(cfg,c);
   return c
 }
+const FLOW_WEIGHTED_LIST_CACHE=new WeakMap();
+const FLOW_NUMERIC_WEIGHT_CACHE=new WeakMap();
+function flowWeightedPickFast(list){
+  if(!Array.isArray(list)||!list.length)return undefined;
+  let table=FLOW_WEIGHTED_LIST_CACHE.get(list);
+  if(!table){
+    let total=0;
+    const cumulative=list.map(x=>{
+      total+=Math.max(0,Number(x?.probability||0));
+      return total
+    });
+    table={total,cumulative};
+    FLOW_WEIGHTED_LIST_CACHE.set(list,table)
+  }
+  if(table.total<=0)return list[Math.floor(Math.random()*list.length)];
+  const roll=Math.random()*table.total;
+  let lo=0,hi=table.cumulative.length-1;
+  while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(roll<table.cumulative[mid])hi=mid;else lo=mid+1
+  }
+  return list[lo]
+}
+function flowWeightedIndexFast(weights){
+  if(!Array.isArray(weights)||!weights.length)return 0;
+  let table=FLOW_NUMERIC_WEIGHT_CACHE.get(weights);
+  if(!table){
+    let total=0;
+    const cumulative=weights.map(x=>{
+      total+=Math.max(0,Number(x||0));
+      return total
+    });
+    table={total,cumulative};
+    FLOW_NUMERIC_WEIGHT_CACHE.set(weights,table)
+  }
+  if(table.total<=0)return Math.floor(Math.random()*weights.length);
+  const roll=Math.random()*table.total;
+  let lo=0,hi=table.cumulative.length-1;
+  while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(roll<table.cumulative[mid])hi=mid;else lo=mid+1
+  }
+  return lo
+}
+function flowClaimedStageSet(day){
+  if(day?._flowClaimedStageSet instanceof Set)return day._flowClaimedStageSet;
+  const set=new Set(day?.claimedStages||[]);
+  if(day)Object.defineProperty(day,"_flowClaimedStageSet",{value:set,writable:true,configurable:true,enumerable:false});
+  return set
+}
+function flowFundRevision(st){return Math.max(0,Number(st?._flowFundRevision||0))}
+function flowBumpFundRevision(st){st._flowFundRevision=flowFundRevision(st)+1;return st._flowFundRevision}
+
 function flowCfgItemFast(cfg,id){
   return flowBatchCfgCache(cfg).itemMap.get(id)||{id,name:id,unit:"",icon:"❔"}
 }
@@ -5068,7 +5126,7 @@ function flowAutoClaimStages(st,cfg,stats){
 
   // 階段數通常很少，直接單次順序掃描即可；
   // 不再每擲1骰/每投1球反覆 sort + filter + includes 多輪。
-  const claimedSet=new Set(day.claimedStages||[]);
+  const claimedSet=flowClaimedStageSet(day);
   for(const s of stages){
     if(Number(day.score||0)<Number(s.requiredScore||0))break;
     if(claimedSet.has(s.stage))continue;
@@ -5140,7 +5198,7 @@ function flowGenerateMonopolyBoardFast(sim,cfg){
   sim.board=new Array(count);
   sim.board[start]={
     kind:"start",typeId:"start",reward:null,
-    rewards:clone(flowBatchCfgCache(cfg).startRewards)
+    rewards:flowBatchCfgCache(cfg).startRewards
   };
 
   let p=0;
@@ -5216,8 +5274,8 @@ function flowConvertCraft(st,cfg,count){
 }
 function flowRunHiddenOnce(st,cfg,stats){
   const pc=cfg.gameplaySettings.pinball,ps=flowPinballEnsure(st,cfg),count=Math.max(1,Math.floor(Number(pc.hiddenBalls||200))),req=Math.max(1,Math.floor(Number(pc.hiddenSlotRequired||32))),prev=ps.targetSlot,triggerReq=flowPinballTargetRequired(st,cfg),preserved=Math.max(0,Number(ps.targetHits||0)-triggerReq),n=ps.slots.length;
-  const hiddenRewards=Array.from({length:n},()=>{const list=pc.hiddenVaultRewards||[];return list.length?clone(weightedPick(list)):null}),counts=Array.from({length:n},()=>0),tally={};
-  for(let i=0;i<count;i++){const slot=weightedIndex(pc.landingWeights||Array.from({length:n},()=>1));counts[slot]++;if(counts[slot]%req===0){const r=hiddenRewards[slot];if(r)tally[r.itemId]=Number(tally[r.itemId]||0)+Number(r.amount||0)}}
+  const hiddenRewards=Array.from({length:n},()=>{const list=pc.hiddenVaultRewards||[];return list.length?clone(flowWeightedPickFast(list)):null}),counts=Array.from({length:n},()=>0),tally={};
+  for(let i=0;i<count;i++){const slot=flowWeightedIndexFast(pc.landingWeights||Array.from({length:n},()=>1));counts[slot]++;if(counts[slot]%req===0){const r=hiddenRewards[slot];if(r)tally[r.itemId]=Number(tally[r.itemId]||0)+Number(r.amount||0)}}
   Object.entries(tally).forEach(([id,a])=>flowAddItem(st,cfg,id,a));ps.hiddenRuns=Number(ps.hiddenRuns||0)+1;ps.hiddenDrops=Number(ps.hiddenDrops||0)+count;ps.totalDrops=Number(ps.totalDrops||0)+count;flowDayState(st).pinballDrops=Number(flowDayState(st).pinballDrops||0)+count;flowDayState(st).pinballHiddenRuns=Number(flowDayState(st).pinballHiddenRuns||0)+1;
   ps.targetSlot=Math.floor(Math.random()*n);if(n>1&&ps.targetSlot===prev)ps.targetSlot=(prev+1+Math.floor(Math.random()*(n-1)))%n;ps.targetHits=preserved;ps.hiddenPending=false;ps.hiddenActive=false;ps.hiddenSlotCounts=counts;ps.hiddenSlotRewards=hiddenRewards;
   flowAutoClaimStages(st,cfg,stats);return{preserved}
@@ -5229,7 +5287,7 @@ function flowDropPinball(st,cfg,stats,{autoCraft=true}={}){
   if(Number(st.resources[ball]||0)<1)return{ok:false,note:`${cfgItem(cfg,ball).name}不足`};
   st.resources[ball]=Number(st.resources[ball]||0)-1;
   st.spent[ball]=Number(st.spent[ball]||0)+1;
-  const slot=weightedIndex(pc.landingWeights||Array.from({length:ps.slots.length},()=>1)),reward=ps.slots[slot];if(reward)flowAddItem(st,cfg,reward.itemId,reward.amount);ps.totalDrops=Number(ps.totalDrops||0)+1;ps.normalDrops=Number(ps.normalDrops||0)+1;flowDayState(st).pinballDrops=Number(flowDayState(st).pinballDrops||0)+1;if(stats)stats.ballsUsed++;
+  const slot=flowWeightedIndexFast(pc.landingWeights||Array.from({length:ps.slots.length},()=>1)),reward=ps.slots[slot];if(reward)flowAddItem(st,cfg,reward.itemId,reward.amount);ps.totalDrops=Number(ps.totalDrops||0)+1;ps.normalDrops=Number(ps.normalDrops||0)+1;flowDayState(st).pinballDrops=Number(flowDayState(st).pinballDrops||0)+1;if(stats)stats.ballsUsed++;
   if(slot===Number(ps.targetSlot)){ps.targetHits=Number(ps.targetHits||0)+1;if(ps.targetHits>=flowPinballTargetRequired(st,cfg))flowResolveHiddenChain(st,cfg,stats)}flowAutoClaimStages(st,cfg,stats);return{ok:true,slot}
 }
 function flowFundMetricValue(st,cfg){
@@ -5426,17 +5484,17 @@ function flowFundWatcherKey(action,index){
   return `${index}:${action?.itemId||""}:${Number(action?.amount||0)}`
 }
 function flowRefreshFundWatchers(st,cfg,ctx={}){
-  const watchers=ctx?.fundWatchers,actions=ctx?.actions||[];
+  const watchers=ctx?.fundWatchers;
   if(!Array.isArray(watchers)||!watchers.length)return null;
 
-  watchers.forEach(w=>{if(!w.done)w.armed=false});
-
-  // 一次基金領取可能同時把後續目標物品也領進來。
-  // 依流程順序消耗「基金信用額」：同物品的下一個目標仍是追加量，
-  // 不同物品若已在前一次領基金時順便取得，就直接視為該步驟已完成。
   let safety=0;
   while(safety++<watchers.length+2){
-    const next=watchers.filter(w=>!w.done).sort((a,b)=>a.index-b.index)[0];
+    let next=watchers._active;
+    if(!next||next.done){
+      next=null;
+      for(const w of watchers){if(!w.done){next=w;break}}
+      watchers._active=next
+    }
     if(!next)return null;
 
     const target=Math.max(1,Number(next.action?.amount||1));
@@ -5446,39 +5504,57 @@ function flowRefreshFundWatchers(st,cfg,ctx={}){
       next.done=true;next.ok=true;next.armed=false;next.waitForFundBuy=false;
       next.threshold=flowFundMetricValue(st,cfg);next.expected=target;next.exact=true;next.found=true;
       next.note=`✅ ${cfgItem(cfg,next.action.itemId).name} ×${fmt(target)} 已在前一次基金領取時一併取得，本步驟直接完成`;
+      watchers._active=null;
       continue
     }
 
-    const fundBuyBefore=actions.slice(0,next.index).some(a=>a?.type==="fundBuy");
-    if(fundBuyBefore&&!st.fundPremiumPurchased){
-      next.waitForFundBuy=true;
-      next.armed=false;
+    if(next.fundBuyBefore&&!st.fundPremiumPurchased){
+      next.waitForFundBuy=true;next.armed=false;
       return next
     }
 
     next.waitForFundBuy=false;
     const remaining=Math.max(0,target-credit);
-    const analysis=flowFundTargetThreshold(st,cfg,next.action.itemId,remaining);
-    next.creditBefore=credit;
-    next.remaining=remaining;
-    next.threshold=Number(analysis.threshold||0);
-    next.expected=Number(analysis.expected||0);
-    next.exact=!!analysis.exact;
-    next.found=!!analysis.found;
+    const revision=flowFundRevision(st),premium=!!st.fundPremiumPurchased;
+    if(
+      next._analysisRevision!==revision ||
+      next._analysisCredit!==credit ||
+      next._analysisRemaining!==remaining ||
+      next._analysisPremium!==premium
+    ){
+      const analysis=flowFundTargetThreshold(st,cfg,next.action.itemId,remaining);
+      next.creditBefore=credit;
+      next.remaining=remaining;
+      next.threshold=Number(analysis.threshold||0);
+      next.expected=Number(analysis.expected||0);
+      next.exact=!!analysis.exact;
+      next.found=!!analysis.found;
+      next._analysisRevision=revision;
+      next._analysisCredit=credit;
+      next._analysisRemaining=remaining;
+      next._analysisPremium=premium
+    }
     next.armed=true;
+    watchers._active=next;
     return next
   }
   return null
 }
 function flowBuildFundWatchers(st,cfg,actions){
-  const watchers=actions
-    .map((action,index)=>action?.type==="fundClaim"?{
-      action,index,
+  let seenFundBuy=false;
+  const watchers=[];
+  (actions||[]).forEach((action,index)=>{
+    if(action?.type==="fundBuy"){seenFundBuy=true;return}
+    if(action?.type!=="fundClaim")return;
+    watchers.push({
+      action,index,fundBuyBefore:seenFundBuy,
       done:false,ok:true,note:"",
       threshold:0,expected:0,exact:false,found:false,
-      armed:false,waitForFundBuy:false
-    }:null)
-    .filter(Boolean);
+      armed:false,waitForFundBuy:false,
+      _analysisRevision:-1,_analysisCredit:-1,_analysisRemaining:-1,_analysisPremium:false
+    })
+  });
+  watchers._active=null;
   flowRefreshFundWatchers(st,cfg,{actions,fundWatchers:watchers});
   return watchers
 }
@@ -5492,7 +5568,8 @@ function flowCheckFundInterrupts(st,cfg,ctx={},stats){
   const triggered=[];
   let guard=0;
   while(guard++<watchers.length+2){
-    const w=flowRefreshFundWatchers(st,cfg,ctx);
+    let w=watchers._active;
+    if(!w||w.done)w=flowRefreshFundWatchers(st,cfg,ctx);
     if(!w||w.done||!w.armed||!w.found||!w.exact)break;
 
     const current=flowFundMetricValue(st,cfg);
@@ -5507,16 +5584,14 @@ function flowCheckFundInterrupts(st,cfg,ctx={},stats){
     if(enough)flowConsumeFundCredit(st,w.action.itemId,target);
     const meta=fundUnlockMetricMeta(st,cfg);
 
-    w.done=true;
-    w.ok=enough;
+    w.done=true;w.ok=enough;w.armed=false;
     w.note=`⚡ ${meta.label} ${fmt(current)}／${fmt(w.threshold)} 達標，立即領基金；${cfgItem(cfg,w.action.itemId).name} 本次新增 ${fmt(claimGain)}${creditBefore?`＋先前已一併取得 ${fmt(creditBefore)}`:""}，目標 ${fmt(target)} ${enough?"完成":"不足"}`;
-    triggered.push(w);
+    triggered.push(w);watchers._active=null;
 
     if(!enough&&stats){
-      stats.failures.push(
-        `${cfg.event.dayLabels?.[Number(ctx.day||0)]||`第${Number(ctx.day||0)+1}天`}：${w.note}`
-      )
+      stats.failures.push(`${cfg.event.dayLabels?.[Number(ctx.day||0)]||`第${Number(ctx.day||0)+1}天`}：${w.note}`)
     }
+    flowRefreshFundWatchers(st,cfg,ctx)
   }
   return triggered
 }
@@ -5551,7 +5626,10 @@ function flowPlayToStage(st,cfg,action,stats,ctx={}){
   }
 }
 function flowBuyFund(st,cfg,stats){
-  if(st.fundPremiumPurchased)return{ok:true,note:"基金已購買"};if(!flowSpend(st,cfg,cfg.fund.premiumCost))return{ok:false,note:"基金購買成本不足"};st.fundPremiumPurchased=true;return{ok:true,note:"已購買基金"}
+  if(st.fundPremiumPurchased)return{ok:true,note:"基金已購買"};
+  if(!flowSpend(st,cfg,cfg.fund.premiumCost))return{ok:false,note:"基金購買成本不足"};
+  st.fundPremiumPurchased=true;flowBumpFundRevision(st);
+  return{ok:true,note:"已購買基金"}
 }
 function flowClaimUnlockedFund(st,cfg,stats){
   const milestones=flowSortedFundMilestones(cfg);
@@ -5582,6 +5660,7 @@ function flowClaimUnlockedFund(st,cfg,stats){
   // 真實基金一次會把當下所有已解鎖軌道一起領取。
   // 其他物品可能因此「順便提早領到」，先記成基金信用額，
   // 後面的基金目標可直接承接，不應再因剩餘里程已被領空而判失敗。
+  if(count)flowBumpFundRevision(st);
   flowAddFundCredit(st,gained);
   flowAutoClaimStages(st,cfg,stats);
   return{gained,count}
@@ -5594,53 +5673,40 @@ function flowFundCredit(st,itemId){
   return Math.max(0,Number(flowFundCreditMap(st)[itemId]||0))
 }
 function flowAddFundCredit(st,gained){
-  const map=flowFundCreditMap(st);
+  const map=flowFundCreditMap(st);let changed=false;
   Object.entries(gained||{}).forEach(([id,amount])=>{
-    map[id]=Number(map[id]||0)+Math.max(0,Number(amount||0))
+    const add=Math.max(0,Number(amount||0));
+    if(add){map[id]=Number(map[id]||0)+add;changed=true}
   });
+  if(changed)flowBumpFundRevision(st);
   return map
 }
 function flowConsumeFundCredit(st,itemId,amount){
   const map=flowFundCreditMap(st),need=Math.max(0,Number(amount||0));
   const have=Math.max(0,Number(map[itemId]||0)),used=Math.min(have,need);
   map[itemId]=Math.max(0,have-used);
+  if(used)flowBumpFundRevision(st);
   return used
 }
 function flowFundTargetThreshold(st,cfg,itemId,amount){
   const target=Math.max(1,Number(amount||1));
-  const milestones=[...fundMilestones(cfg)].sort((a,b)=>fundMilestoneTarget(a)-fundMilestoneTarget(b));
+  const milestones=flowSortedFundMilestones(cfg);
+  const freeClaims=st.fundClaims?.free||{},premiumClaims=st.fundClaims?.premium||{};
   let sum=0;
 
   for(const m of milestones){
-    const unlockedTracks=[
-      ["free",m.freeRewards||[]],
-      ["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]
-    ];
-
-    unlockedTracks.forEach(([kind,rewards])=>{
-      if(!Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id)){
-        sum+=(rewards||[])
-          .filter(r=>r.itemId===itemId)
-          .reduce((s,r)=>s+Number(r.amount||0),0)
-      }
-    });
-
+    if(!Object.prototype.hasOwnProperty.call(freeClaims,m.id)){
+      for(const r of (m.freeRewards||[]))if(r.itemId===itemId)sum+=Number(r.amount||0)
+    }
+    if(st.fundPremiumPurchased&&!Object.prototype.hasOwnProperty.call(premiumClaims,m.id)){
+      for(const r of (m.premiumRewards||[]))if(r.itemId===itemId)sum+=Number(r.amount||0)
+    }
     if(sum>=target){
-      return{
-        found:true,
-        exact:Math.abs(sum-target)<1e-9,
-        threshold:fundMilestoneTarget(m),
-        expected:sum
-      }
+      return{found:true,exact:Math.abs(sum-target)<1e-9,threshold:fundMilestoneTarget(m),expected:sum}
     }
   }
-
-  return{
-    found:false,
-    exact:false,
-    threshold:milestones.at(-1)?fundMilestoneTarget(milestones.at(-1)):0,
-    expected:sum
-  }
+  const last=milestones.length?milestones[milestones.length-1]:null;
+  return{found:false,exact:false,threshold:last?fundMilestoneTarget(last):0,expected:sum}
 }
 function flowAdvanceFundMetric(st,cfg,threshold,stats,ctx={}){
   const target=Math.max(0,Number(threshold||0));
@@ -5765,7 +5831,7 @@ function flowClaimFundTarget(st,cfg,action,stats,ctx={}){
   if(ctx?.noGameplaySupport&&startMetric+1e-9<Number(analysis.threshold||0)){
     return{
       ok:false,deferred:true,progressed:false,
-      note:`基金目標暫候：目前 ${fmt(startMetric)}／${fmt(analysis.threshold)}；先重新檢查其他固定收益與進度解鎖`
+      note:ctx?.quiet?"":`基金目標暫候：目前 ${fmt(startMetric)}／${fmt(analysis.threshold)}；先重新檢查其他固定收益與進度解鎖`
     }
   }
 
@@ -5830,7 +5896,7 @@ function flowRecordBoxOpened(st,stats,boxId,count=1){
   stats.boxOpenedByDay[key]=Number(stats.boxOpenedByDay[key]||0)+Number(count||0)
 }
 function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
-  const box=(cfg.randomBoxes||[]).find(b=>b.id===action.boxId)||(cfg.randomBoxes||[])[0];
+  const box=flowBatchCfgCache(cfg).boxMap.get(action.boxId)||(cfg.randomBoxes||[])[0];
   if(!box)return{ok:false,note:"沒有隨機箱設定"};
 
   const openBatch=count=>{
@@ -5844,7 +5910,7 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
       if(Number(st.resources[box.boxItemId]||0)<1)break;
       st.resources[box.boxItemId]=Number(st.resources[box.boxItemId]||0)-1;
       st.spent[box.boxItemId]=Number(st.spent[box.boxItemId]||0)+1;
-      const r=weightedPick(box.outcomes||[]);
+      const r=flowWeightedPickFast(box.outcomes||[]);
       const amount=Number(r?.amount||0);
       if(amount){flowAddItem(st,cfg,box.rewardItemId,amount);gained+=amount}
       stats.boxesOpened=Number(stats.boxesOpened||0)+1;
@@ -5898,7 +5964,7 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
       return{
         ok:false,deferred:true,progressed:opened>openedBefore,
         openedNow:Math.max(0,opened-openedBefore),
-        note:`${box.name}暫候：本日累計 ${opened}/${want} 個；目前沒有可直接再開的箱子，先重新檢查其他目標`
+        note:ctx?.quiet?"":`${box.name}暫候：本日累計 ${opened}/${want} 個；目前沒有可直接再開的箱子，先重新檢查其他目標`
       }
     }
 
@@ -5927,7 +5993,7 @@ function flowOpenBox(st,cfg,action,stats,all=false,ctx={}){
   }
 }
 function flowExchange(st,cfg,action,stats,ctx={}){
-  const offer=(cfg.exchangeShop||[]).find(o=>o.id===action.offerId)||(cfg.exchangeShop||[])[0];
+  const offer=flowBatchCfgCache(cfg).exchangeMap.get(action.offerId)||(cfg.exchangeShop||[])[0];
   if(!offer)return{ok:false,note:"沒有兌換商品"};
 
   const key=`${cfg.gameplay.type}:${offer.id}`;
@@ -5946,7 +6012,7 @@ function flowExchange(st,cfg,action,stats,ctx={}){
       if(ctx?.noGameplaySupport){
         return{
           ok:false,deferred:true,progressed:done>0,done,
-          note:`${offer.name}暫候：已完成 ${done}/${want} 次；第 ${i+1} 次材料不足，先重新檢查其他固定收益與進度獎勵`
+          note:ctx?.quiet?"":`${offer.name}暫候：已完成 ${done}/${want} 次；第 ${i+1} 次材料不足，先重新檢查其他固定收益與進度獎勵`
         }
       }
       const prep=flowPlayUntilResource(st,cfg,offer.cost.itemId,unitCost,stats,`${offer.name}第 ${i+1} 次兌換材料`,ctx);
@@ -6032,12 +6098,11 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   // 僅供本次流程判斷「前一次領基金順便帶到的其他目標物品」，每次模擬重新開始。
   st._flowFundClaimCredit={};
   st.currentDay=0;
-  const stats={ballsUsed:0,boxesOpened:0,boxOpenedByDay:{},stageClaims:0,failures:[],steps:[],daily:[]};
+  const stats={ballsUsed:0,boxesOpened:0,boxOpenedByDay:{},stageClaims:0,failures:[],steps:run===1?[]:null,daily:[]};
   const plan=compiledPlan||flowNormalizePlan(ensureWeeklyFlowPlan(cfg),cfg);
 
   for(let d=0;d<Math.min(7,st.days.length);d++){
     st.currentDay=d;
-    const dayFailureStart=stats.failures.length;
     if(cfg.gameplay.type==="pinball")flowPinballEnsure(st,cfg);
 
     const actions=plan[d]?.actions||[];
@@ -6099,7 +6164,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
         fundWatchers
       });
 
-      stats.steps.push({day:d,index:i,type:action.type,ok:!!r.ok,note:r.note||""});
+      if(stats.steps)stats.steps.push({day:d,index:i,type:action.type,ok:!!r.ok,note:r.note||""});
       if(!r.ok){
         stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${i+1}：${r.note||"失敗"}`)
       }
@@ -6141,7 +6206,8 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
           dayGoalStage:Number(dayGoal?.stage||0),
           dayGoalScore,
           fundWatchers,
-          noGameplaySupport:true
+          noGameplaySupport:true,
+          quiet:!stats.steps
         });
 
         if(action.type==="exchange"&&Number(r.done||0)>0){
@@ -6158,23 +6224,21 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
         if(r.ok){
           adaptiveDone.add(index);
           madeProgress=true;
-          stats.steps.push({day:d,index,type:action.type,ok:true,note:`🧩 自適應完成：${r.note||"完成"}`});
+          if(stats.steps)stats.steps.push({day:d,index,type:action.type,ok:true,note:`🧩 自適應完成：${r.note||"完成"}`});
         }else if(r.deferred){
           if(changed){
             madeProgress=true;
-            stats.steps.push({day:d,index,type:`${action.type}-partial`,ok:true,note:`🧩 自適應部分完成：${r.note||"暫候"}`})
+            if(stats.steps)stats.steps.push({day:d,index,type:`${action.type}-partial`,ok:true,note:`🧩 自適應部分完成：${r.note||"暫候"}`})
           }
         }else{
           adaptiveFatal.add(index);
-          stats.steps.push({day:d,index,type:action.type,ok:false,note:r.note||"失敗"});
+          if(stats.steps)stats.steps.push({day:d,index,type:action.type,ok:false,note:r.note||"失敗"});
           stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${index+1}：${r.note||"失敗"}`);
           madeProgress=true
         }
 
-        flowAutoClaimStages(st,cfg,stats);
-        flowCheckFundInterrupts(st,cfg,{
-          actions,index,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
-        },stats)
+        // box / exchange / fundClaim 內部已在每個原子操作後自動領進度並檢查基金；
+        // 這裡不再重複掃描，避免每顆玩法資源後同一輪做兩次相同工作。
       }
 
       if(adaptiveDone.size+adaptiveFatal.size>=adaptiveEntries.length)break;
@@ -6194,12 +6258,12 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
           adaptiveFatal.add(index)
         }
         stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}：${note}`);
-        stats.steps.push({day:d,index:-1,type:"adaptive-stop",ok:false,note});
+        if(stats.steps)stats.steps.push({day:d,index:-1,type:"adaptive-stop",ok:false,note});
         break
       }
 
       adaptiveSupportPlays++;
-      flowAutoClaimStages(st,cfg,stats);
+      // flowPlayOneToken 本身已處理進度解鎖；只需保留基金中斷檢查。
       flowCheckFundInterrupts(st,cfg,{
         actions,index:-1,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
       },stats)
@@ -6209,7 +6273,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}：自適應解算超過安全上限`);
     }
     if(adaptiveSupportPlays){
-      stats.steps.push({day:d,index:-1,type:"adaptive-support",ok:true,note:`🧠 為解開互相依賴的固定目標，自適應投入 ${adaptiveSupportPlays} 次；每次投入後皆重新檢查基金／箱子／兌換／進度`})
+      if(stats.steps)stats.steps.push({day:d,index:-1,type:"adaptive-support",ok:true,note:`🧠 為解開互相依賴的固定目標，自適應投入 ${adaptiveSupportPlays} 次；每次投入後皆重新檢查基金／箱子／兌換／進度`})
     }
 
     // 「使用剩餘玩法資源」本身也是使用者明確指定的動作。
@@ -6220,7 +6284,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       const r=flowExecuteAction(st,cfg,action,stats,{
         actions,index,day:d,dayGoalStage:Number(dayGoal?.stage||0),dayGoalScore,fundWatchers
       });
-      stats.steps.push({day:d,index,type:action.type,ok:!!r.ok,note:r.note||""});
+      if(stats.steps)stats.steps.push({day:d,index,type:action.type,ok:!!r.ok,note:r.note||""});
       if(!r.ok)stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}步驟${index+1}：${r.note||"失敗"}`);
       flowAutoClaimStages(st,cfg,stats)
     }
@@ -6233,7 +6297,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
         dayGoalScore,
         fundWatchers
       });
-      stats.steps.push({day:d,index:actions.length,type:"stage",ok:!!r.ok,note:r.note||""});
+      if(stats.steps)stats.steps.push({day:d,index:actions.length,type:"stage",ok:!!r.ok,note:r.note||""});
       flowAutoClaimStages(st,cfg,stats);
     }
 
@@ -6256,7 +6320,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
         ?`（收尾時背包共有 ${fmt(beforeCount)} ${cfgItem(cfg,beforeBox.boxItemId).name}）`
         :"";
 
-      stats.steps.push({
+      if(stats.steps)stats.steps.push({
         day:d,index,type:action.type,ok:!!r.ok,
         note:`${r.note||""}${suffix}`
       });
@@ -6292,7 +6356,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
             });
             const delta=Number(stats.ballsUsed||0)-beforeUsed;
             if(delta>0)changed=true;
-            stats.steps.push({day:d,index:settlePlay.index,type:"allBalls-settle",ok:!!r.ok,note:`收尾補跑：${r.note||""}`});
+            if(stats.steps)stats.steps.push({day:d,index:settlePlay.index,type:"allBalls-settle",ok:!!r.ok,note:`收尾補跑：${r.note||""}`});
             if(!r.ok)stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}收尾：${r.note||"使用剩餘玩法資源失敗"}`);
             flowAutoClaimStages(st,cfg,stats)
           }
@@ -6308,7 +6372,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
           });
           const delta=Number(stats.boxesOpened||0)-beforeOpened;
           if(delta>0)changed=true;
-          stats.steps.push({day:d,index,type:"allBoxes-settle",ok:!!r.ok,note:`收尾補開：${r.note||""}`});
+          if(stats.steps)stats.steps.push({day:d,index,type:"allBoxes-settle",ok:!!r.ok,note:`收尾補開：${r.note||""}`});
           if(!r.ok)stats.failures.push(`${cfg.event.dayLabels?.[d]||`第${d+1}天`}收尾：${r.note||"開完剩餘隨機箱失敗"}`);
           flowAutoClaimStages(st,cfg,stats)
         }
@@ -6330,7 +6394,6 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       targetStage:Number(dayGoal?.stage||0),
       targetScore:Number(dayGoalScore||0),
       targetHit:!dayGoal||Number(flowDayState(st).score||0)+1e-9>=Number(dayGoalScore||0),
-      dayFailureCount:Math.max(0,stats.failures.length-dayFailureStart),
       claims:Number(flowDayState(st).claimedStages?.length||0),
       balls:Number(st.resources?.[tokenId]||0),
       craft:batchGameplayType(cfg)==="pinball"?Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0):0,
@@ -6350,7 +6413,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   const craft=batchGameplayType(cfg)==="pinball"?(cfg.gameplaySettings?.pinball?.craftTicketId||""):"";
   const paid=cfg.currencies.paidCurrencyId||"emerald";
   return{
-    run,success:stats.failures.length===0,failures:stats.failures,steps:stats.steps,
+    run,success:stats.failures.length===0,failures:stats.failures,steps:stats.steps||[],
     ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,
     craftSpent:craft?Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0):0,
     paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),
@@ -6358,8 +6421,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
     premiumGained:Number(st.resources[premium]||0)-Number(base.resources?.[premium]||0),
     normalFinal:Number(st.resources[normal]||0),
     craftFinal:craft?Number(st.resources[craft]||0):0,
-    ballFinal:Number(st.resources[token]||0),
-    finalState:st
+    ballFinal:Number(st.resources[token]||0)
   }
 }
 function average(values){return values.length?values.reduce((a,b)=>a+Number(b||0),0)/values.length:0}
@@ -6719,6 +6781,24 @@ async function runFreePlayerComparison({silent=false}={}){
   if(!silent)toast("無課寶石天數比較完成")
 }
 
+function flowPrepareBatchBase(source,cfg){
+  const st=clone(source);
+  // 這些欄位只服務實玩 UI 的復原／紀錄，不參與七日流程判斷。
+  // 先從批次基準移除，避免每一輪都複製數百筆 log 與 undo 快照。
+  st.log=[];
+  st.lastFundUndo=null;st.lastBoxUndo=null;st.lastExchangeUndo=null;st.activeStrategy=null;
+  st.fundClaimEvents={free:[],premium:[]};st.fundEventSeq=0;
+  (st.days||[]).forEach(day=>{day.freeBundleUndo=null});
+  if(st.gameplayFundStates){
+    Object.values(st.gameplayFundStates).forEach(x=>{
+      if(!x||typeof x!=="object")return;
+      x.claimEvents={free:[],premium:[]};x.eventSeq=0;x.lastFundUndo=null
+    })
+  }
+  ensureStateSchema(st,cfg);
+  return st
+}
+
 async function runBatchSimulation(){
   if(!simulationBaseline)return toast("請先建立模擬基準");if(rolling)return toast("目前遊戲正在執行");
   const count=Math.max(1,Math.min(1000,Math.floor(Number($("simulationCount").value||100))));
@@ -6727,9 +6807,9 @@ async function runBatchSimulation(){
   if(batchGameplayType(baselineCfg)!==batchGameplayType(config))return toast("目前模擬基準屬於另一個玩法，請重新建立本玩法基準");
   // 基準只代表「起始進度／資源狀態」。活動規則必須使用目前畫面上的最新設定，
   // 否則建立基準後只要調整基金、箱子、階段或獎勵，手動與批次就會跑兩套不同規則。
-  const cfg=clone(config),base=clone(simulationBaseline.state);
+  const cfg=clone(config);
   normalizeFundConfig(cfg);
-  ensureStateSchema(base,cfg);
+  const base=flowPrepareBatchBase(simulationBaseline.state,cfg);
   $("runSimulationBtn").disabled=true;
   $("simulationProgress").style.width="0%";
   $("simulationProgressText").textContent=`高速計算 ${count} 次七日流程…`;
@@ -6859,12 +6939,11 @@ function renderSimulation(){
       premiumGainToday:average(rows.map(x=>x.premiumGainToday)),
       targetStage:Number(rows.find(x=>Number(x.targetStage||0)>0)?.targetStage||0),
       targetScore:Number(rows.find(x=>Number(x.targetScore||0)>0)?.targetScore||0),
-      targetRate:rows.length?rows.filter(x=>x.targetHit!==false).length/rows.length*100:0,
-      cleanRate:rows.length?rows.filter(x=>Number(x.dayFailureCount||0)===0).length/rows.length*100:0
+      targetRate:rows.length?rows.filter(x=>x.targetHit!==false).length/rows.length*100:0
     }
   });
   {
-    // v6：大富翁／彈珠機共用同一套每日診斷與統計欄位。
+    // v7：統一統計＋自適應批次效能優化（機率／基金／狀態快取）。
     // 只有真正屬於彈珠機的「製作卷剩餘」維持玩法專屬欄位。
     const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
     const tokenName=cfgItem(cfg,tokenId).name;
@@ -6886,7 +6965,7 @@ function renderSimulation(){
     const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
     const craftHead=type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,cfg.gameplaySettings.pinball.craftTicketId).name)}剩餘</th>`:"";
     const craftCell=x=>type==="pinball"?`<td>${fmt(x.craft)}</td>`:"";
-    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>本日無失敗率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.cleanRate)}%</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
   }
   const trace=$("simulationFundTrace");
   if(trace){
