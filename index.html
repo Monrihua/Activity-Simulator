@@ -196,6 +196,17 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   background:#f4f7fa;border-radius:10px;padding:6px
 }
 .editor-row.package-reward{grid-template-columns:minmax(150px,1fr) 110px auto}
+.stat-config-list{display:grid;gap:7px}
+.stat-config-row{
+  display:grid;grid-template-columns:minmax(145px,1.1fr) minmax(145px,1fr) repeat(4,minmax(78px,.55fr)) auto;
+  gap:7px;align-items:center;background:#f4f7fa;border-radius:11px;padding:7px
+}
+.stat-config-row>*{min-width:0}
+.stat-config-check{
+  display:flex;align-items:center;justify-content:center;gap:5px;min-height:40px;padding:5px 7px;
+  background:#fff;border:1px solid #dce5ed;border-radius:10px;font-size:12px;font-weight:900;color:#596b7d;white-space:nowrap
+}
+.stat-config-check input{width:17px;height:17px}
 .pinball-slot-setting-card{
   background:#f6f9fb;border:2px solid #dce5ed;border-radius:14px;padding:12px;margin-bottom:10px
 }
@@ -376,6 +387,9 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   .editor-head > div:last-child,.row-top .form-row{width:100%}
   .editor-row{grid-template-columns:1fr 74px 75px auto;font-size:12px}
   .editor-row.package-reward{grid-template-columns:1fr 90px auto}
+  .stat-config-row{grid-template-columns:1fr 1fr}
+  .stat-config-row .btn{grid-column:1/-1;width:100%}
+  .stat-config-check{justify-content:flex-start}
   .pinball-slot-setting-card{padding:10px}
   .pinball-slot-setting-layout{grid-template-columns:1fr}
   .pinball-slot-setting-mini{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -1683,6 +1697,10 @@ const DEFAULT_CONFIG = {
       dailyMissionMaxGameTokens:30,
       dailyMissionRewardItemId:"dice",
       pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
+      statistics:{items:[
+        {id:"statDragon",itemId:"dragonFruitJuice",label:"火龍果汁",summary:true,daily:true,result:true,freeCompare:true},
+        {id:"statKiwi",itemId:"kiwiJuice",label:"奇異果汁",summary:false,daily:false,result:true,freeCompare:true}
+      ]},
       randomBoxes:[
         {id:"premiumBox",name:"高級兌換幣隨機箱",boxItemId:"premiumExchangeBox",rewardItemId:"dragonFruitJuice",outcomes:[
           {amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}
@@ -1697,6 +1715,10 @@ const DEFAULT_CONFIG = {
       dailyMissionMaxGameTokens:30,
       dailyMissionRewardItemId:"CraftTicket",
       pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
+      statistics:{items:[
+        {id:"statPremiumScroll",itemId:"premiumScroll",label:"高級捲軸",summary:true,daily:true,result:true,freeCompare:true},
+        {id:"statNormalScroll",itemId:"normalScroll",label:"普通捲軸",summary:false,daily:false,result:true,freeCompare:true}
+      ]},
       randomBoxes:[],
       exchangeShop:[
         {id:"normalToPremiumScroll",name:"普通捲軸兌換",cost:{itemId:"normalScroll",amount:240},reward:{itemId:"premiumScroll",amount:10},limit:10}
@@ -2267,6 +2289,66 @@ function migrateV66PinballLegacyDiceRewards(cfg,mono,pin){
 
   cfg.configSchemaVersion=66
 }
+function defaultGameplayStatisticsItems(cfg,gameplay,g){
+  const out=[];
+  const push=(itemId,label,flags={})=>{
+    if(!itemId||!(cfg.items||[]).some(x=>x.id===itemId)||out.some(x=>x.itemId===itemId))return;
+    out.push({
+      id:`stat_${gameplay}_${out.length+1}`,itemId,label:String(label||cfgItem(cfg,itemId).name||""),
+      summary:!!flags.summary,daily:!!flags.daily,result:flags.result!==false,freeCompare:flags.freeCompare!==false
+    })
+  };
+  // 舊設定若曾指定高級／普通兌換物，只拿來「第一次建立統計欄位」；
+  // v67 起它們不再是玩法必要角色，也不再出現在設定 UI。
+  const legacyPremium=g?.premiumExchangeId||cfg.currencies?.premiumExchangeId;
+  const legacyNormal=g?.normalExchangeId||cfg.currencies?.normalExchangeId;
+  push(legacyPremium,cfgItem(cfg,legacyPremium).name,{summary:true,daily:true,result:true,freeCompare:true});
+  push(legacyNormal,cfgItem(cfg,legacyNormal).name,{summary:false,daily:false,result:true,freeCompare:true});
+  if(!out.length){
+    const candidates=[
+      ...(g?.exchangeShop||[]).flatMap(x=>[x.reward?.itemId,x.cost?.itemId]),
+      ...(g?.randomBoxes||[]).map(x=>x.rewardItemId),
+      ...(g?.pointsPerItemObtained||[]).map(x=>x.itemId)
+    ];
+    candidates.forEach((id,i)=>push(id,cfgItem(cfg,id).name,{summary:i===0,daily:i===0,result:true,freeCompare:true}))
+  }
+  return out
+}
+function normalizeGameplayStatistics(cfg,gameplay,g){
+  if(!g||typeof g!=="object")return;
+  if(!g.statistics||typeof g.statistics!=="object")g.statistics={};
+  if(!Array.isArray(g.statistics.items))g.statistics.items=defaultGameplayStatisticsItems(cfg,gameplay,g);
+  const fallback=cfg.items?.[0]?.id||"";
+  g.statistics.items=g.statistics.items.map((x,i)=>({
+    id:String(x?.id||`stat_${gameplay}_${i+1}`),
+    itemId:(cfg.items||[]).some(it=>it.id===x?.itemId)?x.itemId:fallback,
+    label:String(x?.label??""),
+    summary:!!x?.summary,
+    daily:!!x?.daily,
+    result:x?.result!==false,
+    freeCompare:x?.freeCompare!==false
+  })).filter(x=>x.itemId);
+}
+function migrateV67ConfigurableStatistics(cfg,mono,pin){
+  if(Number(cfg.configSchemaVersion||0)>=67){
+    normalizeGameplayStatistics(cfg,"monopoly",mono);
+    normalizeGameplayStatistics(cfg,"pinball",pin);
+    return
+  }
+  normalizeGameplayStatistics(cfg,"monopoly",mono);
+  normalizeGameplayStatistics(cfg,"pinball",pin);
+  cfg.configSchemaVersion=67
+}
+function gameplayStatisticItems(cfg=config,gameplay=batchGameplayType(cfg)){
+  const g=cfg.gameplaySettings?.[gameplay]||{};
+  normalizeGameplayStatistics(cfg,gameplay,g);
+  return g.statistics?.items||[]
+}
+function gameplayStatisticLabel(stat,cfg=config){
+  const custom=String(stat?.label||"").trim();
+  return custom||cfgItem(cfg,stat?.itemId).name||stat?.itemId||"統計物品"
+}
+
 function normalizeFundConfig(cfg){
   if(!cfg.event)cfg.event={};
   let eventBaseName=String(cfg.event.name||"").trim();
@@ -2370,8 +2452,8 @@ function normalizeFundConfig(cfg){
     {itemId:pin.normalExchangeId,amount:25},
     {itemId:pin.premiumExchangeId,amount:2}
   ];
-  pin.normalSlotRewards=pin.normalSlotRewards.slice(0,8).map(r=>({itemId:r?.itemId||pin.normalExchangeId,amount:Math.max(1,Math.floor(Number(r?.amount||1)))}));
-  while(pin.normalSlotRewards.length<8)pin.normalSlotRewards.push({itemId:pin.normalExchangeId,amount:1});
+  pin.normalSlotRewards=pin.normalSlotRewards.slice(0,8).map(r=>({itemId:r?.itemId||cfg.items[0]?.id||"",amount:Math.max(1,Math.floor(Number(r?.amount||1)))}));
+  while(pin.normalSlotRewards.length<8)pin.normalSlotRewards.push({itemId:cfg.items[0]?.id||"",amount:1});
   pin.hiddenBalls=Math.max(1,Math.floor(Number(pin.hiddenBalls||200)));
   if(!Array.isArray(pin.pointsPerItemObtained))pin.pointsPerItemObtained=clone(mono.pointsPerItemObtained||[]);
   if(!Array.isArray(pin.randomBoxes))pin.randomBoxes=[];
@@ -2394,6 +2476,7 @@ function normalizeFundConfig(cfg){
   migrateV60PinballRandomBoxEditable(cfg,pin);
   migrateV65ExchangeShop(cfg,mono,pin);
   migrateV66PinballLegacyDiceRewards(cfg,mono,pin);
+  migrateV67ConfigurableStatistics(cfg,mono,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
   [mono,pin].forEach(g=>{
@@ -2401,8 +2484,8 @@ function normalizeFundConfig(cfg){
     g.exchangeShop=g.exchangeShop.map((offer,i)=>({
       id:String(offer.id||`exchange${i+1}`),
       name:String(offer.name||`兌換 ${i+1}`),
-      cost:{itemId:offer.cost?.itemId||g.normalExchangeId,amount:Math.max(0,Number(offer.cost?.amount||0))},
-      reward:{itemId:offer.reward?.itemId||g.premiumExchangeId,amount:Math.max(0,Number(offer.reward?.amount||0))},
+      cost:{itemId:offer.cost?.itemId||cfg.items[0]?.id||"",amount:Math.max(0,Number(offer.cost?.amount||0))},
+      reward:{itemId:offer.reward?.itemId||cfg.items[0]?.id||"",amount:Math.max(0,Number(offer.reward?.amount||0))},
       limit:Math.max(0,Math.floor(Number(offer.limit||0)))
     }))
   });
@@ -3136,7 +3219,7 @@ function pinballState(targetState=state){ensureStateSchema(targetState,config);r
 function refreshPinballSlotRewards(targetState=state,cfg=config){
   const ps=pinballState(targetState),pc=pinballSettings(cfg),count=Math.max(2,Number(pc.slotCount||8));
   ps.slots=Array.from({length:count},(_,i)=>{
-    const reward=clone((pc.normalSlotRewards||[])[i]||{itemId:pc.normalExchangeId,amount:1});
+    const reward=clone((pc.normalSlotRewards||[])[i]||{itemId:cfg.items?.[0]?.id||"",amount:1});
     return{...reward,slotTypeId:"normalMode",slotTypeName:"普通模式固定獎勵"}
   });
   ps.lastLanding=null;
@@ -3850,7 +3933,11 @@ function validateConfig(c){
     }
   });
   Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
-    if(g.dailyMissionRewardItemId&&!ids.includes(g.dailyMissionRewardItemId))throw new Error(`${gameplay} 每日任務獎勵物品不存在：${g.dailyMissionRewardItemId}`)
+    if(g.dailyMissionRewardItemId&&!ids.includes(g.dailyMissionRewardItemId))throw new Error(`${gameplay} 每日任務獎勵物品不存在：${g.dailyMissionRewardItemId}`);
+    normalizeGameplayStatistics(c,gameplay,g);
+    (g.statistics?.items||[]).forEach((x,i)=>{
+      if(!ids.includes(x.itemId))throw new Error(`${gameplay} 第 ${i+1} 個統計物品不存在：${x.itemId}`)
+    })
   });
   if(!ids.includes(c.gameplaySettings.pinball.craftTicketId))throw new Error(`彈珠機製作卷物品不存在：${c.gameplaySettings.pinball.craftTicketId}`);
   if(Number(c.gameplaySettings.pinball.ballCapacity)<1)throw new Error("彈珠機可製作彈珠持有上限至少為 1");
@@ -4842,7 +4929,8 @@ function flowExamplePlan(cfg=config){
   const pc=cfg.gameplaySettings?.pinball||{},paid=cfg.currencies?.paidCurrencyId||"emerald";
   const p500=flowFindPackage(cfg,p=>p.cost?.itemId===paid&&Number(p.cost?.amount)===500&&p.rewards?.some(r=>r.itemId===pc.craftTicketId))
     ||flowFindPackage(cfg,p=>Number(p.cost?.amount)===500);
-  const p1000Premium=flowFindPackage(cfg,p=>p.cost?.itemId===paid&&Number(p.cost?.amount)===1000&&p.rewards?.some(r=>r.itemId===pc.premiumExchangeId))
+  const preferredStatId=gameplayStatisticItems(cfg,"pinball").find(x=>x.summary)?.itemId||gameplayStatisticItems(cfg,"pinball")[0]?.itemId;
+  const p1000Premium=flowFindPackage(cfg,p=>p.cost?.itemId===paid&&Number(p.cost?.amount)===1000&&preferredStatId&&p.rewards?.some(r=>r.itemId===preferredStatId))
     ||flowFindPackage(cfg,p=>Number(p.cost?.amount)===1000&&String(p.name||"").includes("高級"));
   const box=(cfg.randomBoxes||[])[0],offer=(cfg.exchangeShop||[])[0],craft=pc.craftTicketId||cfg.dailyMission?.rewardItemId;
   const pkg=a=>a?{type:"package",packageKey:a.key,count:1}:null;
@@ -5249,7 +5337,7 @@ function flowSyncPinballRuleState(st,cfg){
   const pc=cfg.gameplaySettings?.pinball||{},ps=st.gameplayStates.pinball,count=Math.max(2,Number(pc.slotCount||8));
   // baseline 只保存進度，不應把建立基準當時的「8格獎勵規則」一起凍結。
   // 正常模式每格獎勵是活動設定本身，不是隨機局面，因此批次每輪開始都以目前最新設定覆寫。
-  ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));
+  ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:cfg.items?.[0]?.id||"",amount:1}));
   if(!Number.isFinite(Number(ps.targetSlot))||Number(ps.targetSlot)<0||Number(ps.targetSlot)>=count){
     ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false
   }
@@ -5261,7 +5349,7 @@ function flowSyncPinballRuleState(st,cfg){
 function flowPinballEnsure(st,cfg){
   const pc=cfg.gameplaySettings?.pinball||{},ps=st.gameplayStates.pinball,count=Math.max(2,Number(pc.slotCount||8));
   if(!Array.isArray(ps.slots)||ps.slots.length!==count){
-    ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:pc.normalExchangeId,amount:1}));
+    ps.slots=Array.from({length:count},(_,i)=>clone(pc.normalSlotRewards?.[i]||{itemId:cfg.items?.[0]?.id||"",amount:1}));
     ps.targetSlot=Math.floor(Math.random()*count);ps.targetHits=0;ps.hiddenPending=false;ps.hiddenActive=false;ps.hiddenSlotCounts=Array.from({length:count},()=>0);ps.hiddenSlotRewards=[]
   }
   ps.targetSlot=Math.max(0,Math.min(count-1,Number(ps.targetSlot||0)));return ps
@@ -6109,9 +6197,10 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
     const dayBallsStart=Number(stats.ballsUsed||0);
     const dayBoxesStart=Number(stats.boxesOpened||0);
     const activeGp=cfg.gameplaySettings?.[batchGameplayType(cfg)]||{};
-    const premiumId=activeGp.premiumExchangeId||cfg.currencies.premiumExchangeId;
     const tokenId=activeGp.gameTokenId||cfg.currencies.gameTokenId;
-    const dayPremiumStart=Number(st.resources?.[premiumId]||0);
+    const statItems=gameplayStatisticItems(cfg,batchGameplayType(cfg));
+    const trackedIds=[...new Set(statItems.map(x=>x.itemId).filter(Boolean))];
+    const dayStatStart=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
 
     const stageAction=actions.find(a=>a?.type==="stage")||null;
     const dayGoal=stageAction
@@ -6387,6 +6476,8 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       )
     }
 
+    const itemValues=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
+    const itemGainsToday=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(dayStatStart[id]||0)]));
     stats.daily.push({
       day:d,
       score:Number(flowDayState(st).score||0),
@@ -6397,29 +6488,27 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       claims:Number(flowDayState(st).claimedStages?.length||0),
       balls:Number(st.resources?.[tokenId]||0),
       craft:batchGameplayType(cfg)==="pinball"?Number(st.resources?.[cfg.gameplaySettings?.pinball?.craftTicketId]||0):0,
-      premium:Number(st.resources?.[premiumId]||0),
-      normal:Number(st.resources?.[activeGp.normalExchangeId||cfg.currencies.normalExchangeId]||0),
+      itemValues,itemGainsToday,
       missionAmount:Number(flowDayState(st).missionAmount||0),
       ballsUsedToday:Number(stats.ballsUsed||0)-dayBallsStart,
-      boxesOpenedToday:Number(stats.boxesOpened||0)-dayBoxesStart,
-      premiumGainToday:Number(st.resources?.[premiumId]||0)-dayPremiumStart
+      boxesOpenedToday:Number(stats.boxesOpened||0)-dayBoxesStart
     })
   }
 
   const gp=cfg.gameplaySettings?.[batchGameplayType(cfg)]||{};
-  const premium=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
-  const normal=gp.normalExchangeId||cfg.currencies.normalExchangeId;
   const token=gp.gameTokenId||cfg.currencies.gameTokenId;
   const craft=batchGameplayType(cfg)==="pinball"?(cfg.gameplaySettings?.pinball?.craftTicketId||""):"";
   const paid=cfg.currencies.paidCurrencyId||"emerald";
+  const statItems=gameplayStatisticItems(cfg,batchGameplayType(cfg));
+  const trackedIds=[...new Set(statItems.map(x=>x.itemId).filter(Boolean))];
+  const itemFinal=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
+  const itemGained=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(base.resources?.[id]||0)]));
   return{
     run,success:stats.failures.length===0,failures:stats.failures,steps:stats.steps||[],
     ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,
     craftSpent:craft?Number(st.spent[craft]||0)-Number(base.spent?.[craft]||0):0,
     paidSpent:Number(st.spent[paid]||0)-Number(base.spent?.[paid]||0),
-    premiumFinal:Number(st.resources[premium]||0),
-    premiumGained:Number(st.resources[premium]||0)-Number(base.resources?.[premium]||0),
-    normalFinal:Number(st.resources[normal]||0),
+    itemFinal,itemGained,
     craftFinal:craft?Number(st.resources[craft]||0):0,
     ballFinal:Number(st.resources[token]||0)
   }
@@ -6589,10 +6678,9 @@ function runFreeCompareOnce(base,cfg,gemDays,info){
   st.currentDay=0;
 
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
-  const normalId=gp.normalExchangeId||cfg.currencies?.normalExchangeId;
-  const premiumId=gp.premiumExchangeId||cfg.currencies?.premiumExchangeId;
-  const startNormal=Number(st.resources?.[normalId]||0);
-  const startPremium=Number(st.resources?.[premiumId]||0);
+  const compareStats=gameplayStatisticItems(cfg,type).filter(x=>x.freeCompare);
+  const compareIds=[...new Set(compareStats.map(x=>x.itemId).filter(Boolean))];
+  const startItems=Object.fromEntries(compareIds.map(id=>[id,Number(st.resources?.[id]||0)]));
   const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[]};
 
   const dayCount=Math.min(7,Math.max(1,Number(cfg.event?.totalDays||7)));
@@ -6624,8 +6712,7 @@ function runFreeCompareOnce(base,cfg,gemDays,info){
 
   return{
     gemSpent,
-    normalGained:Number(st.resources?.[normalId]||0)-startNormal,
-    premiumGained:Number(st.resources?.[premiumId]||0)-startPremium,
+    itemGains:Object.fromEntries(compareIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(startItems[id]||0)])),
     finalScore:Number(flowDayState(st).score||0),
     finalStage:Number(flowReachedStage(st,cfg)||0),
     ballsUsed:Number(stats.ballsUsed||0),
@@ -6648,8 +6735,7 @@ function renderFreePlayerComparison(){
   const cfg=freePlayerCompareResults?.cfg||config;
   const info=freeCompareGemTokenPackages(cfg);
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
-  const normalId=gp.normalExchangeId||cfg.currencies?.normalExchangeId;
-  const premiumId=gp.premiumExchangeId||cfg.currencies?.premiumExchangeId;
+  const compareStats=gameplayStatisticItems(cfg,type).filter(x=>x.freeCompare);
 
   if(!info.packages.length){
     meta.innerHTML=`⚠️ 找不到「寶石 → 玩法代幣」的每日禮包。請確認目前玩法的每日禮包設定中，有使用「寶石」購買 ${escapeHtml(cfgItem(cfg,dailyMissionRewardItemId(cfg)).name)} 或 ${escapeHtml(cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name)} 的禮包。`;
@@ -6660,7 +6746,7 @@ function renderFreePlayerComparison(){
   const costName=cfgItem(cfg,info.costItemId).name;
   const perDay=freeComparePackageDailyCost(info);
   const labels=cfg.event?.dayLabels||[];
-  meta.innerHTML=`<strong>比較規則：</strong>7天都領每日任務＋首日登入；寶石方案從活動最後一天往前買滿，例如1天＝週日、2天＝週六＋週日。玩法資源全部留到最後一天使用，每日進度與基金都是達標立即領，最後開完隨機箱；不買翡翠禮包／進階基金，也不做普通→高級兌換。<br><strong>目前每日買滿：</strong>${escapeHtml(info.packages.map(x=>x.pack.name).join("＋"))}｜${escapeHtml(costName)} ${fmt(perDay)}／天 → ${escapeHtml(freeComparePackageDailyTokenText(info,cfg))}`;
+  meta.innerHTML=`<strong>比較規則：</strong>7天都領每日任務＋首日登入；寶石方案從活動最後一天往前買滿，例如1天＝週日、2天＝週六＋週日。玩法資源全部留到最後一天使用，每日進度與基金都是達標立即領，最後開完隨機箱；不買翡翠禮包／進階基金，也不額外執行兌換商店。<br><strong>目前每日買滿：</strong>${escapeHtml(info.packages.map(x=>x.pack.name).join("＋"))}｜${escapeHtml(costName)} ${fmt(perDay)}／天 → ${escapeHtml(freeComparePackageDailyTokenText(info,cfg))}`;
 
   const data=freePlayerCompareResults;
   if(!data?.rows?.length){
@@ -6668,13 +6754,14 @@ function renderFreePlayerComparison(){
     return
   }
 
+  const compareHeads=compareStats.map(stat=>`<th>平均獲得 ${escapeHtml(gameplayStatisticLabel(stat,cfg))}</th>`).join("");
+  const compareCells=row=>compareStats.map(stat=>`<td class="value-strong">${fmt(row.itemAverages?.[stat.itemId]||0)}</td>`).join("");
   out.innerHTML=`<div class="free-plan-compare-table"><table><thead><tr>
     <th>方案</th>
     <th>買滿寶石天數</th>
     <th>購買日</th>
     <th>${escapeHtml(costName)}支出</th>
-    <th>平均獲得 ${escapeHtml(cfgItem(cfg,normalId).name)}</th>
-    <th>平均獲得 ${escapeHtml(cfgItem(cfg,premiumId).name)}</th>
+    ${compareHeads}
   </tr></thead><tbody>${data.rows.map(row=>{
     const days=row.gemDays>0
       ?Array.from({length:row.gemDays},(_,i)=>labels[7-row.gemDays+i]||`第${8-row.gemDays+i}天`).join("＋")
@@ -6684,8 +6771,7 @@ function renderFreePlayerComparison(){
       <td class="gem-days">${row.gemDays===0?"0 天":`${row.gemDays} 天`}</td>
       <td>${escapeHtml(days)}</td>
       <td>${fmt(row.gemSpent)}</td>
-      <td class="value-strong">${fmt(row.normalAvg)}</td>
-      <td class="value-strong">${fmt(row.premiumAvg)}</td>
+      ${compareCells(row)}
     </tr>`
   }).join("")}</tbody></table></div>
 
@@ -6701,7 +6787,7 @@ function renderFreePlayerComparison(){
     </td>`).join("")}
   </tr>`).join("")}</tbody></table></div>
 
-  <div class="help" style="margin-top:7px">每列以 ${fmt(data.samples)} 次隨機模擬取平均；每日分數顯示平均值，若同一天不同模擬落在不同階段，會顯示例如「2～3階」。所有方案都從全新活動週、0資源開始，因此普通／高級代幣就是本方案實際累積取得量。</div>`
+  <div class="help" style="margin-top:7px">每列以 ${fmt(data.samples)} 次隨機模擬取平均；每日分數顯示平均值，若同一天不同模擬落在不同階段，會顯示例如「2～3階」。所有方案都從全新活動週、0資源開始，因此勾選「寶石比較」的統計物品會顯示本方案實際累積取得量。</div>`
 }
 async function runFreePlayerComparison({silent=false}={}){
   if(rolling){if(!silent)toast("目前遊戲正在執行，請稍候");return}
@@ -6733,8 +6819,11 @@ async function runFreePlayerComparison({silent=false}={}){
   let done=0;
   const rows=[];
 
+  const compareStats=gameplayStatisticItems(cfg,batchGameplayType(cfg)).filter(x=>x.freeCompare);
+  const compareIds=[...new Set(compareStats.map(x=>x.itemId).filter(Boolean))];
   for(const gemDays of scenarios){
-    const normal=[],premium=[],spends=[];
+    const itemSamples=Object.fromEntries(compareIds.map(id=>[id,[]]));
+    const spends=[];
     const dayCount=Math.min(7,Number(cfg.event?.totalDays||7));
     const dailyScores=Array.from({length:dayCount},()=>[]);
     const dailyStages=Array.from({length:dayCount},()=>[]);
@@ -6742,8 +6831,7 @@ async function runFreePlayerComparison({silent=false}={}){
     for(let i=0;i<count;i++){
       if(runToken!==freePlanCompareRunToken)return;
       const r=runFreeCompareOnce(base,cfg,gemDays,info);
-      normal.push(r.normalGained);
-      premium.push(r.premiumGained);
+      compareIds.forEach(id=>itemSamples[id].push(Number(r.itemGains?.[id]||0)));
       spends.push(r.gemSpent);
       (r.dailyProgress||[]).forEach((d,idx)=>{
         if(!dailyScores[idx])return;
@@ -6762,8 +6850,7 @@ async function runFreePlayerComparison({silent=false}={}){
     rows.push({
       gemDays,
       gemSpent:spends.length?average(spends):0,
-      normalAvg:average(normal),
-      premiumAvg:average(premium),
+      itemAverages:Object.fromEntries(compareIds.map(id=>[id,average(itemSamples[id])])),
       daily:dailyScores.map((scores,d)=>({
         scoreAvg:average(scores),
         minStage:dailyStages[d].length?Math.min(...dailyStages[d]):0,
@@ -6915,16 +7002,26 @@ function renderSimulation(){
   }
   const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config;
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
-  const premiumId=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
-  const premiumName=cfgItem(cfg,premiumId).name;
-  const successPremium=successful.map(x=>Number(x.premiumGained||0));
-  const successAvg=successPremium.length?average(successPremium):null;
-  const successMin=successPremium.length?Math.min(...successPremium):null;
-  const successMax=successPremium.length?Math.max(...successPremium):null;
+  const statItems=gameplayStatisticItems(cfg,type);
+  const summaryStats=statItems.filter(x=>x.summary);
+  const dailyStats=statItems.filter(x=>x.daily);
   const statValue=v=>v===null?"—":fmt(v);
-  $("simulationSummary").innerHTML=`<div class="sim-stat"><div class="k">完整流程成功率</div><div class="v">${fmt(success/batchResults.length*100)}%</div></div><div class="sim-stat"><div class="k">平均獲得${escapeHtml(premiumName)}（只算成功）</div><div class="v">${statValue(successAvg)}</div></div><div class="sim-stat"><div class="k">最少獲得（只算成功）</div><div class="v">${statValue(successMin)}</div></div><div class="sim-stat"><div class="k">最高獲得（只算成功）</div><div class="v">${statValue(successMax)}</div></div>`;
+  const summaryCards=[`<div class="sim-stat"><div class="k">完整流程成功率</div><div class="v">${fmt(success/batchResults.length*100)}%</div></div>`];
+  summaryStats.forEach(stat=>{
+    const label=gameplayStatisticLabel(stat,cfg);
+    const values=successful.map(x=>Number(x.itemGained?.[stat.itemId]||0));
+    const avg=values.length?average(values):null,min=values.length?Math.min(...values):null,max=values.length?Math.max(...values):null;
+    summaryCards.push(
+      `<div class="sim-stat"><div class="k">平均獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(avg)}</div></div>`,
+      `<div class="sim-stat"><div class="k">最少獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(min)}</div></div>`,
+      `<div class="sim-stat"><div class="k">最高獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(max)}</div></div>`
+    )
+  });
+  $("simulationSummary").innerHTML=summaryCards.join("");
   const days=Array.from({length:7},(_,d)=>{
     const rows=batchResults.map(r=>r.daily?.[d]).filter(Boolean);
+    const itemValues=Object.fromEntries(statItems.map(stat=>[stat.itemId,average(rows.map(x=>Number(x.itemValues?.[stat.itemId]||0)))]));
+    const itemGainsToday=Object.fromEntries(statItems.map(stat=>[stat.itemId,average(rows.map(x=>Number(x.itemGainsToday?.[stat.itemId]||0)))]));
     return{
       d,
       score:average(rows.map(x=>x.score)),
@@ -6933,18 +7030,16 @@ function renderSimulation(){
       mission:average(rows.map(x=>x.missionAmount)),
       balls:average(rows.map(x=>x.balls)),
       craft:average(rows.map(x=>x.craft)),
-      premium:average(rows.map(x=>x.premium)),
       ballsUsedToday:average(rows.map(x=>x.ballsUsedToday)),
       boxesOpenedToday:average(rows.map(x=>x.boxesOpenedToday)),
-      premiumGainToday:average(rows.map(x=>x.premiumGainToday)),
+      itemValues,itemGainsToday,
       targetStage:Number(rows.find(x=>Number(x.targetStage||0)>0)?.targetStage||0),
       targetScore:Number(rows.find(x=>Number(x.targetScore||0)>0)?.targetScore||0),
       targetRate:rows.length?rows.filter(x=>x.targetHit!==false).length/rows.length*100:0
     }
   });
   {
-    // v7：統一統計＋自適應批次效能優化（機率／基金／狀態快取）。
-    // 只有真正屬於彈珠機的「製作卷剩餘」維持玩法專屬欄位。
+    // v8：玩法機制不再需要「高級／普通兌換幣」角色；統計物品由使用者自行配置。
     const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
     const tokenName=cfgItem(cfg,tokenId).name;
     const targetRates=days.filter(x=>x.targetStage>0);
@@ -6965,7 +7060,12 @@ function renderSimulation(){
     const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
     const craftHead=type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,cfg.gameplaySettings.pinball.craftTicketId).name)}剩餘</th>`:"";
     const craftCell=x=>type==="pinball"?`<td>${fmt(x.craft)}</td>`:"";
-    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th><th>當日${escapeHtml(premiumName)}增加</th><th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th><th>${escapeHtml(premiumName)}累計</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td><td>${fmt(x.premiumGainToday)}</td><td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td><td>${fmt(x.premium)}</td></tr>`).join("")}</tbody></table></div>`
+    const customHeads=dailyStats.map(stat=>{
+      const label=escapeHtml(gameplayStatisticLabel(stat,cfg));
+      return `<th>當日${label}增加</th><th>${label}累計</th>`
+    }).join("");
+    const customCells=x=>dailyStats.map(stat=>`<td>${fmt(x.itemGainsToday?.[stat.itemId]||0)}</td><td>${fmt(x.itemValues?.[stat.itemId]||0)}</td>`).join("");
+    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th>${customHeads}<th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td>${customCells(x)}<td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td></tr>`).join("")}</tbody></table></div>`
   }
   const trace=$("simulationFundTrace");
   if(trace){
@@ -6983,12 +7083,13 @@ function renderSimulation(){
     }
   }
 
-  const premium=gp.premiumExchangeId||cfg.currencies.premiumExchangeId;
-  const normal=gp.normalExchangeId||cfg.currencies.normalExchangeId;
   const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
   const tokenName=cfgItem(cfg,tokenId).name;
   const craftId=type==="pinball"?cfg.gameplaySettings.pinball.craftTicketId:null;
-  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用${escapeHtml(tokenName)}</th><th>開箱</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}消耗</th>`:""}<th>翡翠支出</th><th>${escapeHtml(cfgItem(cfg,normal).name)}最終</th><th>${escapeHtml(cfgItem(cfg,premium).name)}最終</th><th>${escapeHtml(tokenName)}最終</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}最終</th>`:""}<th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td>${type==="pinball"?`<td>${fmt(r.craftSpent)}</td>`:""}<td>${fmt(r.paidSpent)}</td><td>${fmt(r.normalFinal)}</td><td>${fmt(r.premiumFinal)}</td><td>${fmt(r.ballFinal)}</td>${type==="pinball"?`<td>${fmt(r.craftFinal)}</td>`:""}<td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
+  const resultStats=statItems.filter(x=>x.result);
+  const resultHeads=resultStats.map(stat=>`<th>${escapeHtml(gameplayStatisticLabel(stat,cfg))}最終</th>`).join("");
+  const resultCells=r=>resultStats.map(stat=>`<td>${fmt(r.itemFinal?.[stat.itemId]||0)}</td>`).join("");
+  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用${escapeHtml(tokenName)}</th><th>開箱</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}消耗</th>`:""}<th>${escapeHtml(cfgItem(cfg,cfg.currencies.paidCurrencyId||"emerald").name)}支出</th>${resultHeads}<th>${escapeHtml(tokenName)}最終</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}最終</th>`:""}<th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td>${type==="pinball"?`<td>${fmt(r.craftSpent)}</td>`:""}<td>${fmt(r.paidSpent)}</td>${resultCells(r)}<td>${fmt(r.ballFinal)}</td>${type==="pinball"?`<td>${fmt(r.craftFinal)}</td>`:""}<td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
 }
 
 
@@ -9248,9 +9349,8 @@ function renderScoreRules(){
   const rows=config.scoreRules.pointsPerItemObtained.map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`);
   if(config.gameplay.type==="monopoly")rows.push(`每完成 1 圈：${fmt(config.scoreRules.pointsPerLap)} 分`);
   else{
-    const pc=pinballSettings();
-    rows.push(`每日進度：每獲得 1 ${item(pc.craftTicketId).name} +10 分；每獲得 1 ${item(pc.premiumExchangeId).name} +1 分`);
-    rows.push(`基金：每消耗 1 ${item(pc.craftTicketId).name} 累積 1`);
+    const pc=pinballSettings(),fundMeta=fundUnlockMetricMeta(state,config);
+    rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);
     rows.push(`特殊格門檻：${(pc.targetHitRequirements||[]).map((n,i)=>`第${i+1}格 ${fmt(n)}`).join("｜")}（超出門檻次數保留）`);
     rows.push(`隱藏模式：${fmt(pc.hiddenBalls)} 顆免費粉色彈球；單格每累積 ${fmt(pc.hiddenSlotRequired)} 顆獲得該格獎勵`)
   }
@@ -9332,9 +9432,21 @@ function renderSettings(){
   const activeGp=c.gameplay?.type||"monopoly";
   const activeGpCfg=c.gameplaySettings?.[activeGp]||c.gameplaySettings?.monopoly||{};
   const activeGpLabel=activeGp==="pinball"?"彈珠機":"大富翁";
+  const statisticRows=gameplay=>{
+    const rows=c.gameplaySettings?.[gameplay]?.statistics?.items||[];
+    return `<div class="stat-config-list">${rows.map((x,i)=>`<div class="stat-config-row">
+      <select data-path="gameplaySettings.${gameplay}.statistics.items.${i}.itemId">${itemOptions(x.itemId)}</select>
+      ${pathInput(`gameplaySettings.${gameplay}.statistics.items.${i}.label`,x.label||"","text",'placeholder="留空＝物品名稱"')}
+      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.summary" ${x.summary?"checked":""}> 總覽</label>
+      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.daily" ${x.daily?"checked":""}> 每日</label>
+      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.result" ${x.result?"checked":""}> 每次結果</label>
+      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.freeCompare" ${x.freeCompare?"checked":""}> 寶石比較</label>
+      <button class="btn red small" data-settings-action="removeStatisticItem" data-gameplay="${gameplay}" data-index="${i}">刪除</button>
+    </div>`).join("")}</div>`
+  };
   sections.basic=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>共用活動基本設定</h2><div class="help">活動名稱、日期、物品清單與共用付費貨幣由所有玩法共用；每日任務代幣量、遊戲代幣／兌換幣、隨機箱、每日進度、禮包、基金與計分規則則可由各玩法自行設定。</div></div>
+      <div><h2>共用活動基本設定</h2><div class="help">活動名稱、日期、物品清單與共用付費貨幣由所有玩法共用；每日任務、遊戲代幣、隨機箱、每日進度、禮包、基金、計分規則與統計顯示則可由各玩法自行設定。</div></div>
       <span class="badge ok">共用環境</span>
     </div>
     <div class="setting-grid">
@@ -9348,21 +9460,19 @@ function renderSettings(){
     <div class="setting-grid">
       <div class="field"><label>課金代幣</label><select data-path="currencies.paidCurrencyId">${itemOptions(c.currencies.paidCurrencyId)}</select></div>
     </div>
-    <div class="help">遊戲代幣、高級兌換幣、普通兌換幣、隨機箱、每日進度、基金與禮包清單都改由各玩法自行指定。</div>
+    <div class="help">遊戲代幣、隨機箱、每日進度、基金、禮包與統計欄位都由各玩法自行指定；不再需要定義「高級／普通兌換幣」角色。</div>
   </section>`;
 
   sections.monopoly=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🎲 大富翁玩法</h2><div class="help">這一區只控制大富翁本身。大富翁自己的代幣、隨機箱、每日進度、禮包與基金都可獨立設定。</div></div>
+      <div><h2>🎲 大富翁玩法</h2><div class="help">這一區只控制大富翁本身。大富翁自己的代幣、隨機箱、每日進度、禮包、基金與統計欄位都可獨立設定。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
     <div class="editor-card">
       <h3 style="margin-top:0">玩法使用物品</h3>
-      <div class="help">這三種角色是「大富翁玩法」自己的設定；未來其他玩法可以指定完全不同的物品。</div>
+      <div class="help">玩法只需要指定真正參與機制的物品。兌換商品與隨機箱直接選擇自己的消耗／獎勵物品，不再另外指定高級或普通兌換幣。</div>
       <div class="setting-grid" style="margin-top:8px">
         <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.monopoly.gameTokenId">${itemOptions(c.gameplaySettings.monopoly.gameTokenId)}</select></div>
-        <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.monopoly.premiumExchangeId">${itemOptions(c.gameplaySettings.monopoly.premiumExchangeId)}</select></div>
-        <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.monopoly.normalExchangeId">${itemOptions(c.gameplaySettings.monopoly.normalExchangeId)}</select></div>
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.monopoly.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.monopoly.dailyMissionRewardItemId||c.gameplaySettings.monopoly.gameTokenId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.monopoly.dailyMissionMaxGameTokens",c.gameplaySettings.monopoly.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
       </div>
@@ -9371,6 +9481,11 @@ function renderSettings(){
         ${c.gameplaySettings.monopoly.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.monopoly.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.monopoly.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="monopoly" data-index="${i}">刪除</button></div>`).join("")}
       </div>
       <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="monopoly">＋加入計分物品</button>
+    </div>
+
+    <div class="editor-card">
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計顯示物品</h3><div class="help">統計與玩法機制完全分離。可自行新增／刪除物品、改顯示名稱，並選擇要出現在總覽、每日統計、每次結果或無課寶石比較。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="monopoly">＋新增統計</button></div>
+      ${statisticRows("monopoly")}
     </div>
 
     <div class="editor-card">
@@ -9420,10 +9535,9 @@ function renderSettings(){
 
     <div class="editor-card">
       <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="help" style="margin-bottom:8px">兌換商品、彈珠槽與隨機箱都直接指定實際物品，不再需要高級／普通兌換幣角色。</div>
       <div class="setting-grid">
         <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.pinball.gameTokenId">${itemOptions(c.gameplaySettings.pinball.gameTokenId)}</select></div>
-        <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.pinball.premiumExchangeId">${itemOptions(c.gameplaySettings.pinball.premiumExchangeId)}</select></div>
-        <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.pinball.normalExchangeId">${itemOptions(c.gameplaySettings.pinball.normalExchangeId)}</select></div>
         <div class="field"><label>製作卷物品</label><select data-path="gameplaySettings.pinball.craftTicketId">${itemOptions(c.gameplaySettings.pinball.craftTicketId)}</select></div>
         <div class="field"><label>可製作彈珠持有上限</label>${pathInput("gameplaySettings.pinball.ballCapacity",c.gameplaySettings.pinball.ballCapacity,"number",'min="1" step="1"')}</div>
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.pinball.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.pinball.dailyMissionRewardItemId||c.gameplaySettings.pinball.craftTicketId)}</select></div>
@@ -9435,6 +9549,11 @@ function renderSettings(){
         ${c.gameplaySettings.pinball.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.pinball.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.pinball.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="pinball" data-index="${i}">刪除</button></div>`).join("")}
       </div>
       <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="pinball">＋加入計分物品</button>
+    </div>
+
+    <div class="editor-card">
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計顯示物品</h3><div class="help">統計與玩法機制完全分離。可自行新增／刪除物品、改顯示名稱，並選擇要出現在總覽、每日統計、每次結果或無課寶石比較。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="pinball">＋新增統計</button></div>
+      ${statisticRows("pinball")}
     </div>
 
     <div class="editor-card">
@@ -9606,12 +9725,24 @@ function settingsAction(btn){
   if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
   if(a==="addGameplayScoreRule"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
-    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,premiumExchangeId:settingsDraft.items[0].id,normalExchangeId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,randomBoxes:[],exchangeShop:[],pointsPerItemObtained:[]};
+    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,randomBoxes:[],exchangeShop:[],pointsPerItemObtained:[],statistics:{items:[]}};
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0})
   }
   if(a==="removeGameplayScoreRule"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.splice(Number(btn.dataset.index),1)
+  }
+  if(a==="addStatisticItem"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
+    const g=settingsDraft.gameplaySettings[gameplay];
+    normalizeGameplayStatistics(settingsDraft,gameplay,g);
+    g.statistics.items.push({id:uid(`stat_${gameplay}`),itemId:settingsDraft.items[0]?.id||"",label:"",summary:true,daily:true,result:true,freeCompare:true})
+  }
+  if(a==="removeStatisticItem"){
+    const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
+    const g=settingsDraft.gameplaySettings[gameplay];
+    normalizeGameplayStatistics(settingsDraft,gameplay,g);
+    g.statistics.items.splice(Number(btn.dataset.index),1)
   }
   if(a==="equalPinballLandingWeights"){
     const n=Math.max(2,Number(settingsDraft.gameplaySettings.pinball.slotCount||8));
@@ -9643,7 +9774,7 @@ function settingsAction(btn){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay?.type||"monopoly";
     const g=settingsDraft.gameplaySettings[gameplay];
     if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
-    g.exchangeShop.push({id:uid("exchange"),name:"新兌換商品",cost:{itemId:g.normalExchangeId||settingsDraft.items[0].id,amount:1},reward:{itemId:g.premiumExchangeId||settingsDraft.items[0].id,amount:1},limit:1})
+    g.exchangeShop.push({id:uid("exchange"),name:"新兌換商品",cost:{itemId:settingsDraft.items[0].id,amount:1},reward:{itemId:settingsDraft.items[0].id,amount:1},limit:1})
   }
   if(a==="removeExchangeOffer"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay?.type||"monopoly";
@@ -9655,7 +9786,7 @@ function settingsAction(btn){
       id:uid("box"),
       name:"新隨機箱",
       boxItemId:g.gameTokenId||settingsDraft.items[0].id,
-      rewardItemId:g.premiumExchangeId||settingsDraft.items[0].id,
+      rewardItemId:settingsDraft.items[0].id,
       outcomes:gameplay==="pinball"
         ?[{amount:10,probability:0},{amount:15,probability:0},{amount:20,probability:0}]
         :[{amount:1,probability:100}]
