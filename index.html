@@ -1343,9 +1343,10 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   transition:transform .12s ease,filter .12s ease,background .12s ease;box-shadow:inset 0 0 0 2px rgba(255,255,255,.04),0 2px 0 rgba(0,0,0,.28)
 }
 .magic-cell.hidden,.magic-cell.hidden:disabled{
-  opacity:1!important;background:linear-gradient(145deg,#2b1d4e,#20163a)!important;color:transparent!important;cursor:not-allowed;filter:none!important
+  opacity:1!important;background:linear-gradient(145deg,#ffe66d,#f4bd35)!important;color:#6b4a00!important;cursor:not-allowed;filter:none!important;
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.34),0 2px 0 rgba(126,83,0,.32)
 }
-.magic-cell.hidden::after{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(176,134,255,.1)}
+.magic-cell.hidden::after{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(123,80,0,.14)}
 .magic-cell.revealed{background:linear-gradient(145deg,#433066,#32234f);color:#fff;cursor:pointer}
 .magic-cell.revealed:hover{filter:brightness(1.12)}
 .magic-cell.revealed:active{transform:scale(.94)}
@@ -1356,7 +1357,16 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 .magic-cell.kind-red{background:linear-gradient(145deg,#ff7283,#cf304b)}
 .magic-cell.kind-book{background:linear-gradient(145deg,#ffd85d,#f39b23);color:#5a3300}
 .magic-cell.kind-potion3{background:linear-gradient(145deg,#9a76ff,#5d3bc7)}
+.magic-cell.kind-bomb{background:linear-gradient(145deg,#a96f42,#70401f)}
+.magic-cell.kind-hammer{background:linear-gradient(145deg,#ffe66d,#e9ad24);color:#5b3c00}
 .magic-cell.kind-tool{background:linear-gradient(145deg,#62507c,#3f3158)}
+.magic-festival-ad-tools{margin-top:9px;display:grid;gap:5px}
+.magic-ad-magnifier-btn{
+  width:100%;border:0;border-radius:13px;padding:11px 13px;font-weight:1000;color:#513600;
+  background:linear-gradient(#ffe985,#ffc83e);box-shadow:0 4px 0 #b87b16
+}
+.magic-ad-magnifier-btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 2px 0 #b87b16}
+.magic-ad-magnifier-help{text-align:center;color:#bcb0ca;font-size:11px;line-height:1.35}
 .magic-cell .magic-amount{position:absolute;right:3px;bottom:2px;font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.38);color:#fff}
 .magic-festival-foot{margin-top:9px;padding:9px 11px;border-radius:13px;background:#211832;color:#ddd2ef;font-size:12px;line-height:1.55}
 .magic-festival-foot .help{color:#aaa0bb;margin-top:3px}
@@ -1465,6 +1475,10 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
               <span class="badge" id="magicFestivalBoardLabel">第 1 張圖</span>
             </div>
             <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8魔法慶典棋盤"></div>
+            <div class="magic-festival-ad-tools">
+              <button type="button" class="magic-ad-magnifier-btn" id="magicFestivalAdMagnifierBtn">🔍 廣告放大鏡｜今日剩餘 5/5</button>
+              <div class="magic-ad-magnifier-help" id="magicFestivalAdMagnifierHelp">每日可看廣告直接使用 5 次放大鏡；使用後翻開目前整張圖。</div>
+            </div>
             <div class="magic-festival-foot">
               <div id="magicFestivalStatus">只能點擊已翻開的牌。</div>
               <div class="help">一般牌消耗 1 個魔法藥水；直接點擊 🧪×3 不消耗藥水，並翻開周圍 8 格；若由炸彈／鞭炮順帶取得則不額外翻牌。📖 魔法書會直接完成本圖並換新圖。</div>
@@ -1718,7 +1732,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
         <div class="help">
           週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／魔法慶典玩法；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌，未翻開牌不會顯示顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖後會以原書位置作為下一張圖的普通寶石初始翻開點。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌，未翻開牌統一顯示黃色＋🔒，不會顯示真正顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖後會以原書位置作為下一張圖的普通寶石初始翻開點。
         </div>
       </section>
     </aside>
@@ -9860,7 +9874,7 @@ function renderSettings(){
 
   sections.magicFestival=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌完全看不到內容與顏色；一般已翻開牌點擊消耗 1 個魔法藥水；直接點擊 🧪×3 可免費領取並翻開周圍 8 格，被範圍效果取得時不額外翻牌。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
+      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌統一顯示黃色＋🔒，看不到真正內容與顏色；一般已翻開牌點擊消耗 1 個魔法藥水；直接點擊 🧪×3 可免費領取並翻開周圍 8 格，被範圍效果取得時不額外翻牌。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
 
@@ -9871,6 +9885,7 @@ function renderSettings(){
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.magicFestival.dailyMissionRewardItemId||c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",c.gameplaySettings.magicFestival.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
         <div class="field"><label>免費藥水格獎勵數量</label>${pathInput("gameplaySettings.magicFestival.potionTileAmount",c.gameplaySettings.magicFestival.potionTileAmount,"number",'min="1" step="1"')}</div>
+        <div class="field"><label>每日廣告放大鏡可用次數</label>${pathInput("gameplaySettings.magicFestival.adMagnifierDailyLimit",c.gameplaySettings.magicFestival.adMagnifierDailyLimit??5,"number",'min="0" step="1"')}</div>
       </div>
       <h3>四種兌換代幣</h3>
       <div class="setting-grid">
@@ -9912,7 +9927,7 @@ function renderSettings(){
 
     <div class="editor-card">
       <h3 style="margin-top:0">道具效果與連鎖</h3>
-      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 放大鏡：只翻開整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得藥水，不額外翻牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
+      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 棋盤放大鏡：只翻開整張圖。另有棋盤下方的廣告放大鏡，每日可直接使用設定次數（預設 5 次），每次同樣翻開目前整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：圖形統一使用 ♻️，以綠／紫／藍／紅底色表示吸收顏色；觸發時取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得藥水，不額外翻牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
     </div>
   </section>`;
 
@@ -10360,7 +10375,7 @@ function normalizeMagicFestivalConfig(cfg){
     g=cfg.gameplaySettings.magicFestival={
       gameTokenId:ids.potion,dailyMissionRewardItemId:ids.potion,dailyMissionMaxGameTokens:10,
       gemItemIds:{green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red},
-      potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
+      potionTileAmount:3,adMagnifierDailyLimit:5,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
       pointsPerItemObtained:[
         {itemId:ids.green,points:1},{itemId:ids.purple,points:1},{itemId:ids.blue,points:1},{itemId:ids.red,points:1}
       ],
@@ -10380,6 +10395,7 @@ function normalizeMagicFestivalConfig(cfg){
   g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??10));
   if(!g.dailyMissionRewardItemId||!(cfg.items||[]).some(x=>x.id===g.dailyMissionRewardItemId))g.dailyMissionRewardItemId=g.gameTokenId;
   g.potionTileAmount=Math.max(1,Math.floor(Number(g.potionTileAmount||3)));
+  g.adMagnifierDailyLimit=Math.max(0,Math.floor(Number(g.adMagnifierDailyLimit??5)));
   if(!g.boardCounts||typeof g.boardCounts!=="object")g.boardCounts=magicFestivalDefaultCounts();
   const defaults=magicFestivalDefaultCounts();Object.keys(defaults).forEach(k=>g.boardCounts[k]=Math.max(0,Math.floor(Number(g.boardCounts[k]??defaults[k]))));
   if(!g.toolProbabilities||typeof g.toolProbabilities!=="object"){
@@ -10390,7 +10406,7 @@ function normalizeMagicFestivalConfig(cfg){
   }
   const probDefaults=magicFestivalDefaultToolProbabilities();
   Object.keys(probDefaults).forEach(k=>g.toolProbabilities[k]=Math.max(0,Math.min(100,Number(g.toolProbabilities[k]??probDefaults[k]))));
-  if(Number(cfg.configSchemaVersion||0)<69)cfg.configSchemaVersion=69;
+  if(Number(cfg.configSchemaVersion||0)<70)cfg.configSchemaVersion=70;
   if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
   if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
   if(!Array.isArray(g.exchangeShop))g.exchangeShop=magicFestivalExchangeOffers(g.gemItemIds);
@@ -10436,7 +10452,7 @@ batchGameplayType=function(cfg=config){
 
 const __createDayStateBeforeMagic=createDayState;
 createDayState=function(){
-  const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;return d
+  const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;d.magicAdMagnifierUsed=0;return d
 };
 function blankMagicFestivalState(){return{cells:[],boardVersion:0,completedBoards:0,lastBookIndex:null,initialRevealIndex:null,totalClicks:0,rulesVersion:11}}
 const __createStateBeforeMagic=createState;
@@ -10486,7 +10502,7 @@ ensureGameplayTokenFlowStorage=function(targetState=state,cfg=config){
 const __ensureStateSchemaBeforeMagic=ensureStateSchema;
 ensureStateSchema=function(targetState=state,cfg=config,opts={}){
   const st=__ensureStateSchemaBeforeMagic(targetState,cfg,opts);
-  (st.days||[]).forEach(d=>{d.magicClicks=Math.max(0,Number(d.magicClicks||0));d.magicBoards=Math.max(0,Number(d.magicBoards||0))});
+  (st.days||[]).forEach(d=>{d.magicClicks=Math.max(0,Number(d.magicClicks||0));d.magicBoards=Math.max(0,Number(d.magicBoards||0));d.magicAdMagnifierUsed=Math.max(0,Number(d.magicAdMagnifierUsed||0))});
   if(!st.gameplayStates||typeof st.gameplayStates!=="object")st.gameplayStates={};
   if(!st.gameplayStates.magicFestival||typeof st.gameplayStates.magicFestival!=="object")st.gameplayStates.magicFestival=blankMagicFestivalState();
   const ms=st.gameplayStates.magicFestival;
@@ -10505,10 +10521,7 @@ function magicFestivalCellKindLabel(cell,cfg=config){
   if(cell?.kind==="gem")return cfgItem(cfg,cell.itemId).name;
   return map[cell?.kind]||"未知牌"
 }
-function magicFestivalAbsorbIcon(itemId,cfg=config){
-  const g=magicFestivalSettings(cfg).gemItemIds||{};
-  if(itemId===g.green)return"💚🧲";if(itemId===g.purple)return"💜🧲";if(itemId===g.blue)return"💙🧲";if(itemId===g.red)return"❤️🧲";return"🧲"
-}
+function magicFestivalAbsorbIcon(itemId,cfg=config){return"♻️"}
 function magicFestivalCellIcon(cell,cfg=config){
   if(!cell)return"";
   if(cell.kind==="gem")return cfgItem(cfg,cell.itemId).icon||"💎";
@@ -10517,6 +10530,22 @@ function magicFestivalCellIcon(cell,cfg=config){
 function magicFestivalGemColorClass(itemId,cfg=config){
   const g=magicFestivalSettings(cfg).gemItemIds||{};
   return itemId===g.green?"green":itemId===g.purple?"purple":itemId===g.blue?"blue":itemId===g.red?"red":""
+}
+function magicFestivalAdMagnifierLimit(cfg=config){return Math.max(0,Math.floor(Number(magicFestivalSettings(cfg).adMagnifierDailyLimit??5)))}
+function magicFestivalAdMagnifierUsed(st=state){const d=st.days?.[Number(st.currentDay||0)];return Math.max(0,Number(d?.magicAdMagnifierUsed||0))}
+function magicFestivalAdMagnifierRemaining(st=state,cfg=config){return Math.max(0,magicFestivalAdMagnifierLimit(cfg)-magicFestivalAdMagnifierUsed(st))}
+function magicFestivalCanUseAdMagnifier(st=state,cfg=config){
+  const ms=ensureMagicFestivalBoard(st,cfg);return magicFestivalAdMagnifierRemaining(st,cfg)>0&&ms.cells.some(x=>x&&!x.revealed)
+}
+function magicFestivalUseAdMagnifier(st=state,cfg=config,{reason="廣告放大鏡"}={}){
+  const ms=ensureMagicFestivalBoard(st,cfg),limit=magicFestivalAdMagnifierLimit(cfg),d=st.days?.[Number(st.currentDay||0)];
+  if(!d)return{ok:false,revealed:0,note:"找不到本日狀態"};
+  if(Number(d.magicAdMagnifierUsed||0)>=limit)return{ok:false,revealed:0,note:`今日廣告放大鏡 ${fmt(limit)} 次已用完`};
+  if(!ms.cells.some(x=>x&&!x.revealed))return{ok:false,revealed:0,note:"目前整張圖已經全部翻開"};
+  d.magicAdMagnifierUsed=Number(d.magicAdMagnifierUsed||0)+1;
+  const revealed=magicFestivalRevealIndices(st,Array.from({length:64},(_,i)=>i));
+  if(st===state&&cfg===config)log(`${reason}：翻開目前整張圖（今日 ${fmt(d.magicAdMagnifierUsed)}/${fmt(limit)}）`);
+  return{ok:true,revealed,used:Number(d.magicAdMagnifierUsed||0),remaining:Math.max(0,limit-Number(d.magicAdMagnifierUsed||0)),note:`🔍 廣告放大鏡：翻開整張圖｜今日剩餘 ${fmt(Math.max(0,limit-Number(d.magicAdMagnifierUsed||0)))}/${fmt(limit)}`}
 }
 function magicFestivalShuffle(list){return shuffle(list)}
 function magicFestivalRandomGemCell(cfg=config){
@@ -10703,6 +10732,8 @@ function magicFestivalPickBestCell(st,cfg,{allowBook=true}={}){
 }
 function magicFestivalCollectFreeRevealed(st,cfg){let done=0,guard=0;while(guard++<70){const ms=ensureMagicFestivalBoard(st,cfg),i=ms.cells.findIndex(x=>x?.revealed&&!x.used&&x.kind==="potion3");if(i<0)break;const r=magicFestivalPerformCell(st,cfg,i,{simulation:st!==state});if(!r.ok)break;done++}return done}
 function flowMagicFestivalPlay(st,cfg,stats){
+  // 廣告放大鏡是每日免費揭圖資源：需要繼續探索且本圖仍有蓋牌時，先免費使用，再決定要花哪一瓶魔法藥水。
+  if(magicFestivalCanUseAdMagnifier(st,cfg))magicFestivalUseAdMagnifier(st,cfg,{reason:"批次廣告放大鏡"});
   magicFestivalCollectFreeRevealed(st,cfg);
   const i=magicFestivalPickBestCell(st,cfg);if(i<0)return{ok:false,note:"目前沒有已翻開且可點擊的牌"};
   const r=magicFestivalPerformCell(st,cfg,i,{simulation:true});if(!r.ok)return r;if(r.consumedPotion&&stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;flowAutoClaimStages(st,cfg,stats);return{...r,index:i}
@@ -10757,12 +10788,15 @@ function renderMagicFestivalBoard(){
   const revealed=ms.cells.filter(x=>x.revealed).length,used=ms.cells.filter(x=>x.used).length;
   $("boardMeta").textContent=`8×8｜第 ${fmt(ms.boardVersion)} 張圖｜已完成 ${fmt(ms.completedBoards)} 張｜已翻開 ${revealed}/64`;
   $("magicFestivalBoardLabel").textContent=`第 ${fmt(ms.boardVersion)} 張圖`;
-  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已清空 ${used} 格｜蓋牌不會顯示任何內容或顏色`;
+  const adLimit=magicFestivalAdMagnifierLimit(config),adRemain=magicFestivalAdMagnifierRemaining(state,config);
+  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已清空 ${used} 格｜🔍廣告 ${fmt(adRemain)}/${fmt(adLimit)}`;
+  const adBtn=$("magicFestivalAdMagnifierBtn");if(adBtn){adBtn.textContent=`🔍 廣告放大鏡｜今日剩餘 ${fmt(adRemain)}/${fmt(adLimit)}`;adBtn.disabled=adRemain<1||!ms.cells.some(x=>!x.revealed)||strategyIsPastReadOnly()}
+  const adHelp=$("magicFestivalAdMagnifierHelp");if(adHelp)adHelp.textContent=`每日最多 ${fmt(adLimit)} 次；按下視為觀看 1 次廣告並直接翻開目前整張圖。`;
   $("magicFestivalBoard").innerHTML=ms.cells.map((cell,i)=>{
-    const revealed=!!cell.revealed,used=!!cell.used,color=revealed&&!used&&cell.kind==="gem"?magicFestivalGemColorClass(cell.itemId):"";
-    // 只有已翻開且尚未使用的牌才套內容顏色；蓋牌一律完全相同，避免洩漏資訊。
-    const kindClass=!revealed||used?"":color?`kind-${color}`:cell.kind==="book"?"kind-book":cell.kind==="potion3"?"kind-potion3":cell.kind!=="empty"?"kind-tool":"";
-    const icon=revealed&&!used?magicFestivalCellIcon(cell):"";const amount=cell.kind==="potion3"&&revealed&&!used?`<span class="magic-amount">×${fmt(cell.amount||g.potionTileAmount||3)}</span>`:"";
+    const revealed=!!cell.revealed,used=!!cell.used,color=revealed&&!used&&(cell.kind==="gem"||cell.kind==="absorb")?magicFestivalGemColorClass(cell.itemId):"";
+    // 已翻開的寶石／吸收道具用底色表示顏色；蓋牌統一黃色＋🔒，不洩漏真正內容。
+    const kindClass=!revealed||used?"":color?`kind-${color}`:cell.kind==="book"?"kind-book":cell.kind==="potion3"?"kind-potion3":cell.kind==="bomb"?"kind-bomb":cell.kind==="hammer"?"kind-hammer":cell.kind!=="empty"?"kind-tool":"";
+    const icon=!revealed?"🔒":!used?magicFestivalCellIcon(cell):"";const amount=cell.kind==="potion3"&&revealed&&!used?`<span class="magic-amount">×${fmt(cell.amount||g.potionTileAmount||3)}</span>`:"";
     return `<button type="button" class="magic-cell ${revealed?"revealed":"hidden"} ${used?"cleared":""} ${kindClass}" data-magic-cell="${i}" ${!revealed||used?"disabled":""} title="${!revealed?"尚未翻開":used?"已撿走／已使用，空白":escapeHtml(magicFestivalCellKindLabel(cell))}"><span>${escapeHtml(icon)}</span>${amount}</button>`
   }).join("")
 }
@@ -10781,7 +10815,7 @@ renderDistribution=function(){
     if(cell.kind==="gem")groups[magicFestivalGemColorClass(cell.itemId)||"green"]++;
     else if(Object.prototype.hasOwnProperty.call(groups,cell.kind))groups[cell.kind]++
   });
-  const rows=[["❓ 尚未翻開",groups.hidden],["💚 已翻開綠寶石",groups.green],["💜 已翻開紫寶石",groups.purple],["💙 已翻開藍寶石",groups.blue],["❤️ 已翻開紅寶石",groups.red],["💣 已翻開炸彈",groups.bomb],["↕️ 已翻開垂直鞭炮",groups.fireV],["↔️ 已翻開水平鞭炮",groups.fireH],["🔍 已翻開放大鏡",groups.magnifier],["🔨 已翻開槌子",groups.hammer],["🧲 已翻開吸收道具",groups.absorb],[`🧪 已翻開${cfgItem(config,g.gameTokenId).name}×${fmt(g.potionTileAmount||3)}`,groups.potion3],["📖 已翻開魔法書",groups.book],["⬛ 已清空",groups.cleared]];
+  const rows=[["🔒 尚未翻開",groups.hidden],["💚 已翻開綠寶石",groups.green],["💜 已翻開紫寶石",groups.purple],["💙 已翻開藍寶石",groups.blue],["❤️ 已翻開紅寶石",groups.red],["💣 已翻開炸彈",groups.bomb],["↕️ 已翻開垂直鞭炮",groups.fireV],["↔️ 已翻開水平鞭炮",groups.fireH],["🔍 已翻開放大鏡",groups.magnifier],["🔨 已翻開槌子",groups.hammer],["♻️ 已翻開吸收道具",groups.absorb],[`🧪 已翻開${cfgItem(config,g.gameTokenId).name}×${fmt(g.potionTileAmount||3)}`,groups.potion3],["📖 已翻開魔法書",groups.book],["⬛ 已清空",groups.cleared]];
   $("distribution").innerHTML=rows.filter(([,n],i)=>i===0||n>0).map(([name,n])=>`<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${fmt(n)} 格</strong></div>`).join("");
   const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🪄 本張棋盤已知資訊"
 };
@@ -10789,7 +10823,7 @@ const __renderScoreRulesBeforeMagic=renderScoreRules;
 renderScoreRules=function(){
   if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagic();
   const rows=(config.scoreRules.pointsPerItemObtained||[]).map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`),fundMeta=fundUnlockMetricMeta(state,config);
-  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；直接點擊魔法藥水×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push("魔法書完成本圖並以原位置開啟下一張圖");
+  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；直接點擊魔法藥水×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push(`廣告放大鏡每日可直接使用 ${fmt(magicFestivalAdMagnifierLimit(config))} 次，每次免費翻開目前整張圖`);rows.push("魔法書完成本圖並以原位置開啟下一張圖");
   $("scoreRules").innerHTML=`<div><strong>目前玩法：魔法慶典</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 };
 
@@ -10826,6 +10860,11 @@ async function magicFestivalClick(index){
   if(cell.kind!=="potion3"&&Number(state.resources?.[magicFestivalSettings().gameTokenId]||0)<1)return toast(`${item(magicFestivalSettings().gameTokenId).name}不足`);
   recordHistory(`魔法慶典：${magicFestivalCellKindLabel(cell)}`);const r=magicFestivalPerformCell(state,config,Number(index));if(!r.ok)return toast(r.note||"無法使用這張牌");$("rollMessage").textContent=r.note;render()
 }
+function magicFestivalUseAdMagnifierManual(){
+  if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用廣告放大鏡");
+  if(!magicFestivalCanUseAdMagnifier(state,config)){const limit=magicFestivalAdMagnifierLimit(config);return toast(magicFestivalAdMagnifierRemaining(state,config)<1?`今日廣告放大鏡 ${fmt(limit)} 次已用完`:"目前整張圖已經全部翻開")};
+  recordHistory("使用廣告放大鏡");const r=magicFestivalUseAdMagnifier(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()
+}
 async function autoMagicFestival({reuseSnapshot=false}={}){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能自動探索");const token=magicFestivalSettings().gameTokenId;
   ensureMagicFestivalBoard();magicFestivalCollectFreeRevealed(state,config);
@@ -10834,6 +10873,7 @@ async function autoMagicFestival({reuseSnapshot=false}={}){
   let used=0,free=0,guard=0;
   try{
     while(!stopAuto&&guard++<20000){
+      if(magicFestivalCanUseAdMagnifier(state,config))magicFestivalUseAdMagnifier(state,config,{reason:"自動探索廣告放大鏡"});
       free+=magicFestivalCollectFreeRevealed(state,config);const i=magicFestivalPickBestCell(state,config);if(i<0)break;const cell=magicFestivalState().cells[i];if(cell.kind!=="potion3"&&Number(state.resources?.[token]||0)<1)break;
       const r=magicFestivalPerformCell(state,config,i);if(!r.ok)break;if(r.consumedPotion)used++;if(guard%30===0){render();await wait(0)}
     }
@@ -10887,6 +10927,7 @@ validateConfig=function(c){
 };
 
 $("magicFestivalBoard")?.addEventListener("click",e=>{const cell=e.target.closest("[data-magic-cell]");if(cell)magicFestivalClick(Number(cell.dataset.magicCell))});
+$("magicFestivalAdMagnifierBtn")?.addEventListener("click",magicFestivalUseAdMagnifierManual);
 $("dailyProgressToggle").addEventListener("click",()=>{dailyProgressCollapsed=!dailyProgressCollapsed;renderDaily()});
 $("claimAllStagesBtn").addEventListener("click",claimAllStages);
 $("refundAllStagesBtn").addEventListener("click",refundAllStages);
