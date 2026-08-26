@@ -1320,7 +1320,10 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 
 
 /* =========================================================
-   v10：魔法慶典 8×8 翻牌玩法
+   v11：魔法慶典棋盤修正
+   - 蓋牌完全不洩漏顏色 / 內容
+   - Safari 手機版固定 8×8，不讓格子尺寸互相擠壓重疊
+   - 已撿走 / 已使用的牌才變成真正空白
    ========================================================= */
 .magic-festival-machine{
   width:100%;max-width:780px;margin:0 auto;padding:12px;border-radius:24px;
@@ -1329,20 +1332,24 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 }
 .magic-festival-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff;margin-bottom:10px;font-size:16px}
 .magic-festival-board{
-  width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));
-  gap:5px;padding:7px;border-radius:18px;background:#120d26;border:3px solid #44306c;overflow:hidden
+  width:100%;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));
+  grid-auto-flow:row;gap:5px;padding:7px;border-radius:18px;background:#120d26;border:3px solid #44306c;overflow:hidden;contain:layout paint
 }
 .magic-cell{
-  position:relative;min-width:0;min-height:0;border:0;border-radius:9px;display:flex;align-items:center;justify-content:center;
-  font-weight:1000;font-size:clamp(16px,3.4vw,31px);line-height:1;user-select:none;-webkit-user-select:none;
+  box-sizing:border-box;position:relative;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;max-height:100%;
+  margin:0;padding:0!important;border:0;border-radius:9px;overflow:hidden;appearance:none;-webkit-appearance:none;
+  display:grid;place-items:center;contain:layout paint;font-weight:1000;font-size:clamp(16px,3.4vw,31px);line-height:1;
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;
   transition:transform .12s ease,filter .12s ease,background .12s ease;box-shadow:inset 0 0 0 2px rgba(255,255,255,.04),0 2px 0 rgba(0,0,0,.28)
 }
-.magic-cell.hidden{background:linear-gradient(145deg,#2b1d4e,#20163a);color:transparent;cursor:not-allowed}
+.magic-cell.hidden,.magic-cell.hidden:disabled{
+  opacity:1!important;background:linear-gradient(145deg,#2b1d4e,#20163a)!important;color:transparent!important;cursor:not-allowed;filter:none!important
+}
 .magic-cell.hidden::after{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(176,134,255,.1)}
 .magic-cell.revealed{background:linear-gradient(145deg,#433066,#32234f);color:#fff;cursor:pointer}
 .magic-cell.revealed:hover{filter:brightness(1.12)}
 .magic-cell.revealed:active{transform:scale(.94)}
-.magic-cell.used{opacity:.36;filter:saturate(.55);cursor:default}
+.magic-cell.cleared,.magic-cell.cleared:disabled{opacity:1!important;background:#181127!important;color:transparent!important;cursor:default;filter:none!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025)}
 .magic-cell.kind-green{background:linear-gradient(145deg,#95dc48,#4f9f20)}
 .magic-cell.kind-purple{background:linear-gradient(145deg,#da5cff,#8c2ac6)}
 .magic-cell.kind-blue{background:linear-gradient(145deg,#58d8ff,#2384cf)}
@@ -1351,13 +1358,12 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 .magic-cell.kind-potion3{background:linear-gradient(145deg,#9a76ff,#5d3bc7)}
 .magic-cell.kind-tool{background:linear-gradient(145deg,#62507c,#3f3158)}
 .magic-cell .magic-amount{position:absolute;right:3px;bottom:2px;font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.38);color:#fff}
-.magic-cell .magic-used-mark{position:absolute;inset:auto 3px 3px auto;font-size:10px;background:#172033;color:#fff;border-radius:999px;padding:2px 4px}
 .magic-festival-foot{margin-top:9px;padding:9px 11px;border-radius:13px;background:#211832;color:#ddd2ef;font-size:12px;line-height:1.55}
 .magic-festival-foot .help{color:#aaa0bb;margin-top:3px}
 @media(max-width:720px){
   .magic-festival-machine{padding:7px;border-radius:18px}
   .magic-festival-board{gap:3px;padding:4px;border-radius:13px}
-  .magic-cell{border-radius:6px;font-size:clamp(14px,6vw,25px)}
+  .magic-cell{border-radius:6px;font-size:clamp(12px,5.2vw,22px)}
   .magic-cell .magic-amount{font-size:8px;padding:1px 3px}
 }
 
@@ -1712,7 +1718,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
         <div class="help">
           週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／魔法慶典玩法；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌；魔法書會完成本圖並以原書位置作為下一張圖的初始翻開點。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌，未翻開牌不會顯示顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖後會以原書位置作為下一張圖的普通寶石初始翻開點。
         </div>
       </section>
     </aside>
@@ -9854,7 +9860,7 @@ function renderSettings(){
 
   sections.magicFestival=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。一般已翻開牌點擊消耗 1 個魔法藥水；魔法藥水×3 格可免費領取。每張圖固定 1 本魔法書。</div></div>
+      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌完全看不到內容與顏色；一般已翻開牌點擊消耗 1 個魔法藥水，🧪×3 可免費領取。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
 
@@ -9887,30 +9893,26 @@ function renderSettings(){
     </div>
 
     <div class="editor-card">
-      <h3 style="margin-top:0">8×8 棋盤內容數量</h3>
-      <div class="help">每張圖固定另放 1 本魔法書；以下總數不足 63 格的部分自動補空白。內容位置每張圖重新隨機。初始第一張圖會翻開中央 2×2 的下方 2 格；之後以上一張魔法書的位置作為唯一初始翻開格。</div>
+      <h3 style="margin-top:0">8×8 棋盤生成機率</h3>
+      <div class="help">每張圖固定 1 本魔法書，其餘 63 格一定都有內容，不會預先生成空白。功能道具依「每格出現機率」隨機生成，因此某張圖可能完全沒有某種道具，也可能出現多個；沒有抽到道具的格子會平均隨機成 💚／💜／💙／❤️ 四種寶石。第一張圖中央下方 2 格，以及之後以上一張魔法書位置翻開的初始格，均保證是普通寶石，不會生成道具或魔法書。</div>
       <div class="setting-grid" style="margin-top:8px">
-        <div class="field"><label>💚 綠寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.green",c.gameplaySettings.magicFestival.boardCounts.green,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💜 紫寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.purple",c.gameplaySettings.magicFestival.boardCounts.purple,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💙 藍寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.blue",c.gameplaySettings.magicFestival.boardCounts.blue,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>❤️ 紅寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.red",c.gameplaySettings.magicFestival.boardCounts.red,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💣 炸彈</label>${pathInput("gameplaySettings.magicFestival.boardCounts.bomb",c.gameplaySettings.magicFestival.boardCounts.bomb,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>↕️ 垂直鞭炮</label>${pathInput("gameplaySettings.magicFestival.boardCounts.fireV",c.gameplaySettings.magicFestival.boardCounts.fireV,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>↔️ 水平鞭炮</label>${pathInput("gameplaySettings.magicFestival.boardCounts.fireH",c.gameplaySettings.magicFestival.boardCounts.fireH,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>🔍 放大鏡</label>${pathInput("gameplaySettings.magicFestival.boardCounts.magnifier",c.gameplaySettings.magicFestival.boardCounts.magnifier,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>🔨 槌子</label>${pathInput("gameplaySettings.magicFestival.boardCounts.hammer",c.gameplaySettings.magicFestival.boardCounts.hammer,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💚 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbGreen",c.gameplaySettings.magicFestival.boardCounts.absorbGreen,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💜 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbPurple",c.gameplaySettings.magicFestival.boardCounts.absorbPurple,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>💙 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbBlue",c.gameplaySettings.magicFestival.boardCounts.absorbBlue,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>❤️ 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbRed",c.gameplaySettings.magicFestival.boardCounts.absorbRed,"number",'min="0" step="1"')}</div>
-        <div class="field"><label>🧪 魔法藥水×3 格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.potion3",c.gameplaySettings.magicFestival.boardCounts.potion3,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💣 炸彈機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.bomb",c.gameplaySettings.magicFestival.toolProbabilities.bomb,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>↕️ 垂直鞭炮機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.fireV",c.gameplaySettings.magicFestival.toolProbabilities.fireV,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>↔️ 水平鞭炮機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.fireH",c.gameplaySettings.magicFestival.toolProbabilities.fireH,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>🔍 放大鏡機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.magnifier",c.gameplaySettings.magicFestival.toolProbabilities.magnifier,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>🔨 槌子機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.hammer",c.gameplaySettings.magicFestival.toolProbabilities.hammer,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>💚 吸收道具機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.absorbGreen",c.gameplaySettings.magicFestival.toolProbabilities.absorbGreen,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>💜 吸收道具機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.absorbPurple",c.gameplaySettings.magicFestival.toolProbabilities.absorbPurple,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>💙 吸收道具機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.absorbBlue",c.gameplaySettings.magicFestival.toolProbabilities.absorbBlue,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>❤️ 吸收道具機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.absorbRed",c.gameplaySettings.magicFestival.toolProbabilities.absorbRed,"number",'min="0" max="100" step="0.01"')}</div>
+        <div class="field"><label>🧪 魔法藥水×3 機率 (%)</label>${pathInput("gameplaySettings.magicFestival.toolProbabilities.potion3",c.gameplaySettings.magicFestival.toolProbabilities.potion3,"number",'min="0" max="100" step="0.01"')}</div>
       </div>
-      <div class="fund-goal-result" style="margin-top:9px">目前設定內容 ${magicFestivalConfiguredCellCount(c)} / 63 格；剩餘 ${Math.max(0,63-magicFestivalConfiguredCellCount(c))} 格會自動留空。${magicFestivalConfiguredCellCount(c)>63?" ⚠️ 超過 63 格，請減少內容數量。":""}</div>
+      <div class="fund-goal-result" style="margin-top:9px">功能道具總機率 ${fmt(magicFestivalToolProbabilityTotal(c))}%；其餘 ${fmt(Math.max(0,100-magicFestivalToolProbabilityTotal(c)))}% 為四色寶石（平均每色約 ${fmt(Math.max(0,100-magicFestivalToolProbabilityTotal(c))/4)}%）。${magicFestivalToolProbabilityTotal(c)>100?" ⚠️ 功能道具機率合計不可超過 100%。":""}</div>
     </div>
 
     <div class="editor-card">
-      <h3 style="margin-top:0">固定道具效果</h3>
-      <div class="help">💣 炸彈：翻開周圍 2 圈並自動獲得 1 圈內已可直接取得的寶石／藥水。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，並自動取得中間欄／列的寶石與藥水。<br>🔍 放大鏡：翻開整張圖。<br>🔨 槌子：隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>📖 魔法書：完成本圖，下一圖以原書位置作為初始翻開點。</div>
+      <h3 style="margin-top:0">道具效果與連鎖</h3>
+      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 放大鏡：只翻開整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
     </div>
   </section>`;
 
@@ -10286,14 +10288,25 @@ function gameplayActionVerb(type=batchGameplayType(config)){
 }
 function magicFestivalSettings(cfg=config){return cfg.gameplaySettings?.magicFestival||{}}
 function magicFestivalDefaultCounts(){return{
+  // 僅供 v10 舊設定遷移使用；v11 起棋盤不再固定配置格數。
   green:8,purple:8,blue:8,red:8,
   bomb:2,fireV:2,fireH:2,magnifier:1,hammer:2,
   absorbGreen:1,absorbPurple:1,absorbBlue:1,absorbRed:1,
   potion3:4
 }}
+function magicFestivalDefaultToolProbabilities(){return{
+  // 以舊版配置約略換算為「每格出現機率」，讓既有存檔升級後分布接近原本。
+  bomb:3.17,fireV:3.17,fireH:3.17,magnifier:1.59,hammer:3.17,
+  absorbGreen:1.59,absorbPurple:1.59,absorbBlue:1.59,absorbRed:1.59,
+  potion3:6.35
+}}
+function magicFestivalToolProbabilityTotal(cfg=config){
+  const x=magicFestivalSettings(cfg).toolProbabilities||{};
+  return Object.keys(magicFestivalDefaultToolProbabilities()).reduce((sum,k)=>sum+Math.max(0,Number(x[k]||0)),0)
+}
 function magicFestivalConfiguredCellCount(cfg=config){
-  const x=magicFestivalSettings(cfg).boardCounts||{};
-  return Object.keys(magicFestivalDefaultCounts()).reduce((s,k)=>s+Math.max(0,Math.floor(Number(x[k]||0))),0)
+  // 保留舊函式名稱供舊碼相容；v11 棋盤永遠是 63 個內容格＋1 本魔法書。
+  return 63
 }
 function ensureMagicFestivalItems(cfg){
   const ensure=(id,name,unit,icon)=>{
@@ -10347,7 +10360,7 @@ function normalizeMagicFestivalConfig(cfg){
     g=cfg.gameplaySettings.magicFestival={
       gameTokenId:ids.potion,dailyMissionRewardItemId:ids.potion,dailyMissionMaxGameTokens:10,
       gemItemIds:{green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red},
-      potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),
+      potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
       pointsPerItemObtained:[
         {itemId:ids.green,points:1},{itemId:ids.purple,points:1},{itemId:ids.blue,points:1},{itemId:ids.red,points:1}
       ],
@@ -10369,6 +10382,15 @@ function normalizeMagicFestivalConfig(cfg){
   g.potionTileAmount=Math.max(1,Math.floor(Number(g.potionTileAmount||3)));
   if(!g.boardCounts||typeof g.boardCounts!=="object")g.boardCounts=magicFestivalDefaultCounts();
   const defaults=magicFestivalDefaultCounts();Object.keys(defaults).forEach(k=>g.boardCounts[k]=Math.max(0,Math.floor(Number(g.boardCounts[k]??defaults[k]))));
+  if(!g.toolProbabilities||typeof g.toolProbabilities!=="object"){
+    // v10 舊設定以固定格數表示；升級時換算成每格機率，之後每張圖各自隨機抽取。
+    const denom=63;
+    g.toolProbabilities={};
+    Object.keys(magicFestivalDefaultToolProbabilities()).forEach(k=>g.toolProbabilities[k]=Math.max(0,Number(g.boardCounts?.[k]??0))/denom*100)
+  }
+  const probDefaults=magicFestivalDefaultToolProbabilities();
+  Object.keys(probDefaults).forEach(k=>g.toolProbabilities[k]=Math.max(0,Math.min(100,Number(g.toolProbabilities[k]??probDefaults[k]))));
+  if(Number(cfg.configSchemaVersion||0)<69)cfg.configSchemaVersion=69;
   if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
   if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
   if(!Array.isArray(g.exchangeShop))g.exchangeShop=magicFestivalExchangeOffers(g.gemItemIds);
@@ -10416,7 +10438,7 @@ const __createDayStateBeforeMagic=createDayState;
 createDayState=function(){
   const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;return d
 };
-function blankMagicFestivalState(){return{cells:[],boardVersion:0,completedBoards:0,lastBookIndex:null,initialRevealIndex:null,totalClicks:0}}
+function blankMagicFestivalState(){return{cells:[],boardVersion:0,completedBoards:0,lastBookIndex:null,initialRevealIndex:null,totalClicks:0,rulesVersion:11}}
 const __createStateBeforeMagic=createState;
 createState=function(){
   const st=__createStateBeforeMagic();
@@ -10468,7 +10490,7 @@ ensureStateSchema=function(targetState=state,cfg=config,opts={}){
   if(!st.gameplayStates||typeof st.gameplayStates!=="object")st.gameplayStates={};
   if(!st.gameplayStates.magicFestival||typeof st.gameplayStates.magicFestival!=="object")st.gameplayStates.magicFestival=blankMagicFestivalState();
   const ms=st.gameplayStates.magicFestival;
-  if(!Array.isArray(ms.cells))ms.cells=[];ms.boardVersion=Math.max(0,Number(ms.boardVersion||0));ms.completedBoards=Math.max(0,Number(ms.completedBoards||0));ms.totalClicks=Math.max(0,Number(ms.totalClicks||0));
+  if(!Array.isArray(ms.cells))ms.cells=[];ms.boardVersion=Math.max(0,Number(ms.boardVersion||0));ms.completedBoards=Math.max(0,Number(ms.completedBoards||0));ms.totalClicks=Math.max(0,Number(ms.totalClicks||0));ms.rulesVersion=Math.max(0,Number(ms.rulesVersion||0));
   if(!Object.prototype.hasOwnProperty.call(ms,"lastBookIndex"))ms.lastBookIndex=null;if(!Object.prototype.hasOwnProperty.call(ms,"initialRevealIndex"))ms.initialRevealIndex=null;
   return st
 };
@@ -10490,89 +10512,160 @@ function magicFestivalAbsorbIcon(itemId,cfg=config){
 function magicFestivalCellIcon(cell,cfg=config){
   if(!cell)return"";
   if(cell.kind==="gem")return cfgItem(cfg,cell.itemId).icon||"💎";
-  if(cell.kind==="bomb")return"💣";if(cell.kind==="fireV")return"↕️";if(cell.kind==="fireH")return"↔️";if(cell.kind==="magnifier")return"🔍";if(cell.kind==="hammer")return"🔨";if(cell.kind==="absorb")return magicFestivalAbsorbIcon(cell.itemId,cfg);if(cell.kind==="potion3")return"🧪";if(cell.kind==="book")return"📖";return"·"
+  if(cell.kind==="bomb")return"💣";if(cell.kind==="fireV")return"↕️";if(cell.kind==="fireH")return"↔️";if(cell.kind==="magnifier")return"🔍";if(cell.kind==="hammer")return"🔨";if(cell.kind==="absorb")return magicFestivalAbsorbIcon(cell.itemId,cfg);if(cell.kind==="potion3")return"🧪";if(cell.kind==="book")return"📖";return""
 }
 function magicFestivalGemColorClass(itemId,cfg=config){
   const g=magicFestivalSettings(cfg).gemItemIds||{};
   return itemId===g.green?"green":itemId===g.purple?"purple":itemId===g.blue?"blue":itemId===g.red?"red":""
 }
 function magicFestivalShuffle(list){return shuffle(list)}
+function magicFestivalRandomGemCell(cfg=config){
+  const gem=magicFestivalSettings(cfg).gemItemIds||{},ids=[gem.green,gem.purple,gem.blue,gem.red].filter(Boolean);
+  const itemId=ids[Math.floor(Math.random()*Math.max(1,ids.length))]||gem.green;
+  return{kind:"gem",itemId,revealed:false,used:false}
+}
+function magicFestivalRandomContentCell(cfg=config){
+  const g=magicFestivalSettings(cfg),p=g.toolProbabilities||magicFestivalDefaultToolProbabilities(),gem=g.gemItemIds||{};
+  const defs=[
+    ["bomb",{kind:"bomb"}],["fireV",{kind:"fireV"}],["fireH",{kind:"fireH"}],
+    ["magnifier",{kind:"magnifier"}],["hammer",{kind:"hammer"}],
+    ["absorbGreen",{kind:"absorb",itemId:gem.green}],["absorbPurple",{kind:"absorb",itemId:gem.purple}],
+    ["absorbBlue",{kind:"absorb",itemId:gem.blue}],["absorbRed",{kind:"absorb",itemId:gem.red}],
+    ["potion3",{kind:"potion3",amount:Math.max(1,Number(g.potionTileAmount||3))}]
+  ];
+  let roll=Math.random()*100,cumulative=0;
+  for(const [key,cell] of defs){
+    cumulative+=Math.max(0,Number(p[key]||0));
+    if(roll<cumulative)return{...clone(cell),revealed:false,used:false}
+  }
+  return magicFestivalRandomGemCell(cfg)
+}
 function generateMagicFestivalBoard(targetState=state,cfg=config,{initialIndex=null,freshInitial=false}={}){
-  const ms=magicFestivalState(targetState),g=magicFestivalSettings(cfg),counts=g.boardCounts||magicFestivalDefaultCounts(),gem=g.gemItemIds||{},pool=[];
-  const push=(cell,count)=>{for(let i=0;i<Math.max(0,Math.floor(Number(count||0)));i++)pool.push(clone(cell))};
-  push({kind:"gem",itemId:gem.green},counts.green);push({kind:"gem",itemId:gem.purple},counts.purple);push({kind:"gem",itemId:gem.blue},counts.blue);push({kind:"gem",itemId:gem.red},counts.red);
-  push({kind:"bomb"},counts.bomb);push({kind:"fireV"},counts.fireV);push({kind:"fireH"},counts.fireH);push({kind:"magnifier"},counts.magnifier);push({kind:"hammer"},counts.hammer);
-  push({kind:"absorb",itemId:gem.green},counts.absorbGreen);push({kind:"absorb",itemId:gem.purple},counts.absorbPurple);push({kind:"absorb",itemId:gem.blue},counts.absorbBlue);push({kind:"absorb",itemId:gem.red},counts.absorbRed);
-  push({kind:"potion3",amount:Math.max(1,Number(g.potionTileAmount||3))},counts.potion3);
-  magicFestivalShuffle(pool);if(pool.length>63)pool.length=63;while(pool.length<63)pool.push({kind:"empty"});magicFestivalShuffle(pool);
-  const bookIndex=Math.floor(Math.random()*64),cells=[];let p=0;
-  for(let i=0;i<64;i++)cells.push(i===bookIndex?{kind:"book",revealed:false,used:false}:{...pool[p++],revealed:false,used:false});
-  ms.cells=cells;ms.boardVersion=Number(ms.boardVersion||0)+1;ms.lastBookIndex=bookIndex;
+  const ms=magicFestivalState(targetState);
   let reveal=[];
   if(initialIndex!==null&&initialIndex!==undefined&&Number.isInteger(Number(initialIndex))&&Number(initialIndex)>=0&&Number(initialIndex)<64)reveal=[Number(initialIndex)];
   else if(!freshInitial&&ms.initialRevealIndex!==null&&ms.initialRevealIndex!==undefined&&Number.isInteger(Number(ms.initialRevealIndex))&&Number(ms.initialRevealIndex)>=0&&Number(ms.initialRevealIndex)<64)reveal=[Number(ms.initialRevealIndex)];
   else reveal=[35,36];
-  reveal.forEach(i=>{if(cells[i])cells[i].revealed=true});ms.initialRevealIndex=reveal.length===1?reveal[0]:null;
+
+  // 初始翻開位置一定是普通寶石；魔法書也不能生成在初始位置。
+  const protectedIndices=new Set(reveal),bookChoices=Array.from({length:64},(_,i)=>i).filter(i=>!protectedIndices.has(i));
+  const bookIndex=bookChoices[Math.floor(Math.random()*bookChoices.length)],cells=[];
+  for(let i=0;i<64;i++){
+    if(i===bookIndex)cells.push({kind:"book",revealed:false,used:false});
+    else if(protectedIndices.has(i))cells.push(magicFestivalRandomGemCell(cfg));
+    else cells.push(magicFestivalRandomContentCell(cfg))
+  }
+  reveal.forEach(i=>{if(cells[i])cells[i].revealed=true});
+  ms.cells=cells;ms.boardVersion=Number(ms.boardVersion||0)+1;ms.lastBookIndex=bookIndex;ms.rulesVersion=11;
+  ms.initialRevealIndex=reveal.length===1?reveal[0]:null;
   return ms
 }
 function ensureMagicFestivalBoard(targetState=state,cfg=config){
-  const ms=magicFestivalState(targetState);if(!Array.isArray(ms.cells)||ms.cells.length!==64)generateMagicFestivalBoard(targetState,cfg,{freshInitial:true});return ms
+  const ms=magicFestivalState(targetState);
+  const legacyBoard=!Array.isArray(ms.cells)||ms.cells.length!==64||Number(ms.rulesVersion||0)<11||ms.cells.some(x=>x?.kind==="empty"&&!x.used);
+  if(legacyBoard)generateMagicFestivalBoard(targetState,cfg,{freshInitial:true});return ms
 }
 function magicFestivalRC(index){return{r:Math.floor(Number(index)/8),c:Number(index)%8}}
 function magicFestivalIndex(r,c){return r>=0&&r<8&&c>=0&&c<8?r*8+c:-1}
 function magicFestivalRadiusIndices(index,radius){
   const {r,c}=magicFestivalRC(index),out=[];for(let rr=r-radius;rr<=r+radius;rr++)for(let cc=c-radius;cc<=c+radius;cc++){const i=magicFestivalIndex(rr,cc);if(i>=0)out.push(i)}return out
 }
-function magicFestivalRevealIndices(st,indices){const ms=magicFestivalState(st);let changed=0;indices.forEach(i=>{const x=ms.cells?.[i];if(x&&!x.revealed){x.revealed=true;changed++}});return changed}
+function magicFestivalRevealIndices(st,indices){
+  const ms=magicFestivalState(st);let changed=0;[...new Set(indices||[])].forEach(i=>{const x=ms.cells?.[i];if(x&&!x.revealed){x.revealed=true;changed++}});return changed
+}
 function magicFestivalGrant(st,cfg,itemId,amount,reason=""){
   if(st===state&&cfg===config)addItem(itemId,amount,reason,true);else flowAddItem(st,cfg,itemId,amount)
+}
+function magicFestivalClearCell(st,index){
+  const ms=magicFestivalState(st);if(!ms.cells?.[index])return;
+  ms.cells[index]={kind:"empty",revealed:true,used:true,cleared:true}
 }
 function magicFestivalCollectCell(st,cfg,index,{reason="道具效果"}={}){
   const ms=magicFestivalState(st),cell=ms.cells?.[index];if(!cell||cell.used||!cell.revealed)return 0;
   if(cell.kind==="gem"){
-    cell.used=true;magicFestivalGrant(st,cfg,cell.itemId,1,reason);return 1
+    const itemId=cell.itemId;magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,itemId,1,reason);return 1
   }
   if(cell.kind==="potion3"){
-    cell.used=true;const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalGrant(st,cfg,magicFestivalSettings(cfg).gameTokenId,amount,`${reason}・免費魔法藥水`);return 1
+    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,magicFestivalSettings(cfg).gameTokenId,amount,`${reason}・免費魔法藥水`);return 1
   }
   return 0
 }
-function magicFestivalAutoCollect(st,cfg,indices,reason){let n=0;indices.forEach(i=>n+=magicFestivalCollectCell(st,cfg,i,{reason}));return n}
+function magicFestivalAutoCollect(st,cfg,indices,reason){let n=0;[...new Set(indices||[])].forEach(i=>n+=magicFestivalCollectCell(st,cfg,i,{reason}));return n}
 function magicFestivalSpendPotion(st,cfg){
   const token=magicFestivalSettings(cfg).gameTokenId;if(Number(st.resources?.[token]||0)<1)return false;
   st.resources[token]=Number(st.resources[token]||0)-1;st.spent[token]=Number(st.spent?.[token]||0)+1;adjustGameTokenSpend(st.currentDay,1,st,cfg);
   const d=st.days?.[st.currentDay];if(d)d.magicClicks=Number(d.magicClicks||0)+1;magicFestivalState(st).totalClicks=Number(magicFestivalState(st).totalClicks||0)+1;return true
 }
+function magicFestivalIsChainTool(cell){return !!cell&&["bomb","fireV","fireH","magnifier","hammer","absorb"].includes(cell.kind)}
+function magicFestivalAcquireIndices(st,cfg,indices,reason="道具範圍",chainCtx=null){
+  const ctx=chainCtx||{triggered:0,depth:0};let collected=0,triggered=0;
+  if(ctx.depth>128)return{collected,triggered};
+  for(const i of [...new Set(indices||[])]){
+    const cell=magicFestivalState(st).cells?.[i];
+    if(!cell||!cell.revealed||cell.used)continue;
+    if(cell.kind==="gem"||cell.kind==="potion3"){collected+=magicFestivalCollectCell(st,cfg,i,{reason});continue}
+    // 魔法書不是功能道具，不會被炸彈／鞭炮自動完成地圖。
+    if(magicFestivalIsChainTool(cell)){
+      const r=magicFestivalTriggerTool(st,cfg,i,{chain:true,reason,chainCtx:{triggered:ctx.triggered,depth:ctx.depth+1}});
+      if(r.ok){triggered+=1+Number(r.chainTriggered||0);collected+=Number(r.collected||0);ctx.triggered+=1+Number(r.chainTriggered||0)}
+    }
+  }
+  return{collected,triggered}
+}
+function magicFestivalTriggerTool(st,cfg,index,{chain=false,reason="魔法慶典",chainCtx=null}={}){
+  const ms=magicFestivalState(st),cell=ms.cells?.[index];
+  if(!cell||cell.used||!cell.revealed||!magicFestivalIsChainTool(cell))return{ok:false,revealed:0,collected:0,chainTriggered:0,note:"這張牌不能觸發"};
+  const original=clone(cell);magicFestivalClearCell(st,index);
+  let revealed=0,collected=0,chainTriggered=0,note=magicFestivalCellKindLabel(original,cfg);
+  const ctx=chainCtx||{triggered:0,depth:0};
+  if(original.kind==="bomb"){
+    const revealArea=magicFestivalRadiusIndices(index,2),acquireArea=magicFestivalRadiusIndices(index,1);
+    revealed+=magicFestivalRevealIndices(st,revealArea);
+    const r=magicFestivalAcquireIndices(st,cfg,acquireArea,"炸彈取得",ctx);collected+=r.collected;chainTriggered+=r.triggered;
+    note=`炸彈：翻開周圍 2 圈，取得第 1 圈 ${collected} 格${chainTriggered?`，連鎖 ${chainTriggered} 個道具`:""}`
+  }else if(original.kind==="fireV"){
+    const {c}=magicFestivalRC(index),reveal=[],mid=[];
+    for(let r=0;r<8;r++){for(let cc=c-1;cc<=c+1;cc++){const i=magicFestivalIndex(r,cc);if(i>=0)reveal.push(i)}const mi=magicFestivalIndex(r,c);if(mi>=0)mid.push(mi)}
+    revealed+=magicFestivalRevealIndices(st,reveal);const r=magicFestivalAcquireIndices(st,cfg,mid,"垂直鞭炮取得",ctx);collected+=r.collected;chainTriggered+=r.triggered;
+    note=`垂直鞭炮：翻開 3 欄，取得中間欄 ${collected} 格${chainTriggered?`，連鎖 ${chainTriggered} 個道具`:""}`
+  }else if(original.kind==="fireH"){
+    const {r}=magicFestivalRC(index),reveal=[],mid=[];
+    for(let rr=r-1;rr<=r+1;rr++)for(let c=0;c<8;c++){const i=magicFestivalIndex(rr,c);if(i>=0)reveal.push(i)}
+    for(let c=0;c<8;c++){const i=magicFestivalIndex(r,c);if(i>=0)mid.push(i)}
+    revealed+=magicFestivalRevealIndices(st,reveal);const a=magicFestivalAcquireIndices(st,cfg,mid,"水平鞭炮取得",ctx);collected+=a.collected;chainTriggered+=a.triggered;
+    note=`水平鞭炮：翻開 3 列，取得中間列 ${collected} 格${chainTriggered?`，連鎖 ${chainTriggered} 個道具`:""}`
+  }else if(original.kind==="magnifier"){
+    revealed+=magicFestivalRevealIndices(st,Array.from({length:64},(_,i)=>i));note="放大鏡：翻開整張圖"
+  }else if(original.kind==="hammer"){
+    const hidden=ms.cells.map((x,i)=>!x.revealed?i:-1).filter(i=>i>=0);magicFestivalShuffle(hidden);const chosen=hidden.slice(0,5);revealed+=magicFestivalRevealIndices(st,chosen);note=`槌子：隨機翻開 ${chosen.length} 張牌`
+  }else if(original.kind==="absorb"){
+    const targets=ms.cells.map((x,i)=>x.revealed&&!x.used&&x.kind==="gem"&&x.itemId===original.itemId?i:-1).filter(i=>i>=0);
+    collected+=magicFestivalAutoCollect(st,cfg,targets,"吸收道具");note=`吸收所有已翻開的 ${cfgItem(cfg,original.itemId).name}：${collected} 個`
+  }
+  return{ok:true,chain,revealed,collected,chainTriggered,note}
+}
 function magicFestivalPerformCell(st,cfg,index,{simulation=false}={}){
   const ms=ensureMagicFestivalBoard(st,cfg),cell=ms.cells?.[Number(index)];
   if(!cell)return{ok:false,note:"找不到這張牌"};if(!cell.revealed)return{ok:false,note:"蓋住的牌不能點擊"};if(cell.used)return{ok:false,note:"這張牌已經使用過"};
   if(cell.kind==="potion3"){
-    magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典"});return{ok:true,free:true,consumedPotion:false,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3)}`}
+    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典"});
+    return{ok:true,free:true,consumedPotion:false,revealed:0,collected:1,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(amount)}`}
   }
   if(!magicFestivalSpendPotion(st,cfg))return{ok:false,note:`${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}不足`};
-  cell.used=true;let note=magicFestivalCellKindLabel(cell,cfg),collected=0,revealed=0;
-  if(cell.kind==="gem"){
-    magicFestivalGrant(st,cfg,cell.itemId,1,"魔法慶典拾取");revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note=`拾取 ${cfgItem(cfg,cell.itemId).name}，翻開周圍 1 圈`
-  }else if(cell.kind==="empty"){
-    revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note="空白牌：翻開周圍 1 圈"
-  }else if(cell.kind==="bomb"){
-    revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,2));collected+=magicFestivalAutoCollect(st,cfg,magicFestivalRadiusIndices(index,1),"炸彈自動取得");note=`炸彈：翻開 2 圈，自動取得 1 圈內 ${collected} 格`
-  }else if(cell.kind==="fireV"){
-    const {c}=magicFestivalRC(index),reveal=[],mid=[];for(let r=0;r<8;r++){for(let cc=c-1;cc<=c+1;cc++){const i=magicFestivalIndex(r,cc);if(i>=0)reveal.push(i)}const mi=magicFestivalIndex(r,c);if(mi>=0)mid.push(mi)}
-    revealed+=magicFestivalRevealIndices(st,reveal);collected+=magicFestivalAutoCollect(st,cfg,mid,"垂直鞭炮自動取得");note=`垂直鞭炮：翻開 3 欄，自動取得中間欄 ${collected} 格`
-  }else if(cell.kind==="fireH"){
-    const {r}=magicFestivalRC(index),reveal=[],mid=[];for(let rr=r-1;rr<=r+1;rr++)for(let c=0;c<8;c++){const i=magicFestivalIndex(rr,c);if(i>=0)reveal.push(i)}for(let c=0;c<8;c++){const i=magicFestivalIndex(r,c);if(i>=0)mid.push(i)}
-    revealed+=magicFestivalRevealIndices(st,reveal);collected+=magicFestivalAutoCollect(st,cfg,mid,"水平鞭炮自動取得");note=`水平鞭炮：翻開 3 列，自動取得中間列 ${collected} 格`
-  }else if(cell.kind==="magnifier"){
-    revealed+=magicFestivalRevealIndices(st,Array.from({length:64},(_,i)=>i));note="放大鏡：翻開整張圖"
-  }else if(cell.kind==="hammer"){
-    const hidden=ms.cells.map((x,i)=>!x.revealed?i:-1).filter(i=>i>=0);magicFestivalShuffle(hidden);revealed+=magicFestivalRevealIndices(st,hidden.slice(0,5));note=`槌子：隨機翻開 ${Math.min(5,hidden.length)} 張牌`
-  }else if(cell.kind==="absorb"){
-    const targets=ms.cells.map((x,i)=>x.revealed&&!x.used&&x.kind==="gem"&&x.itemId===cell.itemId?i:-1).filter(i=>i>=0);collected+=magicFestivalAutoCollect(st,cfg,targets,"吸收道具");note=`吸收所有已翻開的 ${cfgItem(cfg,cell.itemId).name}：${collected} 個`
-  }else if(cell.kind==="book"){
-    const oldIndex=Number(index);ms.completedBoards=Number(ms.completedBoards||0)+1;const d=st.days?.[st.currentDay];if(d)d.magicBoards=Number(d.magicBoards||0)+1;generateMagicFestivalBoard(st,cfg,{initialIndex:oldIndex});note=`魔法書：完成第 ${fmt(ms.completedBoards)} 張圖，下一圖從原書位置翻開`
+  const original=clone(cell);let note=magicFestivalCellKindLabel(original,cfg),collected=0,revealed=0,chainTriggered=0;
+  if(original.kind==="gem"){
+    const itemId=original.itemId;magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,itemId,1,"魔法慶典拾取");collected=1;
+    revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note=`拾取 ${cfgItem(cfg,itemId).name}，翻開周圍 1 圈`
+  }else if(magicFestivalIsChainTool(original)){
+    const r=magicFestivalTriggerTool(st,cfg,index,{chain:false,reason:"魔法慶典"});revealed+=r.revealed;collected+=r.collected;chainTriggered+=r.chainTriggered;note=r.note
+  }else if(original.kind==="book"){
+    const oldIndex=Number(index);ms.completedBoards=Number(ms.completedBoards||0)+1;const d=st.days?.[st.currentDay];if(d)d.magicBoards=Number(d.magicBoards||0)+1;
+    generateMagicFestivalBoard(st,cfg,{initialIndex:oldIndex});note=`魔法書：完成第 ${fmt(ms.completedBoards)} 張圖，下一圖從原書位置翻開普通寶石`
+  }else{
+    // v10 舊存檔可能還留有未使用的空白牌；點擊後仍依舊規則翻周圍，但新生成棋盤不再產生空白。
+    magicFestivalClearCell(st,index);revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note="空白牌：翻開周圍 1 圈"
   }
-  return{ok:true,free:false,consumedPotion:true,revealed,collected,note}
+  return{ok:true,free:false,consumedPotion:true,revealed,collected,chainTriggered,note}
 }
 function magicFestivalActionScore(st,cfg,index){
   const ms=magicFestivalState(st),cell=ms.cells[index];if(!cell?.revealed||cell.used)return-Infinity;
@@ -10655,11 +10748,13 @@ function renderMagicFestivalBoard(){
   const revealed=ms.cells.filter(x=>x.revealed).length,used=ms.cells.filter(x=>x.used).length;
   $("boardMeta").textContent=`8×8｜第 ${fmt(ms.boardVersion)} 張圖｜已完成 ${fmt(ms.completedBoards)} 張｜已翻開 ${revealed}/64`;
   $("magicFestivalBoardLabel").textContent=`第 ${fmt(ms.boardVersion)} 張圖`;
-  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已使用 ${used} 格｜只能點擊已翻開且尚未使用的牌`;
+  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已清空 ${used} 格｜蓋牌不會顯示任何內容或顏色`;
   $("magicFestivalBoard").innerHTML=ms.cells.map((cell,i)=>{
-    const revealed=!!cell.revealed,used=!!cell.used,color=cell.kind==="gem"?magicFestivalGemColorClass(cell.itemId):"",kindClass=color?`kind-${color}`:cell.kind==="book"?"kind-book":cell.kind==="potion3"?"kind-potion3":cell.kind!=="empty"?"kind-tool":"";
-    const icon=revealed?magicFestivalCellIcon(cell):"";const amount=cell.kind==="potion3"&&revealed?`<span class="magic-amount">×${fmt(cell.amount||g.potionTileAmount||3)}</span>`:"";
-    return `<button type="button" class="magic-cell ${revealed?"revealed":"hidden"} ${used?"used":""} ${kindClass}" data-magic-cell="${i}" ${!revealed||used?"disabled":""} title="${revealed?escapeHtml(magicFestivalCellKindLabel(cell)):"尚未翻開"}"><span>${escapeHtml(icon)}</span>${amount}${used?'<span class="magic-used-mark">✓</span>':""}</button>`
+    const revealed=!!cell.revealed,used=!!cell.used,color=revealed&&!used&&cell.kind==="gem"?magicFestivalGemColorClass(cell.itemId):"";
+    // 只有已翻開且尚未使用的牌才套內容顏色；蓋牌一律完全相同，避免洩漏資訊。
+    const kindClass=!revealed||used?"":color?`kind-${color}`:cell.kind==="book"?"kind-book":cell.kind==="potion3"?"kind-potion3":cell.kind!=="empty"?"kind-tool":"";
+    const icon=revealed&&!used?magicFestivalCellIcon(cell):"";const amount=cell.kind==="potion3"&&revealed&&!used?`<span class="magic-amount">×${fmt(cell.amount||g.potionTileAmount||3)}</span>`:"";
+    return `<button type="button" class="magic-cell ${revealed?"revealed":"hidden"} ${used?"cleared":""} ${kindClass}" data-magic-cell="${i}" ${!revealed||used?"disabled":""} title="${!revealed?"尚未翻開":used?"已撿走／已使用，空白":escapeHtml(magicFestivalCellKindLabel(cell))}"><span>${escapeHtml(icon)}</span>${amount}</button>`
   }).join("")
 }
 const __renderBoardBeforeMagic=renderBoard;
@@ -10670,11 +10765,16 @@ renderBoard=function(){
 const __renderDistributionBeforeMagic=renderDistribution;
 renderDistribution=function(){
   if(config.gameplay.type!=="magicFestival")return __renderDistributionBeforeMagic();
-  const ms=ensureMagicFestivalBoard(),g=magicFestivalSettings(),groups={green:0,purple:0,blue:0,red:0,bomb:0,fireV:0,fireH:0,magnifier:0,hammer:0,absorb:0,potion3:0,book:0,empty:0};
-  ms.cells.forEach(cell=>{if(cell.kind==="gem")groups[magicFestivalGemColorClass(cell.itemId)||"green"]++;else if(Object.prototype.hasOwnProperty.call(groups,cell.kind))groups[cell.kind]++});
-  const rows=[["💚 綠寶石",groups.green],["💜 紫寶石",groups.purple],["💙 藍寶石",groups.blue],["❤️ 紅寶石",groups.red],["💣 炸彈",groups.bomb],["↕️ 垂直鞭炮",groups.fireV],["↔️ 水平鞭炮",groups.fireH],["🔍 放大鏡",groups.magnifier],["🔨 槌子",groups.hammer],["🧲 吸收道具",groups.absorb],[`🧪 ${cfgItem(config,g.gameTokenId).name}×${fmt(g.potionTileAmount||3)}`,groups.potion3],["📖 魔法書",groups.book],["空白",groups.empty]];
-  $("distribution").innerHTML=rows.map(([name,n])=>`<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${fmt(n)} 格</strong></div>`).join("");
-  const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🪄 本張魔法棋盤分布"
+  const ms=ensureMagicFestivalBoard(),g=magicFestivalSettings(),groups={green:0,purple:0,blue:0,red:0,bomb:0,fireV:0,fireH:0,magnifier:0,hammer:0,absorb:0,potion3:0,book:0,cleared:0,hidden:0};
+  ms.cells.forEach(cell=>{
+    if(!cell.revealed){groups.hidden++;return}
+    if(cell.used||cell.kind==="empty"){groups.cleared++;return}
+    if(cell.kind==="gem")groups[magicFestivalGemColorClass(cell.itemId)||"green"]++;
+    else if(Object.prototype.hasOwnProperty.call(groups,cell.kind))groups[cell.kind]++
+  });
+  const rows=[["❓ 尚未翻開",groups.hidden],["💚 已翻開綠寶石",groups.green],["💜 已翻開紫寶石",groups.purple],["💙 已翻開藍寶石",groups.blue],["❤️ 已翻開紅寶石",groups.red],["💣 已翻開炸彈",groups.bomb],["↕️ 已翻開垂直鞭炮",groups.fireV],["↔️ 已翻開水平鞭炮",groups.fireH],["🔍 已翻開放大鏡",groups.magnifier],["🔨 已翻開槌子",groups.hammer],["🧲 已翻開吸收道具",groups.absorb],[`🧪 已翻開${cfgItem(config,g.gameTokenId).name}×${fmt(g.potionTileAmount||3)}`,groups.potion3],["📖 已翻開魔法書",groups.book],["⬛ 已清空",groups.cleared]];
+  $("distribution").innerHTML=rows.filter(([,n],i)=>i===0||n>0).map(([name,n])=>`<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${fmt(n)} 格</strong></div>`).join("");
+  const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🪄 本張棋盤已知資訊"
 };
 const __renderScoreRulesBeforeMagic=renderScoreRules;
 renderScoreRules=function(){
@@ -10773,7 +10873,7 @@ validateConfig=function(c){
   const ids=new Set((c.items||[]).map(x=>x.id));
   if(!ids.has(g.gameTokenId))throw new Error("魔法慶典的魔法藥水物品不存在");
   for(const [color,id] of Object.entries(g.gemItemIds||{})){if(!ids.has(id))throw new Error(`魔法慶典 ${color} 寶石物品不存在：${id}`)}
-  const total=magicFestivalConfiguredCellCount(c);if(total>63)throw new Error(`魔法慶典棋盤內容共 ${total} 格，另需保留 1 格魔法書，因此最多只能設定 63 格內容`);
+  const probabilityTotal=magicFestivalToolProbabilityTotal(c);if(probabilityTotal>100.000001)throw new Error(`魔法慶典功能道具機率合計 ${fmt(probabilityTotal)}%，不可超過 100%`);
   return ok
 };
 
