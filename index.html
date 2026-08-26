@@ -1467,7 +1467,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
             <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8魔法慶典棋盤"></div>
             <div class="magic-festival-foot">
               <div id="magicFestivalStatus">只能點擊已翻開的牌。</div>
-              <div class="help">一般牌消耗 1 個魔法藥水；🧪×3 不消耗藥水。📖 魔法書會直接完成本圖並換新圖。</div>
+              <div class="help">一般牌消耗 1 個魔法藥水；直接點擊 🧪×3 不消耗藥水，並翻開周圍 8 格；若由炸彈／鞭炮順帶取得則不額外翻牌。📖 魔法書會直接完成本圖並換新圖。</div>
             </div>
           </div>
         </div>
@@ -9860,7 +9860,7 @@ function renderSettings(){
 
   sections.magicFestival=`<section class="setting-section active">
     <div class="editor-head">
-      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌完全看不到內容與顏色；一般已翻開牌點擊消耗 1 個魔法藥水，🧪×3 可免費領取。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
+      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌完全看不到內容與顏色；一般已翻開牌點擊消耗 1 個魔法藥水；直接點擊 🧪×3 可免費領取並翻開周圍 8 格，被範圍效果取得時不額外翻牌。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
       <span class="badge warn">玩法專用</span>
     </div>
 
@@ -9912,7 +9912,7 @@ function renderSettings(){
 
     <div class="editor-card">
       <h3 style="margin-top:0">道具效果與連鎖</h3>
-      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 放大鏡：只翻開整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
+      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 放大鏡：只翻開整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得藥水，不額外翻牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
     </div>
   </section>`;
 
@@ -10580,13 +10580,19 @@ function magicFestivalClearCell(st,index){
   const ms=magicFestivalState(st);if(!ms.cells?.[index])return;
   ms.cells[index]={kind:"empty",revealed:true,used:true,cleared:true}
 }
-function magicFestivalCollectCell(st,cfg,index,{reason="道具效果"}={}){
+function magicFestivalCollectCell(st,cfg,index,{reason="道具效果",revealAround=false}={}){
   const ms=magicFestivalState(st),cell=ms.cells?.[index];if(!cell||cell.used||!cell.revealed)return 0;
   if(cell.kind==="gem"){
     const itemId=cell.itemId;magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,itemId,1,reason);return 1
   }
   if(cell.kind==="potion3"){
-    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,magicFestivalSettings(cfg).gameTokenId,amount,`${reason}・免費魔法藥水`);return 1
+    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));
+    magicFestivalClearCell(st,index);
+    magicFestivalGrant(st,cfg,magicFestivalSettings(cfg).gameTokenId,amount,`${reason}・免費魔法藥水`);
+    // 只有「直接點擊」免費魔法藥水格時才翻開周圍 8 格。
+    // 被炸彈／鞭炮等取得範圍順帶撿走時，只取得藥水，不額外翻牌。
+    if(revealAround)magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));
+    return 1
   }
   return 0
 }
@@ -10648,8 +10654,11 @@ function magicFestivalPerformCell(st,cfg,index,{simulation=false}={}){
   const ms=ensureMagicFestivalBoard(st,cfg),cell=ms.cells?.[Number(index)];
   if(!cell)return{ok:false,note:"找不到這張牌"};if(!cell.revealed)return{ok:false,note:"蓋住的牌不能點擊"};if(cell.used)return{ok:false,note:"這張牌已經使用過"};
   if(cell.kind==="potion3"){
-    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典"});
-    return{ok:true,free:true,consumedPotion:false,revealed:0,collected:1,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(amount)}`}
+    const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));
+    const before=ms.cells.filter(x=>x?.revealed).length;
+    magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典",revealAround:true});
+    const revealed=Math.max(0,ms.cells.filter(x=>x?.revealed).length-before);
+    return{ok:true,free:true,consumedPotion:false,revealed,collected:1,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(amount)}，翻開周圍 ${revealed} 格`}
   }
   if(!magicFestivalSpendPotion(st,cfg))return{ok:false,note:`${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}不足`};
   const original=clone(cell);let note=magicFestivalCellKindLabel(original,cfg),collected=0,revealed=0,chainTriggered=0;
@@ -10780,7 +10789,7 @@ const __renderScoreRulesBeforeMagic=renderScoreRules;
 renderScoreRules=function(){
   if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagic();
   const rows=(config.scoreRules.pointsPerItemObtained||[]).map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`),fundMeta=fundUnlockMetricMeta(state,config);
-  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；魔法藥水×3 格免費取得");rows.push("魔法書完成本圖並以原位置開啟下一張圖");
+  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；直接點擊魔法藥水×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push("魔法書完成本圖並以原位置開啟下一張圖");
   $("scoreRules").innerHTML=`<div><strong>目前玩法：魔法慶典</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 };
 
