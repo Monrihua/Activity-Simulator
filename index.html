@@ -700,7 +700,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 }
 .pinball-hidden-start.show{display:block}
 @media(max-width:720px){
-  .gameplay-switch{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .gameplay-switch{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}
   .gameplay-switch-btn{width:100%}
   .pinball-machine{padding:8px;border-radius:20px}
   .pinball-field{aspect-ratio:1.08}
@@ -1318,6 +1318,49 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   .free-plan-count input{flex:0 0 110px!important;width:110px!important}
 }
 
+
+/* =========================================================
+   v10：魔法慶典 8×8 翻牌玩法
+   ========================================================= */
+.magic-festival-machine{
+  width:100%;max-width:780px;margin:0 auto;padding:12px;border-radius:24px;
+  background:linear-gradient(180deg,#24183f,#171129 75%,#2f2052);
+  border:4px solid #6d4aa1;box-shadow:inset 0 0 0 2px rgba(255,255,255,.06),0 10px 24px rgba(32,20,55,.24)
+}
+.magic-festival-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff;margin-bottom:10px;font-size:16px}
+.magic-festival-board{
+  width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));
+  gap:5px;padding:7px;border-radius:18px;background:#120d26;border:3px solid #44306c;overflow:hidden
+}
+.magic-cell{
+  position:relative;min-width:0;min-height:0;border:0;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-weight:1000;font-size:clamp(16px,3.4vw,31px);line-height:1;user-select:none;-webkit-user-select:none;
+  transition:transform .12s ease,filter .12s ease,background .12s ease;box-shadow:inset 0 0 0 2px rgba(255,255,255,.04),0 2px 0 rgba(0,0,0,.28)
+}
+.magic-cell.hidden{background:linear-gradient(145deg,#2b1d4e,#20163a);color:transparent;cursor:not-allowed}
+.magic-cell.hidden::after{content:"";position:absolute;inset:6px;border-radius:7px;border:1px solid rgba(176,134,255,.1)}
+.magic-cell.revealed{background:linear-gradient(145deg,#433066,#32234f);color:#fff;cursor:pointer}
+.magic-cell.revealed:hover{filter:brightness(1.12)}
+.magic-cell.revealed:active{transform:scale(.94)}
+.magic-cell.used{opacity:.36;filter:saturate(.55);cursor:default}
+.magic-cell.kind-green{background:linear-gradient(145deg,#95dc48,#4f9f20)}
+.magic-cell.kind-purple{background:linear-gradient(145deg,#da5cff,#8c2ac6)}
+.magic-cell.kind-blue{background:linear-gradient(145deg,#58d8ff,#2384cf)}
+.magic-cell.kind-red{background:linear-gradient(145deg,#ff7283,#cf304b)}
+.magic-cell.kind-book{background:linear-gradient(145deg,#ffd85d,#f39b23);color:#5a3300}
+.magic-cell.kind-potion3{background:linear-gradient(145deg,#9a76ff,#5d3bc7)}
+.magic-cell.kind-tool{background:linear-gradient(145deg,#62507c,#3f3158)}
+.magic-cell .magic-amount{position:absolute;right:3px;bottom:2px;font-size:10px;line-height:1;padding:2px 4px;border-radius:6px;background:rgba(0,0,0,.38);color:#fff}
+.magic-cell .magic-used-mark{position:absolute;inset:auto 3px 3px auto;font-size:10px;background:#172033;color:#fff;border-radius:999px;padding:2px 4px}
+.magic-festival-foot{margin-top:9px;padding:9px 11px;border-radius:13px;background:#211832;color:#ddd2ef;font-size:12px;line-height:1.55}
+.magic-festival-foot .help{color:#aaa0bb;margin-top:3px}
+@media(max-width:720px){
+  .magic-festival-machine{padding:7px;border-radius:18px}
+  .magic-festival-board{gap:3px;padding:4px;border-radius:13px}
+  .magic-cell{border-radius:6px;font-size:clamp(14px,6vw,25px)}
+  .magic-cell .magic-amount{font-size:8px;padding:1px 3px}
+}
+
 </style>
 </head>
 <body>
@@ -1352,6 +1395,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
             <div class="gameplay-switch">
               <button class="gameplay-switch-btn active" data-gameplay-select="monopoly">🎲 大富翁</button>
               <button class="gameplay-switch-btn" data-gameplay-select="pinball">🔮 彈珠機</button>
+              <button class="gameplay-switch-btn" data-gameplay-select="magicFestival">🪄 魔法慶典</button>
             </div>
             <button class="btn secondary small" id="refreshBoardBtn" style="width:100%;margin-top:7px">刷新地圖</button>
           </div>
@@ -1404,6 +1448,20 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
                 <span class="pinball-craft-title">🎫 彈珠製作</span>
                 <span class="pinball-craft-status" id="pinballCraftStatus">製作卷 0｜彈珠 0/200</span>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="gameplay-play-area" id="magicFestivalPlayArea" hidden>
+          <div class="magic-festival-machine">
+            <div class="magic-festival-head">
+              <strong>🪄 魔法慶典</strong>
+              <span class="badge" id="magicFestivalBoardLabel">第 1 張圖</span>
+            </div>
+            <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8魔法慶典棋盤"></div>
+            <div class="magic-festival-foot">
+              <div id="magicFestivalStatus">只能點擊已翻開的牌。</div>
+              <div class="help">一般牌消耗 1 個魔法藥水；🧪×3 不消耗藥水。📖 魔法書會直接完成本圖並換新圖。</div>
             </div>
           </div>
         </div>
@@ -1652,9 +1710,9 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
       <section class="card">
         <div class="card-title"><h3>操作說明</h3></div>
         <div class="help">
-          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機玩法；
+          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／魔法慶典玩法；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌；魔法書會完成本圖並以原書位置作為下一張圖的初始翻開點。
         </div>
       </section>
     </aside>
@@ -1679,6 +1737,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
         <div class="settings-nav-title">遊戲玩法</div>
         <button data-setting-tab="monopoly">🎲 大富翁玩法</button>
         <button data-setting-tab="pinball">🔮 彈珠機玩法</button>
+        <button data-setting-tab="magicFestival">🪄 魔法慶典玩法</button>
         <div class="settings-nav-title">系統</div>
         <button data-setting-tab="backup">備份與還原</button>
       </nav>
@@ -5114,11 +5173,12 @@ function saveWeeklyFlowPlan(cfg=config){
   try{localStorage.setItem(weeklyFlowStorageKey(type),JSON.stringify(weeklyFlowPlan))}catch{}
 }
 function flowActionTypeOptions(selected,cfg=config){
-  const isPinball=cfg.gameplay.type==="pinball";
+  const type=batchGameplayType(cfg);
+  const allLabel=type==="pinball"?"使用剩餘彈珠":type==="magicFestival"?"使用剩餘魔法藥水探索":"使用剩餘骰子";
   const opts=[
     ["free","一鍵無課+寶石"],["stage","本日目標階段（最後補分）"],["package","購買禮包"],["fundBuy","購買基金"],
     ["fundClaim","基金精準領取指定物品"],["box","開指定數量隨機箱"],["exchange","兌換商店"],
-    ["allBalls",isPinball?"使用剩餘彈珠":"使用剩餘骰子"],["allBoxes","開完剩餘隨機箱（收尾）"]
+    ["allBalls",allLabel],["allBoxes","開完剩餘隨機箱（收尾）"]
   ];
   return opts.map(([v,l])=>`<option value="${v}" ${v===selected?"selected":""}>${l}</option>`).join("")
 }
@@ -5127,7 +5187,7 @@ function flowActionFields(action,cfg=config){
   const pc=cfg.gameplaySettings?.pinball||{};
 
   if(action.type==="stage"){
-    const playText=batchGameplayType(cfg)==="pinball"?"逐顆投入彈珠":"逐次擲骰";
+    const playText=batchGameplayType(cfg)==="pinball"?"逐顆投入彈珠":batchGameplayType(cfg)==="magicFestival"?"逐次探索魔法棋盤":"逐次擲骰";
     return `
       <div class="flow-field-line flow-field-single">
         <select data-flow-field="stage">${stages.map(s=>`<option value="${s.stage}" ${Number(action.stage)===Number(s.stage)?"selected":""}>目標第 ${s.stage} 階（${fmt(s.requiredScore)}分）</option>`).join("")}</select>
@@ -5182,6 +5242,7 @@ function flowActionFields(action,cfg=config){
 
   if(action.type==="allBalls"){
     if(cfg.gameplay.type==="pinball")return `<span class="help">把目前持有的彈珠全部投入；彈珠用完後會繼續把剩餘製作卷 1:1 製作成彈珠並投入，直到「彈珠=0、製作卷=0」才停止。途中照常自動領每日進度獎勵。</span>`;
+    if(cfg.gameplay.type==="magicFestival")return `<span class="help">使用目前剩餘魔法藥水自動探索；優先免費藥水、吸收與範圍道具，每次使用後仍會立即重新檢查每日進度、基金、箱子與兌換。</span>`;
     return `<span class="help">使用目前剩餘骰子。此步驟名稱會依目前玩法顯示，不再出現彈珠用語。</span>`
   }
 
@@ -5194,14 +5255,18 @@ function renderWeeklyFlowPlanner(){
   const type=batchGameplayType(config);
   const note=$("weeklyFlowGameplayNote");
   if(note)note.textContent=type==="pinball"
-    ?"🔮 目前編輯：彈珠機七日流程（與大富翁完全獨立）"
-    :"🎲 目前編輯：大富翁七日流程（與彈珠機完全獨立）";
+    ?"🔮 目前編輯：彈珠機七日流程（與其他玩法完全獨立）"
+    :type==="magicFestival"
+      ?"🪄 目前編輯：魔法慶典七日流程（與其他玩法完全獨立）"
+      :"🎲 目前編輯：大富翁七日流程（與其他玩法完全獨立）";
 
   const help=$("weeklyFlowHelp");
   if(help){
     help.innerHTML=type==="pinball"
       ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>基金不再寫死成消耗製作卷</strong>。系統會讀取目前基金條件，自動判斷應該製作彈珠、投入彈珠，或等待流程中的禮包／開箱／兌換來推進；精準門檻一到立即領取。`
-      :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>基金不再寫死成旗幟／圈數</strong>。系統會讀取目前基金的「獲得／消耗＋計算物品」，再從大富翁起點、格子、每日進度與擲骰消耗判斷是否能靠擲骰推進；一到精準門檻立即領取，再繼續原流程。`
+      :type==="magicFestival"
+        ?`每次模擬都會從魔法慶典自己的基準開始跑週一 → 週日。自動探索只會點已翻開牌，優先免費魔法藥水、吸收與範圍道具；固定目標暫時卡住時，每消耗 1 個魔法藥水就重新檢查基金／箱子／兌換／進度。`
+        :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>基金不再寫死成旗幟／圈數</strong>。系統會讀取目前基金的「獲得／消耗＋計算物品」，再從大富翁起點、格子、每日進度與擲骰消耗判斷是否能靠擲骰推進；一到精準門檻立即領取，再繼續原流程。`
   }
   const plan=ensureWeeklyFlowPlan(config);
   el.innerHTML=plan.map((day,d)=>`<div class="weekly-flow-day"><div class="weekly-flow-day-head"><strong>${escapeHtml(config.event.dayLabels?.[d]||`第${d+1}天`)}</strong><button class="btn secondary small" data-flow-add="${d}">＋新增步驟</button></div><div class="weekly-flow-steps">${day.actions.length?day.actions.map((a,i)=>`<div class="weekly-flow-step" data-flow-day="${d}" data-flow-index="${i}"><div class="weekly-flow-step-num">${i+1}</div><select data-flow-type>${flowActionTypeOptions(a.type,config)}</select><div class="weekly-flow-step-fields">${flowActionFields(a,config)}</div><div class="weekly-flow-step-tools"><button class="btn secondary small" data-flow-up title="上移">↑</button><button class="btn secondary small" data-flow-down title="下移">↓</button><button class="btn red small" data-flow-delete title="刪除">×</button></div></div>`).join(""):`<div class="weekly-flow-empty">本日尚未設定步驟</div>`}</div></div>`).join("")
@@ -5642,7 +5707,7 @@ function flowFundPerformAdaptiveStep(st,cfg,stats,ctx={},compiledPlan=null){
   if(!caps.length){
     return{
       ok:false,
-      note:`目前${type==="pinball"?"彈珠機":"大富翁"}玩法無法自行推進「${spec.basis==="itemSpent"?"消耗":"獲得"}${cfgItem(cfg,spec.itemId).name}」；請在流程中加入會改變這個物品的禮包／開箱／兌換等步驟`
+      note:`目前${gameplayLabel(type)}玩法無法自行推進「${spec.basis==="itemSpent"?"消耗":"獲得"}${cfgItem(cfg,spec.itemId).name}」；請在流程中加入會改變這個物品的禮包／開箱／兌換等步驟`
     }
   }
 
@@ -5819,14 +5884,14 @@ function flowPlayToStage(st,cfg,action,stats,ctx={}){
     return{
       ok:true,
       reachedStage:true,
-      note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":"逐次擲骰"} ${used} 次後達成第${stage.stage}階｜剩餘 ${flowPlayableText(st,cfg)}`
+      note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":batchGameplayType(cfg)==="magicFestival"?"逐次探索":"逐次擲骰"} ${used} 次後達成第${stage.stage}階｜剩餘 ${flowPlayableText(st,cfg)}`
     }
   }
 
   return{
     ok:true,
     needsSupport:true,
-    note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":"逐次擲骰"} ${used} 次後仍未達第${stage.stage}階；${lastFailure||"目前無法繼續"}｜剩餘 ${flowPlayableText(st,cfg)}`
+    note:`${batchGameplayType(cfg)==="pinball"?"逐顆投入":batchGameplayType(cfg)==="magicFestival"?"逐次探索":"逐次擲骰"} ${used} 次後仍未達第${stage.stage}階；${lastFailure||"目前無法繼續"}｜剩餘 ${flowPlayableText(st,cfg)}`
   }
 }
 function flowBuyFund(st,cfg,stats){
@@ -7049,7 +7114,7 @@ function captureBaseline(){
   simulationBaseline={config:clone(config),state:clone(state),createdAt:new Date().toISOString()};
   localStorage.setItem(baselineStorageKey(),JSON.stringify(simulationBaseline));
   batchResults=[];renderSimulation();
-  toast(`已建立${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程模擬基準`)
+  toast(`已建立${gameplayLabel(batchGameplayType())}七日流程模擬基準`)
 }
 function restoreBaseline(){
   if(!simulationBaseline||rolling)return;
@@ -7062,7 +7127,7 @@ function restoreBaseline(){
   syncStateToConfig(false);render();toast("已用目前活動設定恢復到模擬基準")
 }
 function clearBaseline(){
-  const label=batchGameplayType()==="pinball"?"彈珠機":"大富翁";
+  const label=gameplayLabel(batchGameplayType());
   simulationBaseline=null;batchResults=[];
   localStorage.removeItem(baselineStorageKey());
 
@@ -7103,7 +7168,7 @@ function renderSimulation(){
     const resourceText=type==="pinball"
       ?`${escapeHtml(cfgItem(liveCfg,token).name)} ${fmt(b.state.resources[token]||0)}｜${escapeHtml(cfgItem(liveCfg,liveCfg.gameplaySettings.pinball.craftTicketId).name)} ${fmt(b.state.resources[liveCfg.gameplaySettings.pinball.craftTicketId]||0)}`
       :`${escapeHtml(cfgItem(liveCfg,token).name)} ${fmt(b.state.resources[token]||0)}`;
-    $("baselineStatus").innerHTML=`${type==="pinball"?"🔮 彈珠機":"🎲 大富翁"}｜建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${resourceText}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
+    $("baselineStatus").innerHTML=`${gameplayIcon(type)} ${gameplayLabel(type)}｜建立於 ${escapeHtml(date)}｜${escapeHtml(day)}｜${resourceText}｜目前積分 ${fmt(b.state.days[b.state.currentDay].score)}${warnings.length?`<div style="margin-top:6px;color:#b45309;font-weight:900">⚠️ ${warnings.map(escapeHtml).join("<br>⚠️ ")}</div>`:""}`
   }else $("baselineStatus").textContent="請在七日流程開始前建立基準，通常使用週一尚未領取任何內容的狀態。";
   if(!batchResults.length){
     $("simulationSummary").innerHTML="";
@@ -9573,7 +9638,7 @@ function renderSettings(){
   const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
   const activeGp=c.gameplay?.type||"monopoly";
   const activeGpCfg=c.gameplaySettings?.[activeGp]||c.gameplaySettings?.monopoly||{};
-  const activeGpLabel=activeGp==="pinball"?"彈珠機":"大富翁";
+  const activeGpLabel=activeGp==="pinball"?"彈珠機":activeGp==="magicFestival"?"魔法慶典":"大富翁";
   const statisticRows=gameplay=>{
     const g=c.gameplaySettings?.[gameplay]||{};normalizeGameplayStatistics(c,gameplay,g);
     const rows=g.statistics?.items||[];
@@ -9786,6 +9851,69 @@ function renderSettings(){
 
   </section>`;
 
+
+  sections.magicFestival=`<section class="setting-section active">
+    <div class="editor-head">
+      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。一般已翻開牌點擊消耗 1 個魔法藥水；魔法藥水×3 格可免費領取。每張圖固定 1 本魔法書。</div></div>
+      <span class="badge warn">玩法專用</span>
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="setting-grid">
+        <div class="field"><label>遊戲代幣｜魔法藥水</label><select data-path="gameplaySettings.magicFestival.gameTokenId">${itemOptions(c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.magicFestival.dailyMissionRewardItemId||c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",c.gameplaySettings.magicFestival.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+        <div class="field"><label>免費藥水格獎勵數量</label>${pathInput("gameplaySettings.magicFestival.potionTileAmount",c.gameplaySettings.magicFestival.potionTileAmount,"number",'min="1" step="1"')}</div>
+      </div>
+      <h3>四種兌換代幣</h3>
+      <div class="setting-grid">
+        <div class="field"><label>💚 綠寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.green">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.green)}</select></div>
+        <div class="field"><label>💜 紫寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.purple">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.purple)}</select></div>
+        <div class="field"><label>💙 藍寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.blue">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.blue)}</select></div>
+        <div class="field"><label>❤️ 紅寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.red">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.red)}</select></div>
+      </div>
+      <h3>取得物品的計分規則</h3>
+      <div class="editor-table">
+        ${c.gameplaySettings.magicFestival.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.magicFestival.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.magicFestival.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="magicFestival" data-index="${i}">刪除</button></div>`).join("")}
+      </div>
+      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="magicFestival">＋加入計分物品</button>
+    </div>
+
+    <div class="editor-card">
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">固定欄位與物品欄位都可自由顯示／隱藏、改名稱，並按住 ☰ 拖曳調整順序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="magicFestival">＋新增物品統計</button></div>
+      ${statisticRows("magicFestival")}
+      ${statisticLayoutEditor("magicFestival")}
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">8×8 棋盤內容數量</h3>
+      <div class="help">每張圖固定另放 1 本魔法書；以下總數不足 63 格的部分自動補空白。內容位置每張圖重新隨機。初始第一張圖會翻開中央 2×2 的下方 2 格；之後以上一張魔法書的位置作為唯一初始翻開格。</div>
+      <div class="setting-grid" style="margin-top:8px">
+        <div class="field"><label>💚 綠寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.green",c.gameplaySettings.magicFestival.boardCounts.green,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💜 紫寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.purple",c.gameplaySettings.magicFestival.boardCounts.purple,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💙 藍寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.blue",c.gameplaySettings.magicFestival.boardCounts.blue,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>❤️ 紅寶石格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.red",c.gameplaySettings.magicFestival.boardCounts.red,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💣 炸彈</label>${pathInput("gameplaySettings.magicFestival.boardCounts.bomb",c.gameplaySettings.magicFestival.boardCounts.bomb,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>↕️ 垂直鞭炮</label>${pathInput("gameplaySettings.magicFestival.boardCounts.fireV",c.gameplaySettings.magicFestival.boardCounts.fireV,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>↔️ 水平鞭炮</label>${pathInput("gameplaySettings.magicFestival.boardCounts.fireH",c.gameplaySettings.magicFestival.boardCounts.fireH,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>🔍 放大鏡</label>${pathInput("gameplaySettings.magicFestival.boardCounts.magnifier",c.gameplaySettings.magicFestival.boardCounts.magnifier,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>🔨 槌子</label>${pathInput("gameplaySettings.magicFestival.boardCounts.hammer",c.gameplaySettings.magicFestival.boardCounts.hammer,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💚 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbGreen",c.gameplaySettings.magicFestival.boardCounts.absorbGreen,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💜 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbPurple",c.gameplaySettings.magicFestival.boardCounts.absorbPurple,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>💙 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbBlue",c.gameplaySettings.magicFestival.boardCounts.absorbBlue,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>❤️ 吸收道具</label>${pathInput("gameplaySettings.magicFestival.boardCounts.absorbRed",c.gameplaySettings.magicFestival.boardCounts.absorbRed,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>🧪 魔法藥水×3 格</label>${pathInput("gameplaySettings.magicFestival.boardCounts.potion3",c.gameplaySettings.magicFestival.boardCounts.potion3,"number",'min="0" step="1"')}</div>
+      </div>
+      <div class="fund-goal-result" style="margin-top:9px">目前設定內容 ${magicFestivalConfiguredCellCount(c)} / 63 格；剩餘 ${Math.max(0,63-magicFestivalConfiguredCellCount(c))} 格會自動留空。${magicFestivalConfiguredCellCount(c)>63?" ⚠️ 超過 63 格，請減少內容數量。":""}</div>
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">固定道具效果</h3>
+      <div class="help">💣 炸彈：翻開周圍 2 圈並自動獲得 1 圈內已可直接取得的寶石／藥水。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，並自動取得中間欄／列的寶石與藥水。<br>🔍 放大鏡：翻開整張圖。<br>🔨 槌子：隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：取得所有目前已翻開的對應顏色寶石。<br>📖 魔法書：完成本圖，下一圖以原書位置作為初始翻開點。</div>
+    </div>
+  </section>`;
+
   sections.items=`<section class="setting-section active">
     <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。系統識別碼可自行修改；修改後會同步更新設定內對此物品的引用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
     ${c.items.map((x,i)=>`<div class="editor-card">
@@ -9847,7 +9975,7 @@ function renderSettings(){
       <div class="editor-head"><strong>${escapeHtml(offer.name)}</strong><button class="btn red small" data-settings-action="removeExchangeOffer" data-gameplay="${activeGp}" data-index="${i}">刪除</button></div>
       <div class="setting-grid">
         <div class="field"><label>名稱</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.name`,offer.name)}</div>
-        <div class="field"><label>活動兌換上限</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.limit`,offer.limit,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>活動兌換上限</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.limit`,offer.limit,"number",'min="0" step="1"')}<label class="checkline" style="margin-top:6px"><input type="checkbox" data-path="gameplaySettings.${activeGp}.exchangeShop.${i}.unlimited" ${offer.unlimited===true?"checked":""}> 無上限</label></div>
         <div class="field"><label>消耗物品</label><select data-path="gameplaySettings.${activeGp}.exchangeShop.${i}.cost.itemId">${itemOptions(offer.cost.itemId)}</select></div>
         <div class="field"><label>消耗數量</label>${pathInput(`gameplaySettings.${activeGp}.exchangeShop.${i}.cost.amount`,offer.cost.amount,"number",'min="0" step="any"')}</div>
         <div class="field"><label>獲得物品</label><select data-path="gameplaySettings.${activeGp}.exchangeShop.${i}.reward.itemId">${itemOptions(offer.reward.itemId)}</select></div>
@@ -10143,6 +10271,513 @@ document.addEventListener("click",e=>{
   if(e.target.closest("#advanceStrategyDayBtn"))advanceStrategyDay()
 });
 
+
+/* =========================================================
+   v10：魔法慶典玩法
+   ========================================================= */
+function gameplayLabel(type=batchGameplayType(config)){
+  return type==="pinball"?"彈珠機":type==="magicFestival"?"魔法慶典":"大富翁"
+}
+function gameplayIcon(type=batchGameplayType(config)){
+  return type==="pinball"?"🔮":type==="magicFestival"?"🪄":"🎲"
+}
+function gameplayActionVerb(type=batchGameplayType(config)){
+  return type==="pinball"?"投入彈珠":type==="magicFestival"?"探索魔法棋盤":"擲骰"
+}
+function magicFestivalSettings(cfg=config){return cfg.gameplaySettings?.magicFestival||{}}
+function magicFestivalDefaultCounts(){return{
+  green:8,purple:8,blue:8,red:8,
+  bomb:2,fireV:2,fireH:2,magnifier:1,hammer:2,
+  absorbGreen:1,absorbPurple:1,absorbBlue:1,absorbRed:1,
+  potion3:4
+}}
+function magicFestivalConfiguredCellCount(cfg=config){
+  const x=magicFestivalSettings(cfg).boardCounts||{};
+  return Object.keys(magicFestivalDefaultCounts()).reduce((s,k)=>s+Math.max(0,Math.floor(Number(x[k]||0))),0)
+}
+function ensureMagicFestivalItems(cfg){
+  const ensure=(id,name,unit,icon)=>{
+    const byId=(cfg.items||[]).find(x=>x.id===id);if(byId)return byId.id;
+    const byName=(cfg.items||[]).find(x=>x.name===name);if(byName)return byName.id;
+    cfg.items.push({id,name,unit,icon});return id
+  };
+  return{
+    potion:ensure("magicPotion","魔法藥水","個","🧪"),
+    green:ensure("magicGreenGem","綠寶石","個","💚"),
+    purple:ensure("magicPurpleGem","紫寶石","個","💜"),
+    blue:ensure("magicBlueGem","藍寶石","個","💙"),
+    red:ensure("magicRedGem","紅寶石","個","❤️")
+  }
+}
+function magicFestivalExchangeOffers(gemItemIds){
+  const colors=[
+    ["green","綠寶石"],["purple","紫寶石"],["blue","藍寶石"],["red","紅寶石"]
+  ];
+  const out=[];
+  colors.forEach(([from,fromName])=>colors.forEach(([to,toName])=>{
+    if(from===to)return;
+    out.push({
+      id:`magic_${from}_to_${to}`,name:`${fromName} → ${toName}`,
+      cost:{itemId:gemItemIds[from],amount:5},reward:{itemId:gemItemIds[to],amount:4},
+      limit:0,unlimited:true
+    })
+  }));
+  return out
+}
+function magicFestivalCloneReplaceItemId(value,fromId,toId){
+  const v=clone(value);
+  const walk=x=>{
+    if(Array.isArray(x)){x.forEach(walk);return}
+    if(!x||typeof x!=="object")return;
+    Object.keys(x).forEach(k=>{
+      if(k==="itemId"&&x[k]===fromId)x[k]=toId;
+      else walk(x[k])
+    })
+  };
+  walk(v);return v
+}
+function normalizeMagicFestivalConfig(cfg){
+  const ids=ensureMagicFestivalItems(cfg),mono=cfg.gameplaySettings?.monopoly||{};
+  let g=cfg.gameplaySettings.magicFestival;
+  if(!g||typeof g!=="object"){
+    const progress=magicFestivalCloneReplaceItemId(mono.progressStages||cfg.progressStages||[],mono.gameTokenId||"dice",ids.potion);
+    const packages=magicFestivalCloneReplaceItemId(mono.packageGroups||cfg.packageGroups||[],mono.gameTokenId||"dice",ids.potion);
+    const fund=magicFestivalCloneReplaceItemId(mono.fund||cfg.fund||{},mono.gameTokenId||"dice",ids.potion);
+    if(fund&&typeof fund==="object"){fund.unlockBasis="itemSpent";fund.unlockItemId=ids.potion}
+    g=cfg.gameplaySettings.magicFestival={
+      gameTokenId:ids.potion,dailyMissionRewardItemId:ids.potion,dailyMissionMaxGameTokens:10,
+      gemItemIds:{green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red},
+      potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),
+      pointsPerItemObtained:[
+        {itemId:ids.green,points:1},{itemId:ids.purple,points:1},{itemId:ids.blue,points:1},{itemId:ids.red,points:1}
+      ],
+      statistics:{items:[
+        {id:"statMagicGreen",itemId:ids.green,label:"綠寶石",summary:true,daily:true,result:true,freeCompare:true},
+        {id:"statMagicPurple",itemId:ids.purple,label:"紫寶石",summary:true,daily:true,result:true,freeCompare:true},
+        {id:"statMagicBlue",itemId:ids.blue,label:"藍寶石",summary:true,daily:true,result:true,freeCompare:true},
+        {id:"statMagicRed",itemId:ids.red,label:"紅寶石",summary:true,daily:true,result:true,freeCompare:true}
+      ]},
+      randomBoxes:[],exchangeShop:magicFestivalExchangeOffers({green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red}),
+      progressStages:progress,packageGroups:packages,fund
+    }
+  }
+  g.gameTokenId=(cfg.items||[]).some(x=>x.id===g.gameTokenId)?g.gameTokenId:ids.potion;
+  if(!g.gemItemIds||typeof g.gemItemIds!=="object")g.gemItemIds={green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red};
+  ["green","purple","blue","red"].forEach(k=>{if(!(cfg.items||[]).some(x=>x.id===g.gemItemIds[k]))g.gemItemIds[k]=ids[k]});
+  g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??10));
+  if(!g.dailyMissionRewardItemId||!(cfg.items||[]).some(x=>x.id===g.dailyMissionRewardItemId))g.dailyMissionRewardItemId=g.gameTokenId;
+  g.potionTileAmount=Math.max(1,Math.floor(Number(g.potionTileAmount||3)));
+  if(!g.boardCounts||typeof g.boardCounts!=="object")g.boardCounts=magicFestivalDefaultCounts();
+  const defaults=magicFestivalDefaultCounts();Object.keys(defaults).forEach(k=>g.boardCounts[k]=Math.max(0,Math.floor(Number(g.boardCounts[k]??defaults[k]))));
+  if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
+  if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
+  if(!Array.isArray(g.exchangeShop))g.exchangeShop=magicFestivalExchangeOffers(g.gemItemIds);
+  g.exchangeShop=g.exchangeShop.map((o,i)=>({
+    id:String(o.id||`magicExchange${i+1}`),name:String(o.name||`兌換 ${i+1}`),
+    cost:{itemId:o.cost?.itemId||g.gemItemIds.green,amount:Math.max(0,Number(o.cost?.amount||0))},
+    reward:{itemId:o.reward?.itemId||g.gemItemIds.purple,amount:Math.max(0,Number(o.reward?.amount||0))},
+    limit:Math.max(0,Math.floor(Number(o.limit||0))),unlimited:o.unlimited===true
+  }));
+  if(!Array.isArray(g.progressStages))g.progressStages=magicFestivalCloneReplaceItemId(mono.progressStages||cfg.progressStages||[],mono.gameTokenId||"dice",g.gameTokenId);
+  if(!Array.isArray(g.packageGroups))g.packageGroups=magicFestivalCloneReplaceItemId(mono.packageGroups||cfg.packageGroups||[],mono.gameTokenId||"dice",g.gameTokenId);
+  if(!g.fund||typeof g.fund!=="object"){
+    g.fund=magicFestivalCloneReplaceItemId(mono.fund||cfg.fund||{},mono.gameTokenId||"dice",g.gameTokenId);
+    g.fund.unlockBasis="itemSpent";g.fund.unlockItemId=g.gameTokenId
+  }
+  normalizeFundUnlockRule(g.fund,g,cfg,g.gameTokenId);
+  normalizeGameplayStatistics(cfg,"magicFestival",g);
+  return g
+}
+
+const __normalizeFundConfigBeforeMagic=normalizeFundConfig;
+normalizeFundConfig=function(cfg){
+  const out=__normalizeFundConfigBeforeMagic(cfg);
+  const magic=normalizeMagicFestivalConfig(out);
+  if(out.gameplay?.type==="magicFestival"){
+    out.currencies.gameTokenId=magic.gameTokenId;
+    out.dailyMission.maxGameTokens=Math.max(0,Number(magic.dailyMissionMaxGameTokens??10));
+    out.dailyMission.rewardItemId=magic.dailyMissionRewardItemId||magic.gameTokenId;
+    out.scoreRules.pointsPerItemObtained=clone(magic.pointsPerItemObtained||[]);
+    out.randomBoxes=clone(magic.randomBoxes||[]);
+    out.exchangeShop=clone(magic.exchangeShop||[]);
+    out.progressStages=clone(magic.progressStages||[]);
+    out.packageGroups=clone(magic.packageGroups||[]);
+    out.fund=clone(magic.fund||{})
+  }
+  return out
+};
+
+batchGameplayType=function(cfg=config){
+  const t=cfg?.gameplay?.type;
+  return t==="pinball"?"pinball":t==="magicFestival"?"magicFestival":"monopoly"
+};
+
+const __createDayStateBeforeMagic=createDayState;
+createDayState=function(){
+  const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;return d
+};
+function blankMagicFestivalState(){return{cells:[],boardVersion:0,completedBoards:0,lastBookIndex:null,initialRevealIndex:null,totalClicks:0}}
+const __createStateBeforeMagic=createState;
+createState=function(){
+  const st=__createStateBeforeMagic();
+  if(!st.gameplayFundStates)st.gameplayFundStates={};st.gameplayFundStates.magicFestival=blankGameplayFundState();
+  if(!st.gameplayTokenFlows)st.gameplayTokenFlows={};st.gameplayTokenFlows.magicFestival=blankGameTokenFlow(st);
+  if(!st.gameplayStates)st.gameplayStates={};st.gameplayStates.magicFestival=blankMagicFestivalState();
+  return st
+};
+
+ensureGameplayFundStateStorage=function(targetState=state,cfg=config){
+  const desired=batchGameplayType(cfg),types=["monopoly","pinball","magicFestival"];
+  if(!targetState.gameplayFundStates||typeof targetState.gameplayFundStates!=="object"){
+    targetState.gameplayFundStates=Object.fromEntries(types.map(t=>[t,blankGameplayFundState()]));
+    const legacy=types.includes(targetState.fundStateActiveGameplay)?targetState.fundStateActiveGameplay:desired;
+    targetState.gameplayFundStates[legacy]=snapshotFundMirror(targetState);targetState.fundStateActiveGameplay=legacy
+  }
+  types.forEach(type=>{
+    const x=targetState.gameplayFundStates[type]&&typeof targetState.gameplayFundStates[type]==="object"?targetState.gameplayFundStates[type]:(targetState.gameplayFundStates[type]=blankGameplayFundState());
+    if(!x.claims||typeof x.claims!=="object")x.claims={free:{},premium:{}};
+    if(!x.claims.free||typeof x.claims.free!=="object")x.claims.free={};if(!x.claims.premium||typeof x.claims.premium!=="object")x.claims.premium={};
+    if(!x.claimEvents||typeof x.claimEvents!=="object")x.claimEvents={free:[],premium:[]};
+    if(!Array.isArray(x.claimEvents.free))x.claimEvents.free=[];if(!Array.isArray(x.claimEvents.premium))x.claimEvents.premium=[];
+    x.premiumPurchased=!!x.premiumPurchased;x.eventSeq=Number(x.eventSeq||0);if(!Object.prototype.hasOwnProperty.call(x,"lastFundUndo"))x.lastFundUndo=null
+  });
+  let active=targetState.fundStateActiveGameplay;
+  if(!types.includes(active)){active=desired;targetState.fundStateActiveGameplay=active;targetState.gameplayFundStates[active]=snapshotFundMirror(targetState)}
+  if(active!==desired){targetState.gameplayFundStates[active]=snapshotFundMirror(targetState);restoreFundMirror(targetState,targetState.gameplayFundStates[desired]);targetState.fundStateActiveGameplay=desired}
+  return targetState.gameplayFundStates[desired]
+};
+ensureGameplayTokenFlowStorage=function(targetState=state,cfg=config){
+  const desired=batchGameplayType(cfg),types=["monopoly","pinball","magicFestival"];
+  if(!targetState.gameplayTokenFlows||typeof targetState.gameplayTokenFlows!=="object"){
+    targetState.gameplayTokenFlows=Object.fromEntries(types.map(t=>[t,blankGameTokenFlow(targetState)]));
+    const legacy=types.includes(targetState.gameTokenFlowActiveGameplay)?targetState.gameTokenFlowActiveGameplay:desired;
+    targetState.gameTokenFlow=normalizeGameTokenFlowArray(targetState.gameTokenFlow,targetState);targetState.gameplayTokenFlows[legacy]=targetState.gameTokenFlow;targetState.gameTokenFlowActiveGameplay=legacy
+  }
+  types.forEach(type=>targetState.gameplayTokenFlows[type]=normalizeGameTokenFlowArray(targetState.gameplayTokenFlows[type],targetState));
+  targetState.gameTokenFlow=normalizeGameTokenFlowArray(targetState.gameTokenFlow,targetState);
+  let active=targetState.gameTokenFlowActiveGameplay;
+  if(!types.includes(active)){active=desired;targetState.gameTokenFlowActiveGameplay=active;targetState.gameplayTokenFlows[active]=targetState.gameTokenFlow}
+  if(active!==desired){targetState.gameplayTokenFlows[active]=targetState.gameTokenFlow;targetState.gameTokenFlow=targetState.gameplayTokenFlows[desired];targetState.gameTokenFlowActiveGameplay=desired}
+  targetState.gameplayTokenFlows[desired]=targetState.gameTokenFlow;return targetState.gameTokenFlow
+};
+
+const __ensureStateSchemaBeforeMagic=ensureStateSchema;
+ensureStateSchema=function(targetState=state,cfg=config,opts={}){
+  const st=__ensureStateSchemaBeforeMagic(targetState,cfg,opts);
+  (st.days||[]).forEach(d=>{d.magicClicks=Math.max(0,Number(d.magicClicks||0));d.magicBoards=Math.max(0,Number(d.magicBoards||0))});
+  if(!st.gameplayStates||typeof st.gameplayStates!=="object")st.gameplayStates={};
+  if(!st.gameplayStates.magicFestival||typeof st.gameplayStates.magicFestival!=="object")st.gameplayStates.magicFestival=blankMagicFestivalState();
+  const ms=st.gameplayStates.magicFestival;
+  if(!Array.isArray(ms.cells))ms.cells=[];ms.boardVersion=Math.max(0,Number(ms.boardVersion||0));ms.completedBoards=Math.max(0,Number(ms.completedBoards||0));ms.totalClicks=Math.max(0,Number(ms.totalClicks||0));
+  if(!Object.prototype.hasOwnProperty.call(ms,"lastBookIndex"))ms.lastBookIndex=null;if(!Object.prototype.hasOwnProperty.call(ms,"initialRevealIndex"))ms.initialRevealIndex=null;
+  return st
+};
+
+function magicFestivalState(targetState=state){
+  if(!targetState.gameplayStates)targetState.gameplayStates={};
+  if(!targetState.gameplayStates.magicFestival)targetState.gameplayStates.magicFestival=blankMagicFestivalState();
+  return targetState.gameplayStates.magicFestival
+}
+function magicFestivalCellKindLabel(cell,cfg=config){
+  const map={bomb:"炸彈",fireV:"垂直鞭炮",fireH:"水平鞭炮",magnifier:"放大鏡",hammer:"槌子",potion3:"魔法藥水×3",book:"魔法書",empty:"空白",absorb:"吸收道具"};
+  if(cell?.kind==="gem")return cfgItem(cfg,cell.itemId).name;
+  return map[cell?.kind]||"未知牌"
+}
+function magicFestivalAbsorbIcon(itemId,cfg=config){
+  const g=magicFestivalSettings(cfg).gemItemIds||{};
+  if(itemId===g.green)return"💚🧲";if(itemId===g.purple)return"💜🧲";if(itemId===g.blue)return"💙🧲";if(itemId===g.red)return"❤️🧲";return"🧲"
+}
+function magicFestivalCellIcon(cell,cfg=config){
+  if(!cell)return"";
+  if(cell.kind==="gem")return cfgItem(cfg,cell.itemId).icon||"💎";
+  if(cell.kind==="bomb")return"💣";if(cell.kind==="fireV")return"↕️";if(cell.kind==="fireH")return"↔️";if(cell.kind==="magnifier")return"🔍";if(cell.kind==="hammer")return"🔨";if(cell.kind==="absorb")return magicFestivalAbsorbIcon(cell.itemId,cfg);if(cell.kind==="potion3")return"🧪";if(cell.kind==="book")return"📖";return"·"
+}
+function magicFestivalGemColorClass(itemId,cfg=config){
+  const g=magicFestivalSettings(cfg).gemItemIds||{};
+  return itemId===g.green?"green":itemId===g.purple?"purple":itemId===g.blue?"blue":itemId===g.red?"red":""
+}
+function magicFestivalShuffle(list){return shuffle(list)}
+function generateMagicFestivalBoard(targetState=state,cfg=config,{initialIndex=null,freshInitial=false}={}){
+  const ms=magicFestivalState(targetState),g=magicFestivalSettings(cfg),counts=g.boardCounts||magicFestivalDefaultCounts(),gem=g.gemItemIds||{},pool=[];
+  const push=(cell,count)=>{for(let i=0;i<Math.max(0,Math.floor(Number(count||0)));i++)pool.push(clone(cell))};
+  push({kind:"gem",itemId:gem.green},counts.green);push({kind:"gem",itemId:gem.purple},counts.purple);push({kind:"gem",itemId:gem.blue},counts.blue);push({kind:"gem",itemId:gem.red},counts.red);
+  push({kind:"bomb"},counts.bomb);push({kind:"fireV"},counts.fireV);push({kind:"fireH"},counts.fireH);push({kind:"magnifier"},counts.magnifier);push({kind:"hammer"},counts.hammer);
+  push({kind:"absorb",itemId:gem.green},counts.absorbGreen);push({kind:"absorb",itemId:gem.purple},counts.absorbPurple);push({kind:"absorb",itemId:gem.blue},counts.absorbBlue);push({kind:"absorb",itemId:gem.red},counts.absorbRed);
+  push({kind:"potion3",amount:Math.max(1,Number(g.potionTileAmount||3))},counts.potion3);
+  magicFestivalShuffle(pool);if(pool.length>63)pool.length=63;while(pool.length<63)pool.push({kind:"empty"});magicFestivalShuffle(pool);
+  const bookIndex=Math.floor(Math.random()*64),cells=[];let p=0;
+  for(let i=0;i<64;i++)cells.push(i===bookIndex?{kind:"book",revealed:false,used:false}:{...pool[p++],revealed:false,used:false});
+  ms.cells=cells;ms.boardVersion=Number(ms.boardVersion||0)+1;ms.lastBookIndex=bookIndex;
+  let reveal=[];
+  if(initialIndex!==null&&initialIndex!==undefined&&Number.isInteger(Number(initialIndex))&&Number(initialIndex)>=0&&Number(initialIndex)<64)reveal=[Number(initialIndex)];
+  else if(!freshInitial&&ms.initialRevealIndex!==null&&ms.initialRevealIndex!==undefined&&Number.isInteger(Number(ms.initialRevealIndex))&&Number(ms.initialRevealIndex)>=0&&Number(ms.initialRevealIndex)<64)reveal=[Number(ms.initialRevealIndex)];
+  else reveal=[35,36];
+  reveal.forEach(i=>{if(cells[i])cells[i].revealed=true});ms.initialRevealIndex=reveal.length===1?reveal[0]:null;
+  return ms
+}
+function ensureMagicFestivalBoard(targetState=state,cfg=config){
+  const ms=magicFestivalState(targetState);if(!Array.isArray(ms.cells)||ms.cells.length!==64)generateMagicFestivalBoard(targetState,cfg,{freshInitial:true});return ms
+}
+function magicFestivalRC(index){return{r:Math.floor(Number(index)/8),c:Number(index)%8}}
+function magicFestivalIndex(r,c){return r>=0&&r<8&&c>=0&&c<8?r*8+c:-1}
+function magicFestivalRadiusIndices(index,radius){
+  const {r,c}=magicFestivalRC(index),out=[];for(let rr=r-radius;rr<=r+radius;rr++)for(let cc=c-radius;cc<=c+radius;cc++){const i=magicFestivalIndex(rr,cc);if(i>=0)out.push(i)}return out
+}
+function magicFestivalRevealIndices(st,indices){const ms=magicFestivalState(st);let changed=0;indices.forEach(i=>{const x=ms.cells?.[i];if(x&&!x.revealed){x.revealed=true;changed++}});return changed}
+function magicFestivalGrant(st,cfg,itemId,amount,reason=""){
+  if(st===state&&cfg===config)addItem(itemId,amount,reason,true);else flowAddItem(st,cfg,itemId,amount)
+}
+function magicFestivalCollectCell(st,cfg,index,{reason="道具效果"}={}){
+  const ms=magicFestivalState(st),cell=ms.cells?.[index];if(!cell||cell.used||!cell.revealed)return 0;
+  if(cell.kind==="gem"){
+    cell.used=true;magicFestivalGrant(st,cfg,cell.itemId,1,reason);return 1
+  }
+  if(cell.kind==="potion3"){
+    cell.used=true;const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));magicFestivalGrant(st,cfg,magicFestivalSettings(cfg).gameTokenId,amount,`${reason}・免費魔法藥水`);return 1
+  }
+  return 0
+}
+function magicFestivalAutoCollect(st,cfg,indices,reason){let n=0;indices.forEach(i=>n+=magicFestivalCollectCell(st,cfg,i,{reason}));return n}
+function magicFestivalSpendPotion(st,cfg){
+  const token=magicFestivalSettings(cfg).gameTokenId;if(Number(st.resources?.[token]||0)<1)return false;
+  st.resources[token]=Number(st.resources[token]||0)-1;st.spent[token]=Number(st.spent?.[token]||0)+1;adjustGameTokenSpend(st.currentDay,1,st,cfg);
+  const d=st.days?.[st.currentDay];if(d)d.magicClicks=Number(d.magicClicks||0)+1;magicFestivalState(st).totalClicks=Number(magicFestivalState(st).totalClicks||0)+1;return true
+}
+function magicFestivalPerformCell(st,cfg,index,{simulation=false}={}){
+  const ms=ensureMagicFestivalBoard(st,cfg),cell=ms.cells?.[Number(index)];
+  if(!cell)return{ok:false,note:"找不到這張牌"};if(!cell.revealed)return{ok:false,note:"蓋住的牌不能點擊"};if(cell.used)return{ok:false,note:"這張牌已經使用過"};
+  if(cell.kind==="potion3"){
+    magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典"});return{ok:true,free:true,consumedPotion:false,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3)}`}
+  }
+  if(!magicFestivalSpendPotion(st,cfg))return{ok:false,note:`${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}不足`};
+  cell.used=true;let note=magicFestivalCellKindLabel(cell,cfg),collected=0,revealed=0;
+  if(cell.kind==="gem"){
+    magicFestivalGrant(st,cfg,cell.itemId,1,"魔法慶典拾取");revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note=`拾取 ${cfgItem(cfg,cell.itemId).name}，翻開周圍 1 圈`
+  }else if(cell.kind==="empty"){
+    revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note="空白牌：翻開周圍 1 圈"
+  }else if(cell.kind==="bomb"){
+    revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,2));collected+=magicFestivalAutoCollect(st,cfg,magicFestivalRadiusIndices(index,1),"炸彈自動取得");note=`炸彈：翻開 2 圈，自動取得 1 圈內 ${collected} 格`
+  }else if(cell.kind==="fireV"){
+    const {c}=magicFestivalRC(index),reveal=[],mid=[];for(let r=0;r<8;r++){for(let cc=c-1;cc<=c+1;cc++){const i=magicFestivalIndex(r,cc);if(i>=0)reveal.push(i)}const mi=magicFestivalIndex(r,c);if(mi>=0)mid.push(mi)}
+    revealed+=magicFestivalRevealIndices(st,reveal);collected+=magicFestivalAutoCollect(st,cfg,mid,"垂直鞭炮自動取得");note=`垂直鞭炮：翻開 3 欄，自動取得中間欄 ${collected} 格`
+  }else if(cell.kind==="fireH"){
+    const {r}=magicFestivalRC(index),reveal=[],mid=[];for(let rr=r-1;rr<=r+1;rr++)for(let c=0;c<8;c++){const i=magicFestivalIndex(rr,c);if(i>=0)reveal.push(i)}for(let c=0;c<8;c++){const i=magicFestivalIndex(r,c);if(i>=0)mid.push(i)}
+    revealed+=magicFestivalRevealIndices(st,reveal);collected+=magicFestivalAutoCollect(st,cfg,mid,"水平鞭炮自動取得");note=`水平鞭炮：翻開 3 列，自動取得中間列 ${collected} 格`
+  }else if(cell.kind==="magnifier"){
+    revealed+=magicFestivalRevealIndices(st,Array.from({length:64},(_,i)=>i));note="放大鏡：翻開整張圖"
+  }else if(cell.kind==="hammer"){
+    const hidden=ms.cells.map((x,i)=>!x.revealed?i:-1).filter(i=>i>=0);magicFestivalShuffle(hidden);revealed+=magicFestivalRevealIndices(st,hidden.slice(0,5));note=`槌子：隨機翻開 ${Math.min(5,hidden.length)} 張牌`
+  }else if(cell.kind==="absorb"){
+    const targets=ms.cells.map((x,i)=>x.revealed&&!x.used&&x.kind==="gem"&&x.itemId===cell.itemId?i:-1).filter(i=>i>=0);collected+=magicFestivalAutoCollect(st,cfg,targets,"吸收道具");note=`吸收所有已翻開的 ${cfgItem(cfg,cell.itemId).name}：${collected} 個`
+  }else if(cell.kind==="book"){
+    const oldIndex=Number(index);ms.completedBoards=Number(ms.completedBoards||0)+1;const d=st.days?.[st.currentDay];if(d)d.magicBoards=Number(d.magicBoards||0)+1;generateMagicFestivalBoard(st,cfg,{initialIndex:oldIndex});note=`魔法書：完成第 ${fmt(ms.completedBoards)} 張圖，下一圖從原書位置翻開`
+  }
+  return{ok:true,free:false,consumedPotion:true,revealed,collected,note}
+}
+function magicFestivalActionScore(st,cfg,index){
+  const ms=magicFestivalState(st),cell=ms.cells[index];if(!cell?.revealed||cell.used)return-Infinity;
+  if(cell.kind==="potion3")return 1000000;
+  const hiddenCount=indices=>(indices||[]).filter(i=>ms.cells[i]&&!ms.cells[i].revealed).length;
+  const collectable=indices=>(indices||[]).filter(i=>{const x=ms.cells[i];return x?.revealed&&!x.used&&(x.kind==="gem"||x.kind==="potion3")}).length;
+  if(cell.kind==="absorb")return 50000+ms.cells.filter(x=>x.revealed&&!x.used&&x.kind==="gem"&&x.itemId===cell.itemId).length*500;
+  if(cell.kind==="magnifier")return 40000+ms.cells.filter(x=>!x.revealed).length*50;
+  if(cell.kind==="bomb")return 25000+hiddenCount(magicFestivalRadiusIndices(index,2))*80+collectable(magicFestivalRadiusIndices(index,1))*300;
+  if(cell.kind==="fireV"){
+    const {c}=magicFestivalRC(index),all=[],mid=[];for(let r=0;r<8;r++){for(let cc=c-1;cc<=c+1;cc++){const i=magicFestivalIndex(r,cc);if(i>=0)all.push(i)}mid.push(magicFestivalIndex(r,c))}return 22000+hiddenCount(all)*70+collectable(mid)*250
+  }
+  if(cell.kind==="fireH"){
+    const {r}=magicFestivalRC(index),all=[],mid=[];for(let rr=r-1;rr<=r+1;rr++)for(let c=0;c<8;c++){const i=magicFestivalIndex(rr,c);if(i>=0)all.push(i)}for(let c=0;c<8;c++)mid.push(magicFestivalIndex(r,c));return 22000+hiddenCount(all)*70+collectable(mid)*250
+  }
+  if(cell.kind==="hammer")return 12000+Math.min(5,ms.cells.filter(x=>!x.revealed).length)*80;
+  if(cell.kind==="gem")return 6000+hiddenCount(magicFestivalRadiusIndices(index,1))*90;
+  if(cell.kind==="empty")return 2000+hiddenCount(magicFestivalRadiusIndices(index,1))*100;
+  if(cell.kind==="book")return -1000;
+  return 0
+}
+function magicFestivalPickBestCell(st,cfg,{allowBook=true}={}){
+  const ms=ensureMagicFestivalBoard(st,cfg),candidates=[];ms.cells.forEach((cell,i)=>{if(cell?.revealed&&!cell.used&&(allowBook||cell.kind!=="book"))candidates.push({i,score:magicFestivalActionScore(st,cfg,i),kind:cell.kind})});
+  if(!candidates.length)return-1;candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];if(best.kind==="book"&&candidates.some(x=>x.kind!=="book"))return candidates.find(x=>x.kind!=="book").i;return best.i
+}
+function magicFestivalCollectFreeRevealed(st,cfg){let done=0,guard=0;while(guard++<70){const ms=ensureMagicFestivalBoard(st,cfg),i=ms.cells.findIndex(x=>x?.revealed&&!x.used&&x.kind==="potion3");if(i<0)break;const r=magicFestivalPerformCell(st,cfg,i,{simulation:st!==state});if(!r.ok)break;done++}return done}
+function flowMagicFestivalPlay(st,cfg,stats){
+  magicFestivalCollectFreeRevealed(st,cfg);
+  const i=magicFestivalPickBestCell(st,cfg);if(i<0)return{ok:false,note:"目前沒有已翻開且可點擊的牌"};
+  const r=magicFestivalPerformCell(st,cfg,i,{simulation:true});if(!r.ok)return r;if(r.consumedPotion&&stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;flowAutoClaimStages(st,cfg,stats);return{...r,index:i}
+}
+
+const __flowPlayOneTokenBeforeMagic=flowPlayOneToken;
+flowPlayOneToken=function(st,cfg,stats,opts={}){return batchGameplayType(cfg)==="magicFestival"?flowMagicFestivalPlay(st,cfg,stats):__flowPlayOneTokenBeforeMagic(st,cfg,stats,opts)};
+const __flowUseAllBallsBeforeMagic=flowUseAllBalls;
+flowUseAllBalls=function(st,cfg,stats,ctx={}){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowUseAllBallsBeforeMagic(st,cfg,stats,ctx);
+  const token=magicFestivalSettings(cfg).gameTokenId;let used=0,guard=0;
+  while(guard++<100000){
+    magicFestivalCollectFreeRevealed(st,cfg);
+    if(Number(st.resources?.[token]||0)<1)break;
+    const r=flowMagicFestivalPlay(st,cfg,stats);if(!r.ok)break;used+=r.consumedPotion?1:0;flowCheckFundInterrupts(st,cfg,ctx,stats)
+  }
+  return{ok:true,note:`已探索到目前可用${cfgItem(cfg,token).name}用完：共消耗 ${used} 個｜剩餘 ${fmt(st.resources?.[token]||0)}`}
+};
+const __flowPlayableSnapshotBeforeMagic=flowPlayableSnapshot;
+flowPlayableSnapshot=function(st,cfg){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowPlayableSnapshotBeforeMagic(st,cfg);
+  const token=magicFestivalSettings(cfg).gameTokenId;return{tokenId:token,tokens:Number(st.resources?.[token]||0),ballId:token,ticketId:null,balls:Number(st.resources?.[token]||0),tickets:0}
+};
+const __flowPlayableTextBeforeMagic=flowPlayableText;
+flowPlayableText=function(st,cfg){return batchGameplayType(cfg)==="magicFestival"?`${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name} ${fmt(st.resources?.[magicFestivalSettings(cfg).gameTokenId]||0)}`:__flowPlayableTextBeforeMagic(st,cfg)};
+const __flowGameplayCanObtainByPlayingBeforeMagic=flowGameplayCanObtainByPlaying;
+flowGameplayCanObtainByPlaying=function(cfg,itemId){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowGameplayCanObtainByPlayingBeforeMagic(cfg,itemId);
+  if((cfg.progressStages||[]).some(s=>flowRewardContains(s.rewards,itemId)))return true;
+  const g=magicFestivalSettings(cfg),ids=new Set(Object.values(g.gemItemIds||{}));return ids.has(itemId)||itemId===g.gameTokenId
+};
+const __flowFundProgressCapabilitiesBeforeMagic=flowFundProgressCapabilities;
+flowFundProgressCapabilities=function(cfg=config,precomputedSpec=null){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowFundProgressCapabilitiesBeforeMagic(cfg,precomputedSpec);
+  const {basis,itemId}=precomputedSpec||flowFundMetricSpec(cfg),g=magicFestivalSettings(cfg),caps=[];
+  if((basis==="itemSpent"&&itemId===g.gameTokenId)||(basis==="itemObtained"&&flowGameplayCanObtainByPlaying(cfg,itemId)))caps.push({id:"play",label:"探索魔法棋盤",deterministic:basis==="itemSpent"&&itemId===g.gameTokenId});
+  return caps
+};
+
+const __flowExamplePlanBeforeMagic=flowExamplePlan;
+flowExamplePlan=function(cfg=config){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowExamplePlanBeforeMagic(cfg);
+  const target=flowClampStage(cfg,2);return Array.from({length:7},(_,d)=>({actions:d===6?[{type:"free"},{type:"allBalls"}]:[{type:"free"},{type:"stage",stage:target}]}))
+};
+
+function renderMagicFestivalBoard(){
+  const ms=ensureMagicFestivalBoard(state,config),g=magicFestivalSettings(),token=g.gameTokenId;
+  $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=false;
+  $("gameplayTitle").textContent="🪄 魔法慶典玩法";$("refreshBoardBtn").textContent="重開棋盤";$("refreshBoardBtn").disabled=false;
+  $("multiplierWrap").style.display="none";$("autoRollBtn").textContent="自動探索全部魔法藥水";$("autoRollBtn").title="依目前已翻開牌面自動選擇效益較高的牌；會優先免費藥水、吸收與範圍道具，只有其他可用牌不足時才點魔法書換圖。";
+  document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="magicFestival"));
+  const revealed=ms.cells.filter(x=>x.revealed).length,used=ms.cells.filter(x=>x.used).length;
+  $("boardMeta").textContent=`8×8｜第 ${fmt(ms.boardVersion)} 張圖｜已完成 ${fmt(ms.completedBoards)} 張｜已翻開 ${revealed}/64`;
+  $("magicFestivalBoardLabel").textContent=`第 ${fmt(ms.boardVersion)} 張圖`;
+  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已使用 ${used} 格｜只能點擊已翻開且尚未使用的牌`;
+  $("magicFestivalBoard").innerHTML=ms.cells.map((cell,i)=>{
+    const revealed=!!cell.revealed,used=!!cell.used,color=cell.kind==="gem"?magicFestivalGemColorClass(cell.itemId):"",kindClass=color?`kind-${color}`:cell.kind==="book"?"kind-book":cell.kind==="potion3"?"kind-potion3":cell.kind!=="empty"?"kind-tool":"";
+    const icon=revealed?magicFestivalCellIcon(cell):"";const amount=cell.kind==="potion3"&&revealed?`<span class="magic-amount">×${fmt(cell.amount||g.potionTileAmount||3)}</span>`:"";
+    return `<button type="button" class="magic-cell ${revealed?"revealed":"hidden"} ${used?"used":""} ${kindClass}" data-magic-cell="${i}" ${!revealed||used?"disabled":""} title="${revealed?escapeHtml(magicFestivalCellKindLabel(cell)):"尚未翻開"}"><span>${escapeHtml(icon)}</span>${amount}${used?'<span class="magic-used-mark">✓</span>':""}</button>`
+  }).join("")
+}
+const __renderBoardBeforeMagic=renderBoard;
+renderBoard=function(){
+  if(config.gameplay.type==="magicFestival"){stopPinballHold();renderMagicFestivalBoard();return}
+  const area=$("magicFestivalPlayArea");if(area)area.hidden=true;return __renderBoardBeforeMagic()
+};
+const __renderDistributionBeforeMagic=renderDistribution;
+renderDistribution=function(){
+  if(config.gameplay.type!=="magicFestival")return __renderDistributionBeforeMagic();
+  const ms=ensureMagicFestivalBoard(),g=magicFestivalSettings(),groups={green:0,purple:0,blue:0,red:0,bomb:0,fireV:0,fireH:0,magnifier:0,hammer:0,absorb:0,potion3:0,book:0,empty:0};
+  ms.cells.forEach(cell=>{if(cell.kind==="gem")groups[magicFestivalGemColorClass(cell.itemId)||"green"]++;else if(Object.prototype.hasOwnProperty.call(groups,cell.kind))groups[cell.kind]++});
+  const rows=[["💚 綠寶石",groups.green],["💜 紫寶石",groups.purple],["💙 藍寶石",groups.blue],["❤️ 紅寶石",groups.red],["💣 炸彈",groups.bomb],["↕️ 垂直鞭炮",groups.fireV],["↔️ 水平鞭炮",groups.fireH],["🔍 放大鏡",groups.magnifier],["🔨 槌子",groups.hammer],["🧲 吸收道具",groups.absorb],[`🧪 ${cfgItem(config,g.gameTokenId).name}×${fmt(g.potionTileAmount||3)}`,groups.potion3],["📖 魔法書",groups.book],["空白",groups.empty]];
+  $("distribution").innerHTML=rows.map(([name,n])=>`<div class="resource-row"><span>${escapeHtml(name)}</span><strong>${fmt(n)} 格</strong></div>`).join("");
+  const title=document.querySelector("#distribution")?.closest(".card")?.querySelector(".card-title h3");if(title)title.textContent="🪄 本張魔法棋盤分布"
+};
+const __renderScoreRulesBeforeMagic=renderScoreRules;
+renderScoreRules=function(){
+  if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagic();
+  const rows=(config.scoreRules.pointsPerItemObtained||[]).map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`),fundMeta=fundUnlockMetricMeta(state,config);
+  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；魔法藥水×3 格免費取得");rows.push("魔法書完成本圖並以原位置開啟下一張圖");
+  $("scoreRules").innerHTML=`<div><strong>目前玩法：魔法慶典</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
+};
+
+const __statisticFieldDefinitionsBeforeMagic=statisticFieldDefinitions;
+statisticFieldDefinitions=function(cfg,gameplay,surface,g=null){
+  const out=__statisticFieldDefinitionsBeforeMagic(cfg,gameplay,surface,g);
+  if(gameplay==="magicFestival"&&surface==="live")out.forEach(x=>{if(x.id==="live.gameplayToday")x.label="本日探索次數";if(x.id==="live.gameplayTotal")x.label="累積完成地圖"});
+  return out
+};
+
+const __renderStatsBeforeMagic=renderStats;
+renderStats=function(){
+  if(batchGameplayType(config)!=="magicFestival")return __renderStatsBeforeMagic();
+  const s=dailyDiceStats(),stages=[...config.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)),totalStages=stages.length,reachedStages=stages.filter(x=>Number(dayState().score)>=Number(x.requiredScore)).length,maxScore=totalStages?Number(stages[totalStages-1].requiredScore||0):0,scoreNow=Math.max(0,Number(dayState().score||0)),type="magicFestival",ms=ensureMagicFestivalBoard(),tokenId=magicFestivalSettings().gameTokenId,tokenItem=item(tokenId),layout=gameplayStatisticLayout(config,type,"live");
+  const valueFor=entry=>{
+    if(entry.id==="live.gained")return`${tokenItem.icon||"🧪"} ${fmt(s.gainedToday)}`;if(entry.id==="live.previous")return`${tokenItem.icon||"🧪"} ${fmt(s.previousRemaining)}`;if(entry.id==="live.available")return`${tokenItem.icon||"🧪"} ${fmt(s.availableToday)}`;if(entry.id==="live.spent")return`${tokenItem.icon||"🧪"} ${fmt(s.spentToday)}`;
+    if(entry.id==="live.gameplayToday")return fmt(dayState().magicClicks||0);if(entry.id==="live.gameplayTotal")return fmt(ms.completedBoards||0);if(entry.id==="live.stage")return`${reachedStages}/${totalStages} 階`;if(entry.id==="live.score")return`${fmt(scoreNow)}/${fmt(maxScore)}`;
+    const stat=statisticItemByLayoutId(config,type,entry.id);if(stat){const it=resourceDisplayItem(stat.itemId,config);return`${it.icon||""} ${fmt(state.resources?.[stat.itemId]||0)}`}return"—"
+  };
+  $("persistentDailyStats").innerHTML=layout.map(entry=>`<div class="daily-dice-stat"><div class="k">${escapeHtml(entry.label)}</div><div class="v">${valueFor(entry)}</div></div>`).join("")
+};
+
+switchGameplay=async function(type){
+  if(rolling)return toast("目前遊戲正在執行，請稍候");if(!config.gameplaySettings?.[type])return toast("這個玩法尚未設定");if(type===config.gameplay.type)return;
+  if(config.gameplay.type==="pinball"&&type!=="pinball"){if(pinballState().hiddenActive)await settleHiddenModeBeforeExit();refundUnfinishedNormalPinballs()}
+  persistActiveGameplayFundState(state,config);persistActiveGameplayTokenFlow(state,config);config.gameplay.type=type;normalizeFundConfig(config);ensureStateSchema(state,config);persistActiveGameplayFundState(state,config);
+  if(type==="pinball")ensurePinballSlots();if(type==="magicFestival")ensureMagicFestivalBoard();
+  weeklyFlowPlan=null;weeklyFlowPlanGameplay=null;simulationBaseline=loadStoredBaseline(type);batchResults=[];freePlayerCompareResults=null;freePlanCompareRunToken++;lastAutoRollSnapshot=null;$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast(`已切換為${gameplayLabel(type)}玩法`)
+};
+
+async function magicFestivalClick(index){
+  if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能探索棋盤");
+  const ms=ensureMagicFestivalBoard(),cell=ms.cells?.[Number(index)];if(!cell?.revealed)return toast("蓋住的牌不能點擊");if(cell.used)return;
+  if(cell.kind!=="potion3"&&Number(state.resources?.[magicFestivalSettings().gameTokenId]||0)<1)return toast(`${item(magicFestivalSettings().gameTokenId).name}不足`);
+  recordHistory(`魔法慶典：${magicFestivalCellKindLabel(cell)}`);const r=magicFestivalPerformCell(state,config,Number(index));if(!r.ok)return toast(r.note||"無法使用這張牌");$("rollMessage").textContent=r.note;render()
+}
+async function autoMagicFestival({reuseSnapshot=false}={}){
+  if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能自動探索");const token=magicFestivalSettings().gameTokenId;
+  ensureMagicFestivalBoard();magicFestivalCollectFreeRevealed(state,config);
+  if(Number(state.resources?.[token]||0)<1&&magicFestivalPickBestCell(state,config)<0)return toast(`${item(token).name}不足且目前沒有可用免費藥水格`);
+  if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};recordHistory("魔法慶典自動探索");stopAuto=false;$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;$("undoAutoRollBtn").disabled=true;$("retryAutoRollBtn").disabled=true;
+  let used=0,free=0,guard=0;
+  try{
+    while(!stopAuto&&guard++<20000){
+      free+=magicFestivalCollectFreeRevealed(state,config);const i=magicFestivalPickBestCell(state,config);if(i<0)break;const cell=magicFestivalState().cells[i];if(cell.kind!=="potion3"&&Number(state.resources?.[token]||0)<1)break;
+      const r=magicFestivalPerformCell(state,config,i);if(!r.ok)break;if(r.consumedPotion)used++;if(guard%30===0){render();await wait(0)}
+    }
+  }finally{$("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false}
+  $("rollMessage").textContent=stopAuto?`已停止自動探索；本次消耗 ${fmt(used)} ${item(token).name}。`:`自動探索完成：消耗 ${fmt(used)} ${item(token).name}，免費撿取藥水格 ${fmt(free)} 次；剩餘 ${fmt(state.resources?.[token]||0)}。`;render()
+}
+const __rollMultipleBeforeMagic=rollMultiple;
+rollMultiple=async function(count){if(config.gameplay.type==="magicFestival")return autoMagicFestival();return __rollMultipleBeforeMagic(count)};
+const __autoRollBeforeMagic=autoRoll;
+autoRoll=async function(opts={}){if(config.gameplay.type==="magicFestival")return autoMagicFestival(opts);return __autoRollBeforeMagic(opts)};
+const __syncStateToConfigBeforeMagic=syncStateToConfig;
+syncStateToConfig=function(forceBoard=true){const r=__syncStateToConfigBeforeMagic(forceBoard);if(config.gameplay.type==="magicFestival"){if(forceBoard)generateMagicFestivalBoard(state,config,{freshInitial:true});else ensureMagicFestivalBoard(state,config)}return r};
+reset=function(){
+  if(!confirm("確定要重置全部模擬進度嗎？活動設定與模擬基準會保留。"))return;recordHistory("重置全部模擬進度");state=createState();lastAutoRollSnapshot=null;generateBoard();generatePinballSlots();generateMagicFestivalBoard(state,config,{freshInitial:true});$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();toast("已重置進度，可用復原或恢復模擬基準返回")
+};
+
+// 兌換商品支援真正「無上限」。舊商品仍照原本 limit；只有 unlimited=true 才視為無限。
+function exchangeOfferUnlimited(offer){return offer?.unlimited===true}
+const __buyExchangeOfferBeforeMagic=buyExchangeOffer;
+buyExchangeOffer=function(offerId,times=1){
+  const offer=exchangeShopOffer(offerId);if(!offer||!exchangeOfferUnlimited(offer))return __buyExchangeOfferBeforeMagic(offerId,times);
+  if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能進行兌換");const bought=exchangeOfferTimes(offer),requested=Math.max(1,Math.floor(Number(times||1))),need=Number(offer.cost.amount||0)*requested,have=Number(state.resources[offer.cost.itemId]||0);if(have<need)return toast(`${item(offer.cost.itemId).name}不足，需要 ${fmt(need)}`);
+  recordHistory(`兌換 ${offer.name} ×${requested}`);state.resources[offer.cost.itemId]=have-need;state.spent[offer.cost.itemId]=Number(state.spent[offer.cost.itemId]||0)+need;if(offer.cost.itemId===config.currencies.gameTokenId)adjustGameTokenSpend(state.currentDay,need);const gain=Number(offer.reward.amount||0)*requested;addItem(offer.reward.itemId,gain,`${offer.name}兌換`,true);const key=exchangeOfferKey(offer);state.exchangePurchases[key]=bought+requested;state.lastExchangeUndo={key,offerId:offer.id,count:requested,cost:clone(offer.cost),reward:clone(offer.reward),day:state.currentDay};render();toast(`已兌換 ${fmt(requested)} 次`)
+};
+const __renderExchangeShopBeforeMagic=renderExchangeShop;
+renderExchangeShop=function(){
+  const el=$("exchangeShopList");if(!el)return;const offers=config.exchangeShop||[];
+  if(!offers.some(exchangeOfferUnlimited))return __renderExchangeShopBeforeMagic();
+  el.innerHTML=offers.length?offers.map(offer=>{const bought=exchangeOfferTimes(offer),unlimited=exchangeOfferUnlimited(offer),left=unlimited?Infinity:Math.max(0,Number(offer.limit||0)-bought),key=escapeHtml(offer.id);return `<div class="exchange-shop-card"><div class="exchange-shop-row"><div><strong>${escapeHtml(offer.name)}</strong> <span class="badge ${left?"":"warn"}">${unlimited?`${fmt(bought)} / ∞`:`${fmt(bought)}/${fmt(offer.limit)}`}</span><div class="exchange-shop-desc">${escapeHtml(itemText(offer.cost.itemId,offer.cost.amount))} → ${escapeHtml(itemText(offer.reward.itemId,offer.reward.amount))}</div></div><div class="exchange-shop-actions"><input class="input" type="number" min="1" ${unlimited?"":`max="${Math.max(1,left)}"`} value="1" data-exchange-count="${key}"><button class="btn green small" data-exchange-buy="${key}" ${left?"":"disabled"}>兌換</button></div></div></div>`}).join(""):`<div class="empty">目前玩法沒有兌換商品，請到活動設定 → 兌換商店新增。</div>`;if(state.lastExchangeUndo)el.insertAdjacentHTML("beforeend",`<div class="form-row" style="justify-content:flex-end"><button class="btn secondary small" id="undoExchangeBtn">退回上次兌換</button></div>`)
+};
+const __flowExchangeBeforeMagic=flowExchange;
+flowExchange=function(st,cfg,action,stats,ctx={}){
+  const offer=flowBatchCfgCache(cfg).exchangeMap.get(action.offerId)||(cfg.exchangeShop||[])[0];if(!offer||!exchangeOfferUnlimited(offer))return __flowExchangeBeforeMagic(st,cfg,action,stats,ctx);
+  const key=`${cfg.gameplay.type}:${offer.id}`,bought=Number(st.exchangePurchases?.[key]||0),want=Math.max(1,Math.floor(Number(action.count||1))),unitCost=Math.max(0,Number(offer.cost.amount||0));let done=0,played=0;
+  for(let i=0;i<want;i++){
+    if(Number(st.resources[offer.cost.itemId]||0)<unitCost){if(ctx?.noGameplaySupport)return{ok:false,deferred:true,progressed:done>0,done,note:ctx?.quiet?"":`${offer.name}暫候：已完成 ${done}/${want} 次；材料不足，先重新檢查其他固定收益`};const prep=flowPlayUntilResource(st,cfg,offer.cost.itemId,unitCost,stats,`${offer.name}第 ${i+1} 次兌換材料`,ctx);played+=Number(prep.used||0);if(!prep.ok)return{ok:false,done,note:`${offer.name}已完成 ${done}/${want} 次；${prep.note}`}}
+    if(Number(st.resources[offer.cost.itemId]||0)<unitCost)return{ok:false,note:`${offer.name}第 ${i+1} 次材料不足`};st.resources[offer.cost.itemId]=Number(st.resources[offer.cost.itemId]||0)-unitCost;st.spent[offer.cost.itemId]=Number(st.spent[offer.cost.itemId]||0)+unitCost;flowAddItem(st,cfg,offer.reward.itemId,Number(offer.reward.amount||0));done++;st.exchangePurchases[key]=bought+done;flowAutoClaimStages(st,cfg,stats);flowCheckFundInterrupts(st,cfg,ctx,stats)
+  }
+  return{ok:true,progressed:done>0,done,note:`${offer.name} 兌換 ${done}/${want} 次${played?`，期間使用玩法資源 ${played} 次補材料`:""}`}
+};
+
+
+const __validateConfigBeforeMagic=validateConfig;
+validateConfig=function(c){
+  const ok=__validateConfigBeforeMagic(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;
+  const ids=new Set((c.items||[]).map(x=>x.id));
+  if(!ids.has(g.gameTokenId))throw new Error("魔法慶典的魔法藥水物品不存在");
+  for(const [color,id] of Object.entries(g.gemItemIds||{})){if(!ids.has(id))throw new Error(`魔法慶典 ${color} 寶石物品不存在：${id}`)}
+  const total=magicFestivalConfiguredCellCount(c);if(total>63)throw new Error(`魔法慶典棋盤內容共 ${total} 格，另需保留 1 格魔法書，因此最多只能設定 63 格內容`);
+  return ok
+};
+
+$("magicFestivalBoard")?.addEventListener("click",e=>{const cell=e.target.closest("[data-magic-cell]");if(cell)magicFestivalClick(Number(cell.dataset.magicCell))});
 $("dailyProgressToggle").addEventListener("click",()=>{dailyProgressCollapsed=!dailyProgressCollapsed;renderDaily()});
 $("claimAllStagesBtn").addEventListener("click",claimAllStages);
 $("refundAllStagesBtn").addEventListener("click",refundAllStages);
@@ -10179,6 +10814,8 @@ $("stopAutoBtn").addEventListener("click",()=>{stopAuto=true});
 $("refreshBoardBtn").addEventListener("click",()=>{
   if(config.gameplay.type==="pinball"){
     recordHistory("手動刷新彈珠機槽位");generatePinballSlots();log("手動刷新彈珠機槽位");render()
+  }else if(config.gameplay.type==="magicFestival"){
+    recordHistory("手動重開魔法慶典棋盤");generateMagicFestivalBoard(state,config,{freshInitial:true});log("手動重開魔法慶典棋盤");render()
   }else{
     recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()
   }
@@ -10218,12 +10855,12 @@ $("freePlanCompareCount").addEventListener("change",()=>{
 $("loadExampleFlowBtn").addEventListener("click",()=>{
   weeklyFlowPlan=flowExamplePlan(config);weeklyFlowPlanGameplay=batchGameplayType();
   saveWeeklyFlowPlan(config);batchResults=[];renderSimulation();
-  toast(`已套用${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}範例七日流程`)
+  toast(`已套用${gameplayLabel(batchGameplayType())}範例七日流程`)
 });
 $("clearWeeklyFlowBtn").addEventListener("click",()=>{
   weeklyFlowPlan=Array.from({length:7},()=>({actions:[]}));weeklyFlowPlanGameplay=batchGameplayType();
   saveWeeklyFlowPlan(config);batchResults=[];renderSimulation();
-  toast(`只清空${batchGameplayType()==="pinball"?"彈珠機":"大富翁"}七日流程`)
+  toast(`只清空${gameplayLabel(batchGameplayType())}七日流程`)
 });
 $("weeklyFlowPlanner").addEventListener("click",e=>{
   const plan=ensureWeeklyFlowPlan(),add=e.target.closest("[data-flow-add]");
