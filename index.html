@@ -198,7 +198,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 .editor-row.package-reward{grid-template-columns:minmax(150px,1fr) 110px auto}
 .stat-config-list{display:grid;gap:7px}
 .stat-config-row{
-  display:grid;grid-template-columns:minmax(145px,1.1fr) minmax(145px,1fr) repeat(4,minmax(78px,.55fr)) auto;
+  display:grid;grid-template-columns:minmax(170px,1.2fr) minmax(170px,1fr) auto;
   gap:7px;align-items:center;background:#f4f7fa;border-radius:11px;padding:7px
 }
 .stat-config-row>*{min-width:0}
@@ -207,6 +207,20 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   background:#fff;border:1px solid #dce5ed;border-radius:10px;font-size:12px;font-weight:900;color:#596b7d;white-space:nowrap
 }
 .stat-config-check input{width:17px;height:17px}
+.stat-layout-groups{display:grid;gap:10px;margin-top:10px}
+.stat-layout-group{border:2px solid #dce5ed;border-radius:14px;background:#fbfdff;overflow:hidden}
+.stat-layout-group>summary{cursor:pointer;list-style:none;padding:10px 12px;font-weight:1000;color:#40566d;background:#f2f7fa;display:flex;justify-content:space-between;gap:8px}
+.stat-layout-group>summary::-webkit-details-marker{display:none}
+.stat-layout-list{display:grid;gap:6px;padding:9px}
+.stat-layout-row{display:grid;grid-template-columns:42px 92px minmax(180px,1fr);gap:7px;align-items:center;background:#f4f7fa;border-radius:11px;padding:7px;transition:transform .12s,box-shadow .12s,opacity .12s}
+.stat-layout-row.dragging{opacity:.82;box-shadow:0 8px 20px rgba(35,60,90,.18);transform:scale(1.01);z-index:3}
+.stat-drag-handle{width:42px;height:42px;border:1px solid #cbd8e2;border-radius:10px;background:#fff;color:#65788a;font-size:21px;font-weight:1000;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.stat-drag-handle:active{cursor:grabbing}
+.stat-layout-enabled{display:flex;align-items:center;justify-content:center;gap:5px;height:42px;border:1px solid #d3dfe8;border-radius:10px;background:#fff;color:#52677a;font-size:12px;font-weight:900}
+.stat-layout-enabled input{width:17px;height:17px}
+.stat-layout-name{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}
+.stat-layout-name .input{width:100%}
+.stat-layout-kind{font-size:11px;color:#7a8796;font-weight:900;white-space:nowrap}
 .pinball-slot-setting-card{
   background:#f6f9fb;border:2px solid #dce5ed;border-radius:14px;padding:12px;margin-bottom:10px
 }
@@ -390,6 +404,9 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   .stat-config-row{grid-template-columns:1fr 1fr}
   .stat-config-row .btn{grid-column:1/-1;width:100%}
   .stat-config-check{justify-content:flex-start}
+  .stat-layout-row{grid-template-columns:42px 88px minmax(0,1fr);gap:6px;padding:6px}
+  .stat-layout-name{grid-template-columns:1fr}
+  .stat-layout-kind{display:none}
   .pinball-slot-setting-card{padding:10px}
   .pinball-slot-setting-layout{grid-template-columns:1fr}
   .pinball-slot-setting-mini{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -1948,6 +1965,7 @@ let pinballHoldTimer=null;
 let pinballHoldInterval=null;
 let pinballHoldActive=false;
 let pinballHoldClickLocked=false;
+let statisticLayoutDrag=null;
 
 
 function ensureLegacyPinballDefaultItems(cfg){
@@ -2314,6 +2332,76 @@ function defaultGameplayStatisticsItems(cfg,gameplay,g){
   }
   return out
 }
+function statisticFieldDefinitions(cfg,gameplay,surface,g=null){
+  const gp=g||cfg.gameplaySettings?.[gameplay]||{};
+  const items=gp.statistics?.items||[];
+  const tokenId=gp.gameTokenId||cfg.currencies?.gameTokenId||"";
+  const tokenName=cfgItem(cfg,tokenId).name||"玩法資源";
+  const craftId=gameplay==="pinball"?gp.craftTicketId:null;
+  const craftName=craftId?cfgItem(cfg,craftId).name:"";
+  const paidId=cfg.currencies?.paidCurrencyId||"emerald";
+  const paidName=cfgItem(cfg,paidId).name||"付費貨幣";
+  const out=[];
+  const add=(id,label,defaultEnabled=true,kind="固定")=>out.push({id,label,defaultEnabled,kind});
+  if(surface==="live"){
+    add("live.gained","本日獲得代幣");
+    add("live.previous","日前剩餘代幣");
+    add("live.available","本日可用代幣");
+    add("live.spent","本日已消耗代幣");
+    add("live.gameplayToday",gameplay==="pinball"?"本日彈珠落下":"本日完成圈數");
+    add("live.gameplayTotal",gameplay==="pinball"?"累積彈珠落下":"累積完成圈數");
+    add("live.stage","本日進度階段");
+    add("live.score","本日積分進度");
+    items.forEach(stat=>add(`item:${stat.id}:current`,gameplayStatisticLabel(stat,cfg),false,"物品"));
+  }else if(surface==="summary"){
+    add("summary.successRate","完整流程成功率");
+    items.forEach(stat=>{
+      const label=gameplayStatisticLabel(stat,cfg),enabled=!!stat.summary;
+      add(`item:${stat.id}:avg`,`平均獲得${label}（只算成功）`,enabled,"物品");
+      add(`item:${stat.id}:min`,`最少獲得${label}（只算成功）`,enabled,"物品");
+      add(`item:${stat.id}:max`,`最高獲得${label}（只算成功）`,enabled,"物品");
+    });
+  }else if(surface==="daily"){
+    add("daily.date","日期");add("daily.target","目標");add("daily.targetRate","目標達成率");
+    add("daily.mission","每日任務實領");add("daily.tokenUsed",`當日使用${tokenName}`);add("daily.boxesOpened","當日開箱");
+    items.forEach(stat=>{
+      const label=gameplayStatisticLabel(stat,cfg),enabled=!!stat.daily;
+      add(`item:${stat.id}:gain`,`當日${label}增加`,enabled,"物品");
+      add(`item:${stat.id}:total`,`${label}累計`,enabled,"物品");
+    });
+    add("daily.score","平均最終分數");add("daily.stage","平均階段");
+    if(gameplay==="pinball")add("daily.craftRemaining",`${craftName}剩餘`);
+    add("daily.tokenRemaining",`${tokenName}剩餘`);
+  }else if(surface==="result"){
+    add("result.run","次數");add("result.status","結果");add("result.tokenUsed",`使用${tokenName}`);add("result.boxesOpened","開箱");
+    if(gameplay==="pinball")add("result.craftSpent",`${craftName}消耗`);
+    add("result.paidSpent",`${paidName}支出`);
+    items.forEach(stat=>add(`item:${stat.id}:final`,`${gameplayStatisticLabel(stat,cfg)}最終`,stat.result!==false,"物品"));
+    add("result.tokenFinal",`${tokenName}最終`);
+    if(gameplay==="pinball")add("result.craftFinal",`${craftName}最終`);
+    add("result.failures","失敗原因");
+  }else if(surface==="freeCompare"){
+    add("free.plan","方案");add("free.gemDays","買滿寶石天數");add("free.buyDays","購買日");add("free.gemSpent","寶石支出");
+    items.forEach(stat=>add(`item:${stat.id}:avg`,`平均獲得 ${gameplayStatisticLabel(stat,cfg)}`,stat.freeCompare!==false,"物品"));
+  }
+  return out
+}
+function normalizeStatisticLayouts(cfg,gameplay,g){
+  if(!g.statistics.layouts||typeof g.statistics.layouts!=="object")g.statistics.layouts={};
+  ["live","summary","daily","result","freeCompare"].forEach(surface=>{
+    const defs=statisticFieldDefinitions(cfg,gameplay,surface,g),valid=new Map(defs.map(x=>[x.id,x]));
+    const old=Array.isArray(g.statistics.layouts[surface])?g.statistics.layouts[surface]:[];
+    const seen=new Set(),normalized=[];
+    old.forEach(raw=>{
+      const x=typeof raw==="string"?{id:raw}:raw;
+      if(!x?.id||seen.has(x.id)||!valid.has(x.id))return;
+      const def=valid.get(x.id);seen.add(x.id);
+      normalized.push({id:x.id,enabled:x.enabled!==undefined?!!x.enabled:!!def.defaultEnabled,label:String(x.label||"")})
+    });
+    defs.forEach(def=>{if(!seen.has(def.id))normalized.push({id:def.id,enabled:!!def.defaultEnabled,label:""})});
+    g.statistics.layouts[surface]=normalized
+  })
+}
 function normalizeGameplayStatistics(cfg,gameplay,g){
   if(!g||typeof g!=="object")return;
   if(!g.statistics||typeof g.statistics!=="object")g.statistics={};
@@ -2328,6 +2416,7 @@ function normalizeGameplayStatistics(cfg,gameplay,g){
     result:x?.result!==false,
     freeCompare:x?.freeCompare!==false
   })).filter(x=>x.itemId);
+  normalizeStatisticLayouts(cfg,gameplay,g)
 }
 function migrateV67ConfigurableStatistics(cfg,mono,pin){
   if(Number(cfg.configSchemaVersion||0)>=67){
@@ -2339,6 +2428,11 @@ function migrateV67ConfigurableStatistics(cfg,mono,pin){
   normalizeGameplayStatistics(cfg,"pinball",pin);
   cfg.configSchemaVersion=67
 }
+function migrateV68AllStatisticLayouts(cfg,mono,pin){
+  normalizeGameplayStatistics(cfg,"monopoly",mono);
+  normalizeGameplayStatistics(cfg,"pinball",pin);
+  if(Number(cfg.configSchemaVersion||0)<68)cfg.configSchemaVersion=68
+}
 function gameplayStatisticItems(cfg=config,gameplay=batchGameplayType(cfg)){
   const g=cfg.gameplaySettings?.[gameplay]||{};
   normalizeGameplayStatistics(cfg,gameplay,g);
@@ -2347,6 +2441,27 @@ function gameplayStatisticItems(cfg=config,gameplay=batchGameplayType(cfg)){
 function gameplayStatisticLabel(stat,cfg=config){
   const custom=String(stat?.label||"").trim();
   return custom||cfgItem(cfg,stat?.itemId).name||stat?.itemId||"統計物品"
+}
+function gameplayStatisticLayout(cfg=config,gameplay=batchGameplayType(cfg),surface="daily",enabledOnly=true){
+  const g=cfg.gameplaySettings?.[gameplay]||{};
+  normalizeGameplayStatistics(cfg,gameplay,g);
+  const defs=new Map(statisticFieldDefinitions(cfg,gameplay,surface,g).map(x=>[x.id,x]));
+  return (g.statistics?.layouts?.[surface]||[]).filter(x=>!enabledOnly||x.enabled).map(entry=>{
+    const def=defs.get(entry.id);if(!def)return null;
+    return{...entry,defaultLabel:def.label,kind:def.kind,label:String(entry.label||"").trim()||def.label}
+  }).filter(Boolean)
+}
+function statisticItemByLayoutId(cfg,gameplay,id){
+  const m=String(id||"").match(/^item:([^:]+):/);if(!m)return null;
+  return gameplayStatisticItems(cfg,gameplay).find(x=>x.id===m[1])||null
+}
+function statisticItemsForSurface(cfg=config,gameplay=batchGameplayType(cfg),surface="daily"){
+  const seen=new Set(),out=[];
+  gameplayStatisticLayout(cfg,gameplay,surface).forEach(entry=>{
+    const stat=statisticItemByLayoutId(cfg,gameplay,entry.id);
+    if(stat&&!seen.has(stat.id)){seen.add(stat.id);out.push(stat)}
+  });
+  return out
 }
 
 function normalizeFundConfig(cfg){
@@ -2477,6 +2592,7 @@ function normalizeFundConfig(cfg){
   migrateV65ExchangeShop(cfg,mono,pin);
   migrateV66PinballLegacyDiceRewards(cfg,mono,pin);
   migrateV67ConfigurableStatistics(cfg,mono,pin);
+  migrateV68AllStatisticLayouts(cfg,mono,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
   [mono,pin].forEach(g=>{
@@ -6678,7 +6794,7 @@ function runFreeCompareOnce(base,cfg,gemDays,info){
   st.currentDay=0;
 
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
-  const compareStats=gameplayStatisticItems(cfg,type).filter(x=>x.freeCompare);
+  const compareStats=statisticItemsForSurface(cfg,type,"freeCompare");
   const compareIds=[...new Set(compareStats.map(x=>x.itemId).filter(Boolean))];
   const startItems=Object.fromEntries(compareIds.map(id=>[id,Number(st.resources?.[id]||0)]));
   const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[]};
@@ -6735,7 +6851,8 @@ function renderFreePlayerComparison(){
   const cfg=freePlayerCompareResults?.cfg||config;
   const info=freeCompareGemTokenPackages(cfg);
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
-  const compareStats=gameplayStatisticItems(cfg,type).filter(x=>x.freeCompare);
+  const compareStats=statisticItemsForSurface(cfg,type,"freeCompare");
+  const compareLayout=gameplayStatisticLayout(cfg,type,"freeCompare");
 
   if(!info.packages.length){
     meta.innerHTML=`⚠️ 找不到「寶石 → 玩法代幣」的每日禮包。請確認目前玩法的每日禮包設定中，有使用「寶石」購買 ${escapeHtml(cfgItem(cfg,dailyMissionRewardItemId(cfg)).name)} 或 ${escapeHtml(cfgItem(cfg,gp.gameTokenId||cfg.currencies.gameTokenId).name)} 的禮包。`;
@@ -6754,26 +6871,21 @@ function renderFreePlayerComparison(){
     return
   }
 
-  const compareHeads=compareStats.map(stat=>`<th>平均獲得 ${escapeHtml(gameplayStatisticLabel(stat,cfg))}</th>`).join("");
-  const compareCells=row=>compareStats.map(stat=>`<td class="value-strong">${fmt(row.itemAverages?.[stat.itemId]||0)}</td>`).join("");
-  out.innerHTML=`<div class="free-plan-compare-table"><table><thead><tr>
-    <th>方案</th>
-    <th>買滿寶石天數</th>
-    <th>購買日</th>
-    <th>${escapeHtml(costName)}支出</th>
-    ${compareHeads}
-  </tr></thead><tbody>${data.rows.map(row=>{
+  const freeHead=compareLayout.map(entry=>`<th>${escapeHtml(entry.id==="free.gemSpent"&&entry.label===entry.defaultLabel?`${costName}支出`:entry.label)}</th>`).join("");
+  const freeCell=(entry,row)=>{
     const days=row.gemDays>0
       ?Array.from({length:row.gemDays},(_,i)=>labels[7-row.gemDays+i]||`第${8-row.gemDays+i}天`).join("＋")
       :"—";
-    return`<tr>
-      <td class="plan-name">${row.gemDays===0?"任務基準":`寶石買滿 ${row.gemDays} 天`}</td>
-      <td class="gem-days">${row.gemDays===0?"0 天":`${row.gemDays} 天`}</td>
-      <td>${escapeHtml(days)}</td>
-      <td>${fmt(row.gemSpent)}</td>
-      ${compareCells(row)}
-    </tr>`
-  }).join("")}</tbody></table></div>
+    if(entry.id==="free.plan")return `<span class="plan-name">${row.gemDays===0?"任務基準":`寶石買滿 ${row.gemDays} 天`}</span>`;
+    if(entry.id==="free.gemDays")return `<span class="gem-days">${row.gemDays===0?"0 天":`${row.gemDays} 天`}</span>`;
+    if(entry.id==="free.buyDays")return escapeHtml(days);
+    if(entry.id==="free.gemSpent")return fmt(row.gemSpent);
+    const stat=statisticItemByLayoutId(cfg,type,entry.id);
+    if(stat)return `<span class="value-strong">${fmt(row.itemAverages?.[stat.itemId]||0)}</span>`;
+    return"—"
+  };
+  const compareTable=compareLayout.length?`<div class="free-plan-compare-table"><table><thead><tr>${freeHead}</tr></thead><tbody>${data.rows.map(row=>`<tr>${compareLayout.map(entry=>`<td>${freeCell(entry,row)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:`<div class="empty" style="margin-top:9px">無課寶石比較欄位已全部隱藏。</div>`;
+  out.innerHTML=`${compareTable}
 
   <div class="free-plan-daily-title">📅 每日進度（階段｜平均分數）</div>
   <div class="free-plan-daily-table"><table><thead><tr>
@@ -6787,7 +6899,7 @@ function renderFreePlayerComparison(){
     </td>`).join("")}
   </tr>`).join("")}</tbody></table></div>
 
-  <div class="help" style="margin-top:7px">每列以 ${fmt(data.samples)} 次隨機模擬取平均；每日分數顯示平均值，若同一天不同模擬落在不同階段，會顯示例如「2～3階」。所有方案都從全新活動週、0資源開始，因此勾選「寶石比較」的統計物品會顯示本方案實際累積取得量。</div>`
+  <div class="help" style="margin-top:7px">每列以 ${fmt(data.samples)} 次隨機模擬取平均；每日分數顯示平均值，若同一天不同模擬落在不同階段，會顯示例如「2～3階」。所有方案都從全新活動週、0資源開始，統計欄位可在玩法設定中自由顯示／隱藏、改名並拖曳排序。</div>`
 }
 async function runFreePlayerComparison({silent=false}={}){
   if(rolling){if(!silent)toast("目前遊戲正在執行，請稍候");return}
@@ -6819,7 +6931,7 @@ async function runFreePlayerComparison({silent=false}={}){
   let done=0;
   const rows=[];
 
-  const compareStats=gameplayStatisticItems(cfg,batchGameplayType(cfg)).filter(x=>x.freeCompare);
+  const compareStats=statisticItemsForSurface(cfg,batchGameplayType(cfg),"freeCompare");
   const compareIds=[...new Set(compareStats.map(x=>x.itemId).filter(Boolean))];
   for(const gemDays of scenarios){
     const itemSamples=Object.fromEntries(compareIds.map(id=>[id,[]]));
@@ -7003,19 +7115,23 @@ function renderSimulation(){
   const successful=batchResults.filter(x=>x.success),success=successful.length,cfg=batchResults.meta?.config||simulationBaseline.config;
   const type=batchGameplayType(cfg),gp=cfg.gameplaySettings?.[type]||{};
   const statItems=gameplayStatisticItems(cfg,type);
-  const summaryStats=statItems.filter(x=>x.summary);
-  const dailyStats=statItems.filter(x=>x.daily);
   const statValue=v=>v===null?"—":fmt(v);
-  const summaryCards=[`<div class="sim-stat"><div class="k">完整流程成功率</div><div class="v">${fmt(success/batchResults.length*100)}%</div></div>`];
-  summaryStats.forEach(stat=>{
-    const label=gameplayStatisticLabel(stat,cfg);
-    const values=successful.map(x=>Number(x.itemGained?.[stat.itemId]||0));
-    const avg=values.length?average(values):null,min=values.length?Math.min(...values):null,max=values.length?Math.max(...values):null;
-    summaryCards.push(
-      `<div class="sim-stat"><div class="k">平均獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(avg)}</div></div>`,
-      `<div class="sim-stat"><div class="k">最少獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(min)}</div></div>`,
-      `<div class="sim-stat"><div class="k">最高獲得${escapeHtml(label)}（只算成功）</div><div class="v">${statValue(max)}</div></div>`
-    )
+  const summaryLayout=gameplayStatisticLayout(cfg,type,"summary");
+  const summaryCards=summaryLayout.map(entry=>{
+    let value="—";
+    if(entry.id==="summary.successRate")value=`${fmt(success/batchResults.length*100)}%`;
+    else{
+      const stat=statisticItemByLayoutId(cfg,type,entry.id);
+      if(stat){
+        const values=successful.map(x=>Number(x.itemGained?.[stat.itemId]||0));
+        if(values.length){
+          if(entry.id.endsWith(":avg"))value=statValue(average(values));
+          if(entry.id.endsWith(":min"))value=statValue(Math.min(...values));
+          if(entry.id.endsWith(":max"))value=statValue(Math.max(...values))
+        }
+      }
+    }
+    return `<div class="sim-stat"><div class="k">${escapeHtml(entry.label)}</div><div class="v">${value}</div></div>`
   });
   $("simulationSummary").innerHTML=summaryCards.join("");
   const days=Array.from({length:7},(_,d)=>{
@@ -7058,14 +7174,27 @@ function renderSimulation(){
       return `${found.pack.name}(${rewards||"無獎勵"})`
     }).join("、")||"無";
     const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
-    const craftHead=type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,cfg.gameplaySettings.pinball.craftTicketId).name)}剩餘</th>`:"";
-    const craftCell=x=>type==="pinball"?`<td>${fmt(x.craft)}</td>`:"";
-    const customHeads=dailyStats.map(stat=>{
-      const label=escapeHtml(gameplayStatisticLabel(stat,cfg));
-      return `<th>當日${label}增加</th><th>${label}累計</th>`
-    }).join("");
-    const customCells=x=>dailyStats.map(stat=>`<td>${fmt(x.itemGainsToday?.[stat.itemId]||0)}</td><td>${fmt(x.itemValues?.[stat.itemId]||0)}</td>`).join("");
-    $("weeklyDailySummary").innerHTML=`${diagnostic}<div class="weekly-daily-summary"><table><thead><tr><th>日期</th><th>目標</th><th>目標達成率</th><th>每日任務實領</th><th>當日使用${escapeHtml(tokenName)}</th><th>當日開箱</th>${customHeads}<th>平均最終分數</th><th>平均階段</th>${craftHead}<th>${escapeHtml(tokenName)}剩餘</th></tr></thead><tbody>${days.map(x=>`<tr><td>${escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`)}</td><td>${x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—"}</td><td>${x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—"}</td><td>${fmt(x.mission)}</td><td>${fmt(x.ballsUsedToday)}</td><td>${fmt(x.boxesOpenedToday)}</td>${customCells(x)}<td>${fmt(x.score)}</td><td>${fmt(x.stage)} 階</td>${craftCell(x)}<td>${fmt(x.balls)}</td></tr>`).join("")}</tbody></table></div>`
+    const dailyLayout=gameplayStatisticLayout(cfg,type,"daily");
+    const dailyHead=dailyLayout.map(entry=>`<th>${escapeHtml(entry.label)}</th>`).join("");
+    const dailyCell=(entry,x)=>{
+      if(entry.id==="daily.date")return escapeHtml(cfg.event.dayLabels?.[x.d]||`第${x.d+1}天`);
+      if(entry.id==="daily.target")return x.targetStage?`${fmt(x.targetStage)}階 / ${fmt(x.targetScore)}分`:"—";
+      if(entry.id==="daily.targetRate")return x.targetStage?`<strong>${fmt(x.targetRate)}%</strong>`:"—";
+      if(entry.id==="daily.mission")return fmt(x.mission);
+      if(entry.id==="daily.tokenUsed")return fmt(x.ballsUsedToday);
+      if(entry.id==="daily.boxesOpened")return fmt(x.boxesOpenedToday);
+      if(entry.id==="daily.score")return fmt(x.score);
+      if(entry.id==="daily.stage")return `${fmt(x.stage)} 階`;
+      if(entry.id==="daily.craftRemaining")return fmt(x.craft);
+      if(entry.id==="daily.tokenRemaining")return fmt(x.balls);
+      const stat=statisticItemByLayoutId(cfg,type,entry.id);
+      if(stat){
+        if(entry.id.endsWith(":gain"))return fmt(x.itemGainsToday?.[stat.itemId]||0);
+        if(entry.id.endsWith(":total"))return fmt(x.itemValues?.[stat.itemId]||0)
+      }
+      return"—"
+    };
+    $("weeklyDailySummary").innerHTML=`${diagnostic}${dailyLayout.length?`<div class="weekly-daily-summary"><table><thead><tr>${dailyHead}</tr></thead><tbody>${days.map(x=>`<tr>${dailyLayout.map(entry=>`<td>${dailyCell(entry,x)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:""}`
   }
   const trace=$("simulationFundTrace");
   if(trace){
@@ -7084,12 +7213,23 @@ function renderSimulation(){
   }
 
   const tokenId=gp.gameTokenId||cfg.currencies.gameTokenId;
-  const tokenName=cfgItem(cfg,tokenId).name;
-  const craftId=type==="pinball"?cfg.gameplaySettings.pinball.craftTicketId:null;
-  const resultStats=statItems.filter(x=>x.result);
-  const resultHeads=resultStats.map(stat=>`<th>${escapeHtml(gameplayStatisticLabel(stat,cfg))}最終</th>`).join("");
-  const resultCells=r=>resultStats.map(stat=>`<td>${fmt(r.itemFinal?.[stat.itemId]||0)}</td>`).join("");
-  $("simulationResults").innerHTML=`<table class="sim-table"><thead><tr><th>次數</th><th>結果</th><th>使用${escapeHtml(tokenName)}</th><th>開箱</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}消耗</th>`:""}<th>${escapeHtml(cfgItem(cfg,cfg.currencies.paidCurrencyId||"emerald").name)}支出</th>${resultHeads}<th>${escapeHtml(tokenName)}最終</th>${type==="pinball"?`<th>${escapeHtml(cfgItem(cfg,craftId).name)}最終</th>`:""}<th>失敗原因</th></tr></thead><tbody>${batchResults.map(r=>`<tr><td>${r.run}</td><td>${r.success?"✅":"⚠️"}</td><td>${fmt(r.ballsUsed)}</td><td>${fmt(r.boxesOpened)}</td>${type==="pinball"?`<td>${fmt(r.craftSpent)}</td>`:""}<td>${fmt(r.paidSpent)}</td>${resultCells(r)}<td>${fmt(r.ballFinal)}</td>${type==="pinball"?`<td>${fmt(r.craftFinal)}</td>`:""}<td style="text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</td></tr>`).join("")}</tbody></table>`
+  const resultLayout=gameplayStatisticLayout(cfg,type,"result");
+  const resultHead=resultLayout.map(entry=>`<th>${escapeHtml(entry.label)}</th>`).join("");
+  const resultCell=(entry,r)=>{
+    if(entry.id==="result.run")return fmt(r.run);
+    if(entry.id==="result.status")return r.success?"✅":"⚠️";
+    if(entry.id==="result.tokenUsed")return fmt(r.ballsUsed);
+    if(entry.id==="result.boxesOpened")return fmt(r.boxesOpened);
+    if(entry.id==="result.craftSpent")return fmt(r.craftSpent);
+    if(entry.id==="result.paidSpent")return fmt(r.paidSpent);
+    if(entry.id==="result.tokenFinal")return fmt(r.ballFinal);
+    if(entry.id==="result.craftFinal")return fmt(r.craftFinal);
+    if(entry.id==="result.failures")return `<span style="display:block;text-align:left;white-space:normal;max-width:360px">${escapeHtml(r.failures.slice(0,4).join("；")||"—")}</span>`;
+    const stat=statisticItemByLayoutId(cfg,type,entry.id);
+    if(stat&&entry.id.endsWith(":final"))return fmt(r.itemFinal?.[stat.itemId]||0);
+    return"—"
+  };
+  $("simulationResults").innerHTML=resultLayout.length?`<table class="sim-table"><thead><tr>${resultHead}</tr></thead><tbody>${batchResults.map(r=>`<tr>${resultLayout.map(entry=>`<td>${resultCell(entry,r)}</td>`).join("")}</tr>`).join("")}</tbody></table>`:`<div class="empty">每次結果欄位已全部隱藏。</div>`
 }
 
 
@@ -9146,23 +9286,25 @@ function renderStats(){
         reachedStages=stages.filter(x=>Number(dayState().score)>=Number(x.requiredScore)).length,
         maxScore=totalStages?Number(stages[totalStages-1].requiredScore||0):0,
         scoreNow=Math.max(0,Number(dayState().score||0)),
-        pin=config.gameplay.type==="pinball",
-        ps=pin?pinballState():null;
-
-  const gameplayStats=pin
-    ?[["本日彈珠落下",fmt(dayState().pinballDrops||0)],["累積彈珠落下",fmt(ps.totalDrops||0)]]
-    :[["本日完成圈數",fmt(dayState().lapsCompleted||0)],["累積完成圈數",fmt(state.laps||0)]];
-
-  $("persistentDailyStats").innerHTML=[
-    ["本日獲得代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.gainedToday)}`],
-    ["日前剩餘代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.previousRemaining)}`],
-    ["本日可用代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.availableToday)}`],
-    ["本日已消耗代幣",`${item(config.currencies.gameTokenId).icon||"🎮"} ${fmt(s.spentToday)}`],
-    ...gameplayStats,
-    ["本日進度階段",`${reachedStages}/${totalStages} 階`],
-    ["本日積分進度",`${fmt(scoreNow)}/${fmt(maxScore)}`]
-  ].map(([k,v])=>`<div class="daily-dice-stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("")
+        type=batchGameplayType(config),pin=type==="pinball",ps=pin?pinballState():null,
+        tokenId=config.gameplaySettings?.[type]?.gameTokenId||config.currencies.gameTokenId,
+        tokenItem=item(tokenId),layout=gameplayStatisticLayout(config,type,"live");
+  const valueFor=entry=>{
+    if(entry.id==="live.gained")return`${tokenItem.icon||"🎮"} ${fmt(s.gainedToday)}`;
+    if(entry.id==="live.previous")return`${tokenItem.icon||"🎮"} ${fmt(s.previousRemaining)}`;
+    if(entry.id==="live.available")return`${tokenItem.icon||"🎮"} ${fmt(s.availableToday)}`;
+    if(entry.id==="live.spent")return`${tokenItem.icon||"🎮"} ${fmt(s.spentToday)}`;
+    if(entry.id==="live.gameplayToday")return fmt(pin?dayState().pinballDrops||0:dayState().lapsCompleted||0);
+    if(entry.id==="live.gameplayTotal")return fmt(pin?ps.totalDrops||0:state.laps||0);
+    if(entry.id==="live.stage")return`${reachedStages}/${totalStages} 階`;
+    if(entry.id==="live.score")return`${fmt(scoreNow)}/${fmt(maxScore)}`;
+    const stat=statisticItemByLayoutId(config,type,entry.id);
+    if(stat){const it=resourceDisplayItem(stat.itemId,config);return`${it.icon||""} ${fmt(state.resources?.[stat.itemId]||0)}`}
+    return"—"
+  };
+  $("persistentDailyStats").innerHTML=layout.map(entry=>`<div class="daily-dice-stat"><div class="k">${escapeHtml(entry.label)}</div><div class="v">${valueFor(entry)}</div></div>`).join("")
 }
+
 function renderDaily(){
   $("dailyTitle").textContent=`${config.event.dayLabels[state.currentDay]}進度`;
   renderActiveStrategyCard();
@@ -9433,16 +9575,38 @@ function renderSettings(){
   const activeGpCfg=c.gameplaySettings?.[activeGp]||c.gameplaySettings?.monopoly||{};
   const activeGpLabel=activeGp==="pinball"?"彈珠機":"大富翁";
   const statisticRows=gameplay=>{
-    const rows=c.gameplaySettings?.[gameplay]?.statistics?.items||[];
+    const g=c.gameplaySettings?.[gameplay]||{};normalizeGameplayStatistics(c,gameplay,g);
+    const rows=g.statistics?.items||[];
     return `<div class="stat-config-list">${rows.map((x,i)=>`<div class="stat-config-row">
       <select data-path="gameplaySettings.${gameplay}.statistics.items.${i}.itemId">${itemOptions(x.itemId)}</select>
       ${pathInput(`gameplaySettings.${gameplay}.statistics.items.${i}.label`,x.label||"","text",'placeholder="留空＝物品名稱"')}
-      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.summary" ${x.summary?"checked":""}> 總覽</label>
-      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.daily" ${x.daily?"checked":""}> 每日</label>
-      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.result" ${x.result?"checked":""}> 每次結果</label>
-      <label class="stat-config-check"><input type="checkbox" data-path="gameplaySettings.${gameplay}.statistics.items.${i}.freeCompare" ${x.freeCompare?"checked":""}> 寶石比較</label>
       <button class="btn red small" data-settings-action="removeStatisticItem" data-gameplay="${gameplay}" data-index="${i}">刪除</button>
     </div>`).join("")}</div>`
+  };
+  const statisticLayoutEditor=gameplay=>{
+    const g=c.gameplaySettings?.[gameplay]||{};normalizeGameplayStatistics(c,gameplay,g);
+    const surfaces=[
+      ["live","即時統計","主玩法下方目前狀態卡片"],
+      ["summary","批次總覽","完整流程成功率與成功樣本摘要"],
+      ["daily","每日統計","批次模擬的每日平均表格"],
+      ["result","每次結果","每一輪模擬的明細表格"],
+      ["freeCompare","無課寶石比較","寶石 0～7 天方案比較表格"]
+    ];
+    return `<div class="stat-layout-groups">${surfaces.map(([surface,title,desc],si)=>{
+      const layout=gameplayStatisticLayout(c,gameplay,surface,false);
+      return `<details class="stat-layout-group" ${si===0?"open":""}><summary><span>${escapeHtml(title)}</span><span class="help">${escapeHtml(desc)}</span></summary>
+        <div class="stat-layout-list" data-stat-layout-list data-gameplay="${gameplay}" data-surface="${surface}">
+          ${layout.map(entry=>`<div class="stat-layout-row" data-stat-layout-row data-field-id="${escapeHtml(entry.id)}">
+            <button type="button" class="stat-drag-handle" data-stat-drag-handle aria-label="按住拖曳調整順序" title="按住拖曳調整順序">☰</button>
+            <label class="stat-layout-enabled"><input type="checkbox" data-stat-enabled ${entry.enabled?"checked":""}> 顯示</label>
+            <div class="stat-layout-name">
+              <input class="input" type="text" data-stat-label value="${escapeHtml(String(entry.label===entry.defaultLabel?"":entry.label||""))}" placeholder="${escapeHtml(entry.defaultLabel)}">
+              <span class="stat-layout-kind">${escapeHtml(entry.kind)}</span>
+            </div>
+          </div>`).join("")}
+        </div>
+      </details>`
+    }).join("")}</div>`
   };
   sections.basic=`<section class="setting-section active">
     <div class="editor-head">
@@ -9484,8 +9648,10 @@ function renderSettings(){
     </div>
 
     <div class="editor-card">
-      <div class="editor-head"><div><h3 style="margin:0">📊 統計顯示物品</h3><div class="help">統計與玩法機制完全分離。可自行新增／刪除物品、改顯示名稱，並選擇要出現在總覽、每日統計、每次結果或無課寶石比較。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="monopoly">＋新增統計</button></div>
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">先新增要追蹤的物品；下方所有固定欄位與物品欄位都可自由顯示／隱藏、改名稱，並按住 ☰ 拖曳調整順序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="monopoly">＋新增物品統計</button></div>
+      <div class="help" style="margin-bottom:7px"><strong>物品統計來源</strong>：刪除只會移除統計，不會刪除背包物品。</div>
       ${statisticRows("monopoly")}
+      ${statisticLayoutEditor("monopoly")}
     </div>
 
     <div class="editor-card">
@@ -9552,8 +9718,10 @@ function renderSettings(){
     </div>
 
     <div class="editor-card">
-      <div class="editor-head"><div><h3 style="margin:0">📊 統計顯示物品</h3><div class="help">統計與玩法機制完全分離。可自行新增／刪除物品、改顯示名稱，並選擇要出現在總覽、每日統計、每次結果或無課寶石比較。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="pinball">＋新增統計</button></div>
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">先新增要追蹤的物品；下方所有固定欄位與物品欄位都可自由顯示／隱藏、改名稱，並按住 ☰ 拖曳調整順序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="pinball">＋新增物品統計</button></div>
+      <div class="help" style="margin-bottom:7px"><strong>物品統計來源</strong>：刪除只會移除統計，不會刪除背包物品。</div>
       ${statisticRows("pinball")}
+      ${statisticLayoutEditor("pinball")}
     </div>
 
     <div class="editor-card">
@@ -9833,6 +10001,59 @@ function settingsAction(btn){
   if(a==="importConfig"){$("importConfigInput").click();return}
   renderSettings()
 }
+function statisticLayoutEntryFromElement(el){
+  const row=el?.closest?.("[data-stat-layout-row]"),list=row?.closest?.("[data-stat-layout-list]");
+  if(!row||!list||!settingsDraft)return null;
+  const gameplay=list.dataset.gameplay,surface=list.dataset.surface,g=settingsDraft.gameplaySettings?.[gameplay];
+  if(!g)return null;normalizeGameplayStatistics(settingsDraft,gameplay,g);
+  const entry=(g.statistics?.layouts?.[surface]||[]).find(x=>x.id===row.dataset.fieldId);
+  return{row,list,gameplay,surface,g,entry}
+}
+function syncStatisticLayoutOrderFromDom(list){
+  if(!list||!settingsDraft)return;
+  const gameplay=list.dataset.gameplay,surface=list.dataset.surface,g=settingsDraft.gameplaySettings?.[gameplay];
+  if(!g)return;normalizeGameplayStatistics(settingsDraft,gameplay,g);
+  const old=new Map((g.statistics.layouts?.[surface]||[]).map(x=>[x.id,x]));
+  g.statistics.layouts[surface]=[...list.children].filter(row=>row.matches?.("[data-stat-layout-row]")).map(row=>old.get(row.dataset.fieldId)).filter(Boolean)
+}
+function startStatisticLayoutDrag(handle,e){
+  const info=statisticLayoutEntryFromElement(handle);if(!info||statisticLayoutDrag)return;
+  const drag={...info,handle,pointerId:e.pointerId,active:false,timer:null};
+  statisticLayoutDrag=drag;
+  try{handle.setPointerCapture(e.pointerId)}catch{}
+  drag.timer=setTimeout(()=>{
+    if(statisticLayoutDrag!==drag)return;
+    drag.active=true;drag.row.classList.add("dragging");
+    if(navigator.vibrate)try{navigator.vibrate(18)}catch{}
+  },220)
+}
+function moveStatisticLayoutDrag(e){
+  const drag=statisticLayoutDrag;if(!drag||drag.pointerId!==e.pointerId||!drag.active)return;
+  e.preventDefault();
+  const scroller=$("settingsContent");
+  if(scroller){
+    const sr=scroller.getBoundingClientRect(),edge=64;
+    if(e.clientY<sr.top+edge)scroller.scrollTop-=Math.max(8,(sr.top+edge-e.clientY)*.35);
+    else if(e.clientY>sr.bottom-edge)scroller.scrollTop+=Math.max(8,(e.clientY-(sr.bottom-edge))*.35)
+  }
+  const target=document.elementFromPoint(e.clientX,e.clientY)?.closest?.("[data-stat-layout-row]");
+  if(!target||target===drag.row||target.closest("[data-stat-layout-list]")!==drag.list)return;
+  const rect=target.getBoundingClientRect();
+  drag.list.insertBefore(drag.row,e.clientY<rect.top+rect.height/2?target:target.nextSibling)
+}
+function endStatisticLayoutDrag(e){
+  const drag=statisticLayoutDrag;if(!drag||drag.pointerId!==e.pointerId)return;
+  clearTimeout(drag.timer);
+  if(drag.active){syncStatisticLayoutOrderFromDom(drag.list);drag.row.classList.remove("dragging")}
+  try{drag.handle.releasePointerCapture(e.pointerId)}catch{}
+  statisticLayoutDrag=null
+}
+function syncStatisticLayoutControl(el){
+  const info=statisticLayoutEntryFromElement(el);if(!info?.entry)return false;
+  if(el.matches("[data-stat-enabled]"))info.entry.enabled=!!el.checked;
+  if(el.matches("[data-stat-label]"))info.entry.label=String(el.value||"");
+  return true
+}
 function settingsInputValue(el){
   return el.type==="checkbox"?el.checked:(el.type==="number"?Number(el.value):el.value)
 }
@@ -9841,7 +10062,8 @@ function syncVisibleSettingsDraft(){
   document.querySelectorAll("#settingsContent [data-path]").forEach(el=>{
     if(/^items\.\d+\.id$/.test(el.dataset.path))return;
     setByPath(settingsDraft,el.dataset.path,settingsInputValue(el))
-  })
+  });
+  document.querySelectorAll("#settingsContent [data-stat-enabled],#settingsContent [data-stat-label]").forEach(syncStatisticLayoutControl)
 }
 function updateSettingsProbabilityBadgeForInput(el){
   if(!settingsDraft||!el?.dataset?.path)return;
@@ -9887,7 +10109,7 @@ function applySettings(){
       const oldItem=oldConfig.items?.find(x=>x.id===oldId);if(oldItem)oldItem.id=newId
     });
     const changes=reconcileAppliedConfiguration(state,oldConfig,settingsDraft);
-    config=clone(settingsDraft);syncStateToConfig(true);batchResults=[];
+    config=clone(settingsDraft);syncStateToConfig(true);batchResults=[];freePlayerCompareResults=null;freePlanCompareRunToken++;
     if(state.activeStrategy)state.activeStrategy=null;
     strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);
     localStorage.setItem(STORAGE_CONFIG,JSON.stringify(config));
@@ -10027,16 +10249,24 @@ $("clearStrategyBtn").addEventListener("click",clearStrategy);
 $("saveBtn").addEventListener("click",save);$("loadBtn").addEventListener("click",load);$("resetBtn").addEventListener("click",reset);
 $("settingsBtn").addEventListener("click",openSettings);$("closeSettingsBtn").addEventListener("click",closeSettings);
 $("cancelSettingsBtn").addEventListener("click",closeSettings);$("applySettingsBtn").addEventListener("click",applySettings);
+$("settingsContent").addEventListener("pointerdown",e=>{const handle=e.target.closest("[data-stat-drag-handle]");if(handle)startStatisticLayoutDrag(handle,e)});
+document.addEventListener("pointermove",moveStatisticLayoutDrag,{passive:false});
+document.addEventListener("pointerup",endStatisticLayoutDrag);
+document.addEventListener("pointercancel",endStatisticLayoutDrag);
 $("settingsContent").addEventListener("input",e=>{
   const el=e.target;
-  if(!el.dataset.path||!settingsDraft)return;
+  if(!settingsDraft)return;
+  if(el.matches("[data-stat-label]")){syncStatisticLayoutControl(el);return}
+  if(!el.dataset.path)return;
   // 系統識別碼仍保留在 change 時做完整引用搬移；其他欄位輸入時即時同步。
   if(/^items\.\d+\.id$/.test(el.dataset.path))return;
   setByPath(settingsDraft,el.dataset.path,settingsInputValue(el));
   updateSettingsProbabilityBadgeForInput(el)
 });
 $("settingsContent").addEventListener("change",e=>{
-  const el=e.target;if(!el.dataset.path||!settingsDraft)return;
+  const el=e.target;if(!settingsDraft)return;
+  if(el.matches("[data-stat-enabled],[data-stat-label]")){syncStatisticLayoutControl(el);return}
+  if(!el.dataset.path)return;
   const itemIdMatch=el.dataset.path.match(/^items\.(\d+)\.id$/);
   if(itemIdMatch){
     const index=Number(itemIdMatch[1]),oldId=String(settingsDraft.items[index]?.id||""),newId=String(el.value||"").trim();
@@ -10054,7 +10284,7 @@ $("settingsContent").addEventListener("change",e=>{
   let value=settingsInputValue(el);
   setByPath(settingsDraft,el.dataset.path,value);
   updateSettingsProbabilityBadgeForInput(el);
-  if(el.dataset.path==="event.totalDays"||/\.fund\.(unlockBasis|unlockItemId)$/.test(el.dataset.path))renderSettings()
+  if(el.dataset.path==="event.totalDays"||/\.fund\.(unlockBasis|unlockItemId)$/.test(el.dataset.path)||/\.statistics\.items\.\d+\.(itemId|label)$/.test(el.dataset.path))renderSettings()
 });
 $("importConfigInput").addEventListener("change",async e=>{
   const file=e.target.files[0];if(!file)return;
