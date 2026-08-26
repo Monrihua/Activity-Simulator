@@ -1476,8 +1476,8 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
             </div>
             <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8魔法慶典棋盤"></div>
             <div class="magic-festival-ad-tools">
-              <button type="button" class="magic-ad-magnifier-btn" id="magicFestivalAdMagnifierBtn">🔍 廣告放大鏡｜今日剩餘 5/5</button>
-              <div class="magic-ad-magnifier-help" id="magicFestivalAdMagnifierHelp">每日可看廣告直接使用 5 次放大鏡；使用後翻開目前整張圖。</div>
+              <button type="button" class="magic-ad-magnifier-btn" id="magicFestivalAdMagnifierBtn">🔍 使用放大鏡｜持有 0 個</button>
+              <div class="magic-ad-magnifier-help" id="magicFestivalAdMagnifierHelp">消耗背包中的 1 個放大鏡，翻開目前整張圖。放大鏡可由每日廣告禮包、購買禮包、每日進度、基金或兌換取得。</div>
             </div>
             <div class="magic-festival-foot">
               <div id="magicFestivalStatus">只能點擊已翻開的牌。</div>
@@ -3208,7 +3208,8 @@ function noPayGemRewardIds(cfg=config){
   return new Set([
     dailyMissionRewardItemId(cfg),
     gp.gameTokenId,
-    gp.craftTicketId
+    gp.craftTicketId,
+    gp.magnifierItemId
   ].filter(Boolean))
 }
 function isNoPayGemPackage(group,pack,cfg=config){
@@ -9885,7 +9886,7 @@ function renderSettings(){
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.magicFestival.dailyMissionRewardItemId||c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",c.gameplaySettings.magicFestival.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
         <div class="field"><label>免費藥水格獎勵數量</label>${pathInput("gameplaySettings.magicFestival.potionTileAmount",c.gameplaySettings.magicFestival.potionTileAmount,"number",'min="1" step="1"')}</div>
-        <div class="field"><label>每日廣告放大鏡可用次數</label>${pathInput("gameplaySettings.magicFestival.adMagnifierDailyLimit",c.gameplaySettings.magicFestival.adMagnifierDailyLimit??5,"number",'min="0" step="1"')}</div>
+        <div class="field"><label>可直接使用的放大鏡物品</label><select data-path="gameplaySettings.magicFestival.magnifierItemId">${itemOptions(c.gameplaySettings.magicFestival.magnifierItemId)}</select></div>
       </div>
       <h3>四種兌換代幣</h3>
       <div class="setting-grid">
@@ -9927,7 +9928,7 @@ function renderSettings(){
 
     <div class="editor-card">
       <h3 style="margin-top:0">道具效果與連鎖</h3>
-      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 棋盤放大鏡：只翻開整張圖。另有棋盤下方的廣告放大鏡，每日可直接使用設定次數（預設 5 次），每次同樣翻開目前整張圖。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：圖形統一使用 ♻️，以綠／紫／藍／紅底色表示吸收顏色；觸發時取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得藥水，不額外翻牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
+      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 棋盤放大鏡：只翻開整張圖。棋盤下方另有「使用放大鏡」按鈕，會消耗背包中的 1 個放大鏡；放大鏡可由每日廣告禮包、購買禮包、每日進度、基金或兌換商店取得。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：圖形統一使用 ♻️，以綠／紫／藍／紅底色表示吸收顏色；觸發時取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗魔法藥水即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得藥水，不額外翻牌。<br>📖 魔法書：完成本圖並換新圖；魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
     </div>
   </section>`;
 
@@ -10331,6 +10332,8 @@ function ensureMagicFestivalItems(cfg){
   };
   return{
     potion:ensure("magicPotion","魔法藥水","個","🧪"),
+    magnifier:ensure("magicMagnifier","放大鏡","個","🔍"),
+    adView:ensure("adView","廣告觀看次數","次","📺"),
     green:ensure("magicGreenGem","綠寶石","個","💚"),
     purple:ensure("magicPurpleGem","紫寶石","個","💜"),
     blue:ensure("magicBlueGem","藍寶石","個","💙"),
@@ -10375,7 +10378,7 @@ function normalizeMagicFestivalConfig(cfg){
     g=cfg.gameplaySettings.magicFestival={
       gameTokenId:ids.potion,dailyMissionRewardItemId:ids.potion,dailyMissionMaxGameTokens:10,
       gemItemIds:{green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red},
-      potionTileAmount:3,adMagnifierDailyLimit:5,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
+      magnifierItemId:ids.magnifier,potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
       pointsPerItemObtained:[
         {itemId:ids.green,points:1},{itemId:ids.purple,points:1},{itemId:ids.blue,points:1},{itemId:ids.red,points:1}
       ],
@@ -10395,7 +10398,7 @@ function normalizeMagicFestivalConfig(cfg){
   g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??10));
   if(!g.dailyMissionRewardItemId||!(cfg.items||[]).some(x=>x.id===g.dailyMissionRewardItemId))g.dailyMissionRewardItemId=g.gameTokenId;
   g.potionTileAmount=Math.max(1,Math.floor(Number(g.potionTileAmount||3)));
-  g.adMagnifierDailyLimit=Math.max(0,Math.floor(Number(g.adMagnifierDailyLimit??5)));
+  if(!g.magnifierItemId||!(cfg.items||[]).some(x=>x.id===g.magnifierItemId))g.magnifierItemId=ids.magnifier;
   if(!g.boardCounts||typeof g.boardCounts!=="object")g.boardCounts=magicFestivalDefaultCounts();
   const defaults=magicFestivalDefaultCounts();Object.keys(defaults).forEach(k=>g.boardCounts[k]=Math.max(0,Math.floor(Number(g.boardCounts[k]??defaults[k]))));
   if(!g.toolProbabilities||typeof g.toolProbabilities!=="object"){
@@ -10406,7 +10409,17 @@ function normalizeMagicFestivalConfig(cfg){
   }
   const probDefaults=magicFestivalDefaultToolProbabilities();
   Object.keys(probDefaults).forEach(k=>g.toolProbabilities[k]=Math.max(0,Math.min(100,Number(g.toolProbabilities[k]??probDefaults[k]))));
-  if(Number(cfg.configSchemaVersion||0)<70)cfg.configSchemaVersion=70;
+
+  // v71：放大鏡改為真正可持有物品；每日廣告改成每日禮包，而不是玩法內建 5 次免費使用權。
+  if(Number(cfg.configSchemaVersion||0)<71){
+    if(!Array.isArray(g.packageGroups))g.packageGroups=magicFestivalCloneReplaceItemId(mono.packageGroups||cfg.packageGroups||[],mono.gameTokenId||"dice",g.gameTokenId);
+    let adGroup=g.packageGroups.find(x=>x.id==="magicMagnifierDailyPackages");
+    if(!adGroup){adGroup={id:"magicMagnifierDailyPackages",name:"放大鏡每日禮包",dailyReset:true,packages:[]};g.packageGroups.unshift(adGroup)}
+    if(!Array.isArray(adGroup.packages))adGroup.packages=[];
+    if(!adGroup.packages.some(x=>x.id==="magicAdMagnifier"))adGroup.packages.push({id:"magicAdMagnifier",name:"廣告放大鏡",cost:{itemId:ids.adView,amount:1},rewards:[{itemId:g.magnifierItemId,amount:1}],limit:5});
+    delete g.adMagnifierDailyLimit;
+    cfg.configSchemaVersion=71
+  }
   if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
   if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
   if(!Array.isArray(g.exchangeShop))g.exchangeShop=magicFestivalExchangeOffers(g.gemItemIds);
@@ -10452,7 +10465,7 @@ batchGameplayType=function(cfg=config){
 
 const __createDayStateBeforeMagic=createDayState;
 createDayState=function(){
-  const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;d.magicAdMagnifierUsed=0;return d
+  const d=__createDayStateBeforeMagic();d.magicClicks=0;d.magicBoards=0;return d
 };
 function blankMagicFestivalState(){return{cells:[],boardVersion:0,completedBoards:0,lastBookIndex:null,initialRevealIndex:null,totalClicks:0,rulesVersion:11}}
 const __createStateBeforeMagic=createState;
@@ -10502,7 +10515,7 @@ ensureGameplayTokenFlowStorage=function(targetState=state,cfg=config){
 const __ensureStateSchemaBeforeMagic=ensureStateSchema;
 ensureStateSchema=function(targetState=state,cfg=config,opts={}){
   const st=__ensureStateSchemaBeforeMagic(targetState,cfg,opts);
-  (st.days||[]).forEach(d=>{d.magicClicks=Math.max(0,Number(d.magicClicks||0));d.magicBoards=Math.max(0,Number(d.magicBoards||0));d.magicAdMagnifierUsed=Math.max(0,Number(d.magicAdMagnifierUsed||0))});
+  (st.days||[]).forEach(d=>{d.magicClicks=Math.max(0,Number(d.magicClicks||0));d.magicBoards=Math.max(0,Number(d.magicBoards||0));delete d.magicAdMagnifierUsed});
   if(!st.gameplayStates||typeof st.gameplayStates!=="object")st.gameplayStates={};
   if(!st.gameplayStates.magicFestival||typeof st.gameplayStates.magicFestival!=="object")st.gameplayStates.magicFestival=blankMagicFestivalState();
   const ms=st.gameplayStates.magicFestival;
@@ -10531,21 +10544,20 @@ function magicFestivalGemColorClass(itemId,cfg=config){
   const g=magicFestivalSettings(cfg).gemItemIds||{};
   return itemId===g.green?"green":itemId===g.purple?"purple":itemId===g.blue?"blue":itemId===g.red?"red":""
 }
-function magicFestivalAdMagnifierLimit(cfg=config){return Math.max(0,Math.floor(Number(magicFestivalSettings(cfg).adMagnifierDailyLimit??5)))}
-function magicFestivalAdMagnifierUsed(st=state){const d=st.days?.[Number(st.currentDay||0)];return Math.max(0,Number(d?.magicAdMagnifierUsed||0))}
-function magicFestivalAdMagnifierRemaining(st=state,cfg=config){return Math.max(0,magicFestivalAdMagnifierLimit(cfg)-magicFestivalAdMagnifierUsed(st))}
-function magicFestivalCanUseAdMagnifier(st=state,cfg=config){
-  const ms=ensureMagicFestivalBoard(st,cfg);return magicFestivalAdMagnifierRemaining(st,cfg)>0&&ms.cells.some(x=>x&&!x.revealed)
+function magicFestivalMagnifierItemId(cfg=config){return magicFestivalSettings(cfg).magnifierItemId||ensureMagicFestivalItems(cfg).magnifier}
+function magicFestivalMagnifierCount(st=state,cfg=config){return Math.max(0,Math.floor(Number(st.resources?.[magicFestivalMagnifierItemId(cfg)]||0)))}
+function magicFestivalCanUseMagnifier(st=state,cfg=config){
+  const ms=ensureMagicFestivalBoard(st,cfg);return magicFestivalMagnifierCount(st,cfg)>0&&ms.cells.some(x=>x&&!x.revealed)
 }
-function magicFestivalUseAdMagnifier(st=state,cfg=config,{reason="廣告放大鏡"}={}){
-  const ms=ensureMagicFestivalBoard(st,cfg),limit=magicFestivalAdMagnifierLimit(cfg),d=st.days?.[Number(st.currentDay||0)];
-  if(!d)return{ok:false,revealed:0,note:"找不到本日狀態"};
-  if(Number(d.magicAdMagnifierUsed||0)>=limit)return{ok:false,revealed:0,note:`今日廣告放大鏡 ${fmt(limit)} 次已用完`};
+function magicFestivalUseMagnifier(st=state,cfg=config,{reason="使用放大鏡"}={}){
+  const ms=ensureMagicFestivalBoard(st,cfg),itemId=magicFestivalMagnifierItemId(cfg);
+  if(magicFestivalMagnifierCount(st,cfg)<1)return{ok:false,revealed:0,note:`${cfgItem(cfg,itemId).name}不足`};
   if(!ms.cells.some(x=>x&&!x.revealed))return{ok:false,revealed:0,note:"目前整張圖已經全部翻開"};
-  d.magicAdMagnifierUsed=Number(d.magicAdMagnifierUsed||0)+1;
+  st.resources[itemId]=Number(st.resources?.[itemId]||0)-1;
+  if(!st.spent)st.spent={};st.spent[itemId]=Number(st.spent[itemId]||0)+1;
   const revealed=magicFestivalRevealIndices(st,Array.from({length:64},(_,i)=>i));
-  if(st===state&&cfg===config)log(`${reason}：翻開目前整張圖（今日 ${fmt(d.magicAdMagnifierUsed)}/${fmt(limit)}）`);
-  return{ok:true,revealed,used:Number(d.magicAdMagnifierUsed||0),remaining:Math.max(0,limit-Number(d.magicAdMagnifierUsed||0)),note:`🔍 廣告放大鏡：翻開整張圖｜今日剩餘 ${fmt(Math.max(0,limit-Number(d.magicAdMagnifierUsed||0)))}/${fmt(limit)}`}
+  if(st===state&&cfg===config)log(`${reason}：消耗 ${itemText(itemId,1,cfg)}，翻開目前整張圖`);
+  return{ok:true,revealed,remaining:magicFestivalMagnifierCount(st,cfg),note:`🔍 使用放大鏡：翻開整張圖｜剩餘 ${fmt(magicFestivalMagnifierCount(st,cfg))} 個`}
 }
 function magicFestivalShuffle(list){return shuffle(list)}
 function magicFestivalRandomGemCell(cfg=config){
@@ -10732,8 +10744,8 @@ function magicFestivalPickBestCell(st,cfg,{allowBook=true}={}){
 }
 function magicFestivalCollectFreeRevealed(st,cfg){let done=0,guard=0;while(guard++<70){const ms=ensureMagicFestivalBoard(st,cfg),i=ms.cells.findIndex(x=>x?.revealed&&!x.used&&x.kind==="potion3");if(i<0)break;const r=magicFestivalPerformCell(st,cfg,i,{simulation:st!==state});if(!r.ok)break;done++}return done}
 function flowMagicFestivalPlay(st,cfg,stats){
-  // 廣告放大鏡是每日免費揭圖資源：需要繼續探索且本圖仍有蓋牌時，先免費使用，再決定要花哪一瓶魔法藥水。
-  if(magicFestivalCanUseAdMagnifier(st,cfg))magicFestivalUseAdMagnifier(st,cfg,{reason:"批次廣告放大鏡"});
+  // 背包中的放大鏡是探索資源：有放大鏡且本圖仍有蓋牌時先使用，再決定是否消耗魔法藥水。
+  if(magicFestivalCanUseMagnifier(st,cfg))magicFestivalUseMagnifier(st,cfg,{reason:"批次使用放大鏡"});
   magicFestivalCollectFreeRevealed(st,cfg);
   const i=magicFestivalPickBestCell(st,cfg);if(i<0)return{ok:false,note:"目前沒有已翻開且可點擊的牌"};
   const r=magicFestivalPerformCell(st,cfg,i,{simulation:true});if(!r.ok)return r;if(r.consumedPotion&&stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;flowAutoClaimStages(st,cfg,stats);return{...r,index:i}
@@ -10788,10 +10800,10 @@ function renderMagicFestivalBoard(){
   const revealed=ms.cells.filter(x=>x.revealed).length,used=ms.cells.filter(x=>x.used).length;
   $("boardMeta").textContent=`8×8｜第 ${fmt(ms.boardVersion)} 張圖｜已完成 ${fmt(ms.completedBoards)} 張｜已翻開 ${revealed}/64`;
   $("magicFestivalBoardLabel").textContent=`第 ${fmt(ms.boardVersion)} 張圖`;
-  const adLimit=magicFestivalAdMagnifierLimit(config),adRemain=magicFestivalAdMagnifierRemaining(state,config);
-  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜已翻開 ${revealed}/64｜已清空 ${used} 格｜🔍廣告 ${fmt(adRemain)}/${fmt(adLimit)}`;
-  const adBtn=$("magicFestivalAdMagnifierBtn");if(adBtn){adBtn.textContent=`🔍 廣告放大鏡｜今日剩餘 ${fmt(adRemain)}/${fmt(adLimit)}`;adBtn.disabled=adRemain<1||!ms.cells.some(x=>!x.revealed)||strategyIsPastReadOnly()}
-  const adHelp=$("magicFestivalAdMagnifierHelp");if(adHelp)adHelp.textContent=`每日最多 ${fmt(adLimit)} 次；按下視為觀看 1 次廣告並直接翻開目前整張圖。`;
+  const magnifierId=magicFestivalMagnifierItemId(config),magnifierHeld=magicFestivalMagnifierCount(state,config);
+  $("magicFestivalStatus").textContent=`${cfgItem(config,token).icon||"🧪"} ${cfgItem(config,token).name} ${fmt(state.resources?.[token]||0)}｜🔍 ${cfgItem(config,magnifierId).name} ${fmt(magnifierHeld)}｜已翻開 ${revealed}/64｜已清空 ${used} 格`;
+  const adBtn=$("magicFestivalAdMagnifierBtn");if(adBtn){adBtn.textContent=`🔍 使用${cfgItem(config,magnifierId).name}｜持有 ${fmt(magnifierHeld)} 個`;adBtn.disabled=magnifierHeld<1||!ms.cells.some(x=>!x.revealed)||strategyIsPastReadOnly()}
+  const adHelp=$("magicFestivalAdMagnifierHelp");if(adHelp)adHelp.textContent=`消耗背包中的 1 個${cfgItem(config,magnifierId).name}翻開整張圖；可由每日廣告禮包、購買禮包、每日進度、基金或兌換取得。`;
   $("magicFestivalBoard").innerHTML=ms.cells.map((cell,i)=>{
     const revealed=!!cell.revealed,used=!!cell.used,color=revealed&&!used&&(cell.kind==="gem"||cell.kind==="absorb")?magicFestivalGemColorClass(cell.itemId):"";
     // 已翻開的寶石／吸收道具用底色表示顏色；蓋牌統一黃色＋🔒，不洩漏真正內容。
@@ -10823,7 +10835,7 @@ const __renderScoreRulesBeforeMagic=renderScoreRules;
 renderScoreRules=function(){
   if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagic();
   const rows=(config.scoreRules.pointsPerItemObtained||[]).map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`),fundMeta=fundUnlockMetricMeta(state,config);
-  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；直接點擊魔法藥水×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push(`廣告放大鏡每日可直接使用 ${fmt(magicFestivalAdMagnifierLimit(config))} 次，每次免費翻開目前整張圖`);rows.push("魔法書完成本圖並以原位置開啟下一張圖");
+  rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個魔法藥水；直接點擊魔法藥水×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push(`背包中的 ${cfgItem(config,magicFestivalMagnifierItemId(config)).name} 可直接使用，每次消耗 1 個並翻開目前整張圖；來源可為每日廣告禮包、購買禮包、每日進度、基金或兌換`);rows.push("魔法書完成本圖並以原位置開啟下一張圖");
   $("scoreRules").innerHTML=`<div><strong>目前玩法：魔法慶典</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 };
 
@@ -10860,10 +10872,10 @@ async function magicFestivalClick(index){
   if(cell.kind!=="potion3"&&Number(state.resources?.[magicFestivalSettings().gameTokenId]||0)<1)return toast(`${item(magicFestivalSettings().gameTokenId).name}不足`);
   recordHistory(`魔法慶典：${magicFestivalCellKindLabel(cell)}`);const r=magicFestivalPerformCell(state,config,Number(index));if(!r.ok)return toast(r.note||"無法使用這張牌");$("rollMessage").textContent=r.note;render()
 }
-function magicFestivalUseAdMagnifierManual(){
-  if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用廣告放大鏡");
-  if(!magicFestivalCanUseAdMagnifier(state,config)){const limit=magicFestivalAdMagnifierLimit(config);return toast(magicFestivalAdMagnifierRemaining(state,config)<1?`今日廣告放大鏡 ${fmt(limit)} 次已用完`:"目前整張圖已經全部翻開")};
-  recordHistory("使用廣告放大鏡");const r=magicFestivalUseAdMagnifier(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()
+function magicFestivalUseMagnifierManual(){
+  if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用放大鏡");
+  if(!magicFestivalCanUseMagnifier(state,config))return toast(magicFestivalMagnifierCount(state,config)<1?`${cfgItem(config,magicFestivalMagnifierItemId(config)).name}不足`:"目前整張圖已經全部翻開");
+  recordHistory("使用放大鏡");const r=magicFestivalUseMagnifier(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()
 }
 async function autoMagicFestival({reuseSnapshot=false}={}){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能自動探索");const token=magicFestivalSettings().gameTokenId;
@@ -10873,7 +10885,7 @@ async function autoMagicFestival({reuseSnapshot=false}={}){
   let used=0,free=0,guard=0;
   try{
     while(!stopAuto&&guard++<20000){
-      if(magicFestivalCanUseAdMagnifier(state,config))magicFestivalUseAdMagnifier(state,config,{reason:"自動探索廣告放大鏡"});
+      if(magicFestivalCanUseMagnifier(state,config))magicFestivalUseMagnifier(state,config,{reason:"自動探索放大鏡"});
       free+=magicFestivalCollectFreeRevealed(state,config);const i=magicFestivalPickBestCell(state,config);if(i<0)break;const cell=magicFestivalState().cells[i];if(cell.kind!=="potion3"&&Number(state.resources?.[token]||0)<1)break;
       const r=magicFestivalPerformCell(state,config,i);if(!r.ok)break;if(r.consumedPotion)used++;if(guard%30===0){render();await wait(0)}
     }
@@ -10927,7 +10939,7 @@ validateConfig=function(c){
 };
 
 $("magicFestivalBoard")?.addEventListener("click",e=>{const cell=e.target.closest("[data-magic-cell]");if(cell)magicFestivalClick(Number(cell.dataset.magicCell))});
-$("magicFestivalAdMagnifierBtn")?.addEventListener("click",magicFestivalUseAdMagnifierManual);
+$("magicFestivalAdMagnifierBtn")?.addEventListener("click",magicFestivalUseMagnifierManual);
 $("dailyProgressToggle").addEventListener("click",()=>{dailyProgressCollapsed=!dailyProgressCollapsed;renderDaily()});
 $("claimAllStagesBtn").addEventListener("click",claimAllStages);
 $("refundAllStagesBtn").addEventListener("click",refundAllStages);
