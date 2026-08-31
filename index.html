@@ -1320,7 +1320,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 
 
 /* =========================================================
-   v11：魔法慶典棋盤修正
+   v11：扭蛋機棋盤修正
    - 蓋牌完全不洩漏顏色 / 內容
    - Safari 手機版固定 8×8，不讓格子尺寸互相擠壓重疊
    - 已撿走 / 已使用的牌才變成真正空白
@@ -1380,7 +1380,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 
 
 /* =========================================================
-   v20：魔法慶典改為扭蛋魔術
+   v20：扭蛋機改為扭蛋魔術
    ========================================================= */
 .magic-gacha-machine{
   width:100%;max-width:760px;margin:0 auto;padding:14px;border-radius:26px;
@@ -1428,6 +1428,20 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
 .item-sort-row.dragging{opacity:.58;transform:scale(.995)}
 .item-sort-row.drag-over .editor-card{box-shadow:0 0 0 3px rgba(47,141,228,.22)}
 @media(max-width:720px){.item-sort-row{grid-template-columns:40px minmax(0,1fr)}.item-sort-handle{width:40px}}
+
+/* v22：三玩法共用「查看機率」視窗 */
+.probability-window{width:min(920px,100%);height:min(820px,94vh)}
+.probability-content{padding:15px;overflow:auto}
+.probability-section{background:#fff;border:2px solid #dce5ed;border-radius:15px;padding:12px;margin-bottom:11px}
+.probability-section h3{margin:0 0 8px;color:#334d61}
+.probability-table-wrap{overflow:auto;border:1px solid #dce5ed;border-radius:11px}
+.probability-table{width:100%;border-collapse:collapse;min-width:520px;font-size:13px}
+.probability-table th,.probability-table td{padding:8px 9px;border-bottom:1px solid #e5ebf0;text-align:left;vertical-align:top}
+.probability-table th{background:#edf5f9;color:#42566a;font-weight:1000}
+.probability-table tr:last-child td{border-bottom:0}
+.probability-pill{display:inline-flex;padding:2px 7px;border-radius:999px;background:#eef5fa;font-size:12px;font-weight:900;color:#40566d}
+@media(max-width:720px){.probability-window{height:min(860px,96vh)}.probability-content{padding:10px}.probability-table{min-width:460px}}
+
 </style>
 </head>
 <body>
@@ -1462,9 +1476,10 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
             <div class="gameplay-switch">
               <button class="gameplay-switch-btn active" data-gameplay-select="monopoly">🎲 大富翁</button>
               <button class="gameplay-switch-btn" data-gameplay-select="pinball">🔮 彈珠機</button>
-              <button class="gameplay-switch-btn" data-gameplay-select="magicFestival">🪄 魔法慶典</button>
+              <button class="gameplay-switch-btn" data-gameplay-select="magicFestival">🎩 扭蛋機</button>
             </div>
             <button class="btn secondary small" id="refreshBoardBtn" style="width:100%;margin-top:7px">刷新地圖</button>
+            <button class="btn secondary small" id="probabilityBtn" style="width:100%;margin-top:7px">🎯 查看機率</button>
           </div>
         </div>
         <div class="gameplay-play-area" id="monopolyPlayArea">
@@ -1522,10 +1537,10 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
         <div class="gameplay-play-area" id="magicFestivalPlayArea" hidden>
           <div class="magic-festival-machine">
             <div class="magic-festival-head">
-              <strong>🪄 魔法慶典</strong>
+              <strong>🎩 扭蛋機</strong>
               <span class="badge" id="magicFestivalBoardLabel">第 1 張圖</span>
             </div>
-            <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8魔法慶典棋盤"></div>
+            <div class="magic-festival-board" id="magicFestivalBoard" aria-label="8乘8扭蛋機棋盤"></div>
             <div class="magic-festival-ad-tools">
               <button type="button" class="magic-ad-magnifier-btn" id="magicFestivalAdMagnifierBtn">🔍 使用放大鏡｜持有 0 個</button>
               <div class="magic-ad-magnifier-help" id="magicFestivalAdMagnifierHelp">消耗背包中的 1 個放大鏡，翻開目前整張圖。放大鏡可由每日廣告禮包、購買禮包、每日進度、基金或兌換取得。</div>
@@ -1781,12 +1796,23 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
       <section class="card">
         <div class="card-title"><h3>操作說明</h3></div>
         <div class="help">
-          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／魔法慶典玩法；
+          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／扭蛋機玩法；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。魔法慶典只能點擊已翻開的牌，未翻開牌統一顯示黃色＋🔒，不會顯示真正顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖時會獲得 🎩大師魔法帽 ×1 供基金／統計計數，並以原書位置作為下一張圖的普通物品初始翻開點。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。扭蛋機只能點擊已翻開的牌，未翻開牌統一顯示黃色＋🔒，不會顯示真正顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖時會獲得 🎩大師魔法帽 ×1 供基金／統計計數，並以原書位置作為下一張圖的普通物品初始翻開點。
         </div>
       </section>
     </aside>
+  </div>
+</div>
+
+<div class="settings-modal" id="probabilityModal">
+  <div class="settings-window probability-window">
+    <div class="settings-head">
+      <div><strong id="probabilityModalTitle" style="font-size:20px">🎯 查看機率</strong><div class="help">顯示目前玩法實際使用的隨機規則；僅供查看，修改請到活動設定。</div></div>
+      <button class="btn secondary small" id="closeProbabilityBtn">關閉</button>
+    </div>
+    <div class="settings-content probability-content" id="probabilityContent"></div>
+    <div class="settings-foot"><button class="btn secondary" id="closeProbabilityFootBtn">關閉</button></div>
   </div>
 </div>
 
@@ -1808,7 +1834,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
         <div class="settings-nav-title">遊戲玩法</div>
         <button data-setting-tab="monopoly">🎲 大富翁玩法</button>
         <button data-setting-tab="pinball">🔮 彈珠機玩法</button>
-        <button data-setting-tab="magicFestival">🪄 魔法慶典玩法</button>
+        <button data-setting-tab="magicFestival">🎩 扭蛋機玩法</button>
         <div class="settings-nav-title">系統</div>
         <button data-setting-tab="backup">備份與還原</button>
       </nav>
@@ -5342,7 +5368,7 @@ function renderWeeklyFlowPlanner(){
   if(note)note.textContent=type==="pinball"
     ?"🔮 目前編輯：彈珠機七日流程（與其他玩法完全獨立）"
     :type==="magicFestival"
-      ?"🪄 目前編輯：魔法慶典七日流程（與其他玩法完全獨立）"
+      ?"🪄 目前編輯：扭蛋機七日流程（與其他玩法完全獨立）"
       :"🎲 目前編輯：大富翁七日流程（與其他玩法完全獨立）";
 
   const help=$("weeklyFlowHelp");
@@ -5350,7 +5376,7 @@ function renderWeeklyFlowPlanner(){
     help.innerHTML=type==="pinball"
       ?`每次模擬都會從同一基準開始跑週一 → 週日；<strong>基金不再寫死成消耗製作卷</strong>。系統會讀取目前基金條件，自動判斷應該製作彈珠、投入彈珠，或等待流程中的禮包／開箱／兌換來推進；精準門檻一到立即領取。`
       :type==="magicFestival"
-        ?`每次模擬都會從魔法慶典自己的基準開始跑週一 → 週日。自動探索只會點已翻開牌，優先免費幻想轉蛋幣、吸收與範圍道具；固定目標暫時卡住時，每消耗 1 個幻想轉蛋幣就重新檢查基金／箱子／兌換／進度。`
+        ?`每次模擬都會從扭蛋機自己的基準開始跑週一 → 週日。自動探索只會點已翻開牌，優先免費幻想轉蛋幣、吸收與範圍道具；固定目標暫時卡住時，每消耗 1 個幻想轉蛋幣就重新檢查基金／箱子／兌換／進度。`
         :`每次模擬都會從大富翁自己的基準開始跑週一 → 週日；<strong>基金不再寫死成旗幟／圈數</strong>。系統會讀取目前基金的「獲得／消耗＋計算物品」，再從大富翁起點、格子、每日進度與擲骰消耗判斷是否能靠擲骰推進；一到精準門檻立即領取，再繼續原流程。`
   }
   const plan=ensureWeeklyFlowPlan(config);
@@ -9724,7 +9750,7 @@ function renderSettings(){
   const labels=Array.from({length:Number(c.event.totalDays)},(_,i)=>c.event.dayLabels[i]||`第${i+1}天`);
   const activeGp=c.gameplay?.type||"monopoly";
   const activeGpCfg=c.gameplaySettings?.[activeGp]||c.gameplaySettings?.monopoly||{};
-  const activeGpLabel=activeGp==="pinball"?"彈珠機":activeGp==="magicFestival"?"魔法慶典":"大富翁";
+  const activeGpLabel=activeGp==="pinball"?"彈珠機":activeGp==="magicFestival"?"扭蛋機":"大富翁";
   const statisticRows=gameplay=>{
     const g=c.gameplaySettings?.[gameplay]||{};normalizeGameplayStatistics(c,gameplay,g);
     const rows=g.statistics?.items||[];
@@ -9939,63 +9965,11 @@ function renderSettings(){
   </section>`;
 
 
-  sections.magicFestival=`<section class="setting-section active">
-    <div class="editor-head">
-      <div><h2>🪄 魔法慶典玩法</h2><div class="help">固定 8×8 棋盤。蓋牌統一顯示黃色＋🔒，看不到真正內容與顏色；一般已翻開牌點擊消耗 1 個幻想轉蛋幣；直接點擊 🧪×3 可免費領取並翻開周圍 8 格，被範圍效果取得時不額外翻牌。每張圖固定 1 本魔法書，其他功能道具依機率隨機生成。</div></div>
-      <span class="badge warn">玩法專用</span>
-    </div>
+  // v22：扭蛋機設定直接使用最新版共通骨架，避免舊翻牌欄位殘留造成設定視窗開啟失敗。
+  sections.magicFestival=typeof magicFestivalSettingsHtml==="function"
+    ?magicFestivalSettingsHtml(c)
+    :`<section class="setting-section active"><h2>🎩 扭蛋機玩法</h2><div class="help">設定介面載入中。</div></section>`;
 
-    <div class="editor-card">
-      <h3 style="margin-top:0">玩法使用物品</h3>
-      <div class="setting-grid">
-        <div class="field"><label>遊戲代幣｜幻想轉蛋幣</label><select data-path="gameplaySettings.magicFestival.gameTokenId">${itemOptions(c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
-        <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.magicFestival.dailyMissionRewardItemId||c.gameplaySettings.magicFestival.gameTokenId)}</select></div>
-        <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",c.gameplaySettings.magicFestival.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
-        <div class="field"><label>免費藥水格獎勵數量</label>${pathInput("gameplaySettings.magicFestival.potionTileAmount",c.gameplaySettings.magicFestival.potionTileAmount,"number",'min="1" step="1"')}</div>
-        <div class="field"><label>可直接使用的放大鏡物品</label><select data-path="gameplaySettings.magicFestival.magnifierItemId">${itemOptions(c.gameplaySettings.magicFestival.magnifierItemId)}</select></div>
-        <div class="field"><label>完成地圖獲得｜🎩 大師魔法帽計數物品</label><select data-path="gameplaySettings.magicFestival.bookItemId">${itemOptions(c.gameplaySettings.magicFestival.bookItemId)}</select></div>
-      </div>
-      <h3>四種兌換代幣</h3>
-      <div class="setting-grid">
-        <div class="field"><label>💚 綠寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.green">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.green)}</select></div>
-        <div class="field"><label>💜 紫寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.purple">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.purple)}</select></div>
-        <div class="field"><label>💙 藍寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.blue">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.blue)}</select></div>
-        <div class="field"><label>❤️ 紅寶石</label><select data-path="gameplaySettings.magicFestival.gemItemIds.red">${itemOptions(c.gameplaySettings.magicFestival.gemItemIds.red)}</select></div>
-      </div>
-      <h3>取得物品的計分規則</h3>
-      <div class="editor-table">
-        ${c.gameplaySettings.magicFestival.pointsPerItemObtained.map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.magicFestival.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.magicFestival.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="magicFestival" data-index="${i}">刪除</button></div>`).join("")}
-      </div>
-      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="magicFestival">＋加入計分物品</button>
-    </div>
-
-    <div class="editor-card">
-      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">固定欄位與物品欄位都可自由顯示／隱藏、改名稱，並按住 ☰ 拖曳調整順序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="magicFestival">＋新增物品統計</button></div>
-      ${statisticRows("magicFestival")}
-      ${statisticLayoutEditor("magicFestival")}
-    </div>
-
-    <div class="editor-card">
-      <div class="editor-head"><div><h3 style="margin:0">8×8 棋盤內容機率</h3><div class="help">每張圖固定 1 本魔法書；另外 63 格依下方清單抽取。可以新增／刪除任意普通物品或功能道具，普通物品可設定一次取得數量。機率合計必須為 100%。第一張圖中央下方 2 格，以及換圖後上一張魔法書的位置，仍強制生成普通物品（非功能道具）作為安全初始點。</div></div><button class="btn green small" data-settings-action="addMagicBoardEntry">＋新增棋盤內容</button></div>
-      <div class="editor-table">
-        ${(c.gameplaySettings.magicFestival.boardProbabilityEntries||[]).map((x,i)=>{
-          const needsItem=x.kind==="item"||x.kind==="absorb",needsAmount=x.kind==="item"||x.kind==="potion3";
-          return `<div class="editor-card" style="margin:7px 0;padding:9px"><div class="setting-grid">
-            <div class="field"><label>內容類型</label><select data-path="gameplaySettings.magicFestival.boardProbabilityEntries.${i}.kind">${magicFestivalBoardEntryKindOptions(x.kind)}</select></div>
-            ${needsItem?`<div class="field"><label>${x.kind==="absorb"?"吸收目標物品":"獲得物品"}</label><select data-path="gameplaySettings.magicFestival.boardProbabilityEntries.${i}.itemId">${itemOptions(x.itemId)}</select></div>`:`<div class="field"><label>內容</label><div class="input" style="display:flex;align-items:center">${escapeHtml(magicFestivalBoardEntryKinds().find(k=>k.value===x.kind)?.label||x.kind)}</div></div>`}
-            ${needsAmount?`<div class="field"><label>取得數量</label>${pathInput(`gameplaySettings.magicFestival.boardProbabilityEntries.${i}.amount`,x.amount||1,"number",'min="1" step="any"')}</div>`:`<div class="field"><label>取得數量</label><div class="input" style="display:flex;align-items:center;color:#718096">效果型道具</div></div>`}
-            <div class="field"><label>出現機率 (%)</label>${pathInput(`gameplaySettings.magicFestival.boardProbabilityEntries.${i}.probability`,x.probability,"number",'min="0" max="100" step="0.01"')}</div>
-          </div><div class="form-row" style="justify-content:flex-end;margin-top:6px"><button class="btn red small" data-settings-action="removeMagicBoardEntry" data-index="${i}">刪除</button></div></div>`
-        }).join("")}
-      </div>
-      <div class="fund-goal-result" data-magic-board-prob-total style="margin-top:9px">棋盤內容機率合計 ${fmt(magicFestivalBoardProbabilityTotal(c))}% ${Math.abs(magicFestivalBoardProbabilityTotal(c)-100)>.001?"⚠️ 必須調整為 100%。":"✓"}</div>
-    </div>
-
-    <div class="editor-card">
-      <h3 style="margin-top:0">道具效果與連鎖</h3>
-      <div class="help">💣 炸彈：翻開周圍 2 圈，並取得第 1 圈內的內容；若取得範圍碰到另一個功能道具，該道具會立即免費連鎖觸發。<br>↕️／↔️ 鞭炮：翻開垂直 3 欄／水平 3 列，取得中間欄／列；中間欄／列內的功能道具同樣會連鎖。<br>🔍 棋盤放大鏡：只翻開整張圖。棋盤下方另有「使用放大鏡」按鈕，會消耗背包中的 1 個放大鏡；放大鏡可由每日廣告禮包、購買禮包、每日進度、基金或兌換商店取得。<br>🔨 槌子：只隨機翻開全圖 5 張仍蓋住的牌。<br>四種吸收道具：圖形統一使用 ☢️，以綠／紫／藍／紅底色表示吸收顏色；觸發時取得所有目前已翻開的對應顏色寶石。<br>🧪×3：唯一不消耗幻想轉蛋幣即可直接取得的牌；只有直接點擊時會翻開周圍 8 格，被炸彈／鞭炮取得時只獲得幻想轉蛋幣，不額外翻牌。<br>📖 魔法書：手動點擊後獲得 🎩大師魔法帽 ×1、完成本圖並換新圖；可直接用「獲得大師魔法帽數量」作為基金條件。魔法書不會被炸彈／鞭炮自動觸發。<br>任何寶石或道具被取得／使用後，該格才會變成真正空白。</div>
-    </div>
-  </section>`;
 
   sections.items=`<section class="setting-section active">
     <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。按住左側 ☰ 可拖曳調整物品順序；下拉選單、背包與統計選物品時都會沿用這個順序。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
@@ -10389,16 +10363,16 @@ document.addEventListener("click",e=>{
 
 
 /* =========================================================
-   v10：魔法慶典玩法
+   v10：扭蛋機玩法
    ========================================================= */
 function gameplayLabel(type=batchGameplayType(config)){
-  return type==="pinball"?"彈珠機":type==="magicFestival"?"魔法慶典":"大富翁"
+  return type==="pinball"?"彈珠機":type==="magicFestival"?"扭蛋機":"大富翁"
 }
 function gameplayIcon(type=batchGameplayType(config)){
-  return type==="pinball"?"🔮":type==="magicFestival"?"🪄":"🎲"
+  return type==="pinball"?"🔮":type==="magicFestival"?"🎩":"🎲"
 }
 function gameplayActionVerb(type=batchGameplayType(config)){
-  return type==="pinball"?"投入彈珠":type==="magicFestival"?"探索魔法棋盤":"擲骰"
+  return type==="pinball"?"投入彈珠":type==="magicFestival"?"扭蛋":"擲骰"
 }
 function magicFestivalSettings(cfg=config){return cfg.gameplaySettings?.magicFestival||{}}
 function magicFestivalDefaultCounts(){return{
@@ -10666,7 +10640,7 @@ function normalizeMagicFestivalConfig(cfg){
     g.packageGroups=magicFestivalPackageGroups(ids,cfg);
     cfg.configSchemaVersion=73
   }
-  // v74：魔法慶典正式物品名稱／重複資源合併。
+  // v74：扭蛋機正式物品名稱／重複資源合併。
   // 幻想轉蛋幣就是玩法代幣；大師魔法帽就是完成地圖時取得的基金計數物品。
   if(Number(cfg.configSchemaVersion||0)<74){
     const mergeAlias=(oldId,newId)=>{
@@ -10692,7 +10666,7 @@ function normalizeMagicFestivalConfig(cfg){
     g.bookItemId="magicBook";
     cfg.configSchemaVersion=74
   }
-  // v75：魔法慶典正式活動基金。依累計獲得「大師魔法帽」解鎖；獎勵依官方表建立。
+  // v75：扭蛋機正式活動基金。依累計獲得「大師魔法帽」解鎖；獎勵依官方表建立。
   if(Number(cfg.configSchemaVersion||0)<75){
     g.fund=magicFestivalFundConfig(ids,cfg,g.fund?.premiumCost);
     cfg.configSchemaVersion=75
@@ -10938,7 +10912,7 @@ function magicFestivalAcquireIndices(st,cfg,indices,reason="道具範圍",chainC
   }
   return{collected,triggered}
 }
-function magicFestivalTriggerTool(st,cfg,index,{chain=false,reason="魔法慶典",chainCtx=null}={}){
+function magicFestivalTriggerTool(st,cfg,index,{chain=false,reason="扭蛋機",chainCtx=null}={}){
   const ms=magicFestivalState(st),cell=ms.cells?.[index];
   if(!cell||cell.used||!cell.revealed||!magicFestivalIsChainTool(cell))return{ok:false,revealed:0,collected:0,chainTriggered:0,note:"這張牌不能觸發"};
   const original=clone(cell);magicFestivalClearCell(st,index);
@@ -10976,17 +10950,17 @@ function magicFestivalPerformCell(st,cfg,index,{simulation=false}={}){
   if(cell.kind==="potion3"){
     const amount=Math.max(1,Number(cell.amount||magicFestivalSettings(cfg).potionTileAmount||3));
     const before=ms.cells.filter(x=>x?.revealed).length;
-    magicFestivalCollectCell(st,cfg,index,{reason:"魔法慶典",revealAround:true});
+    magicFestivalCollectCell(st,cfg,index,{reason:"扭蛋機",revealAround:true});
     const revealed=Math.max(0,ms.cells.filter(x=>x?.revealed).length-before);
     return{ok:true,free:true,consumedPotion:false,revealed,collected:1,note:`免費取得${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}×${fmt(amount)}，翻開周圍 ${revealed} 格`}
   }
   if(!magicFestivalSpendPotion(st,cfg))return{ok:false,note:`${cfgItem(cfg,magicFestivalSettings(cfg).gameTokenId).name}不足`};
   const original=clone(cell);let note=magicFestivalCellKindLabel(original,cfg),collected=0,revealed=0,chainTriggered=0;
   if(original.kind==="gem"||original.kind==="item"){
-    const itemId=original.itemId,amount=Math.max(1,Number(original.amount||1));magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,itemId,amount,"魔法慶典拾取");collected=amount;
+    const itemId=original.itemId,amount=Math.max(1,Number(original.amount||1));magicFestivalClearCell(st,index);magicFestivalGrant(st,cfg,itemId,amount,"扭蛋機拾取");collected=amount;
     revealed+=magicFestivalRevealIndices(st,magicFestivalRadiusIndices(index,1));note=`拾取 ${cfgItem(cfg,itemId).name} ×${fmt(amount)}，翻開周圍 1 圈`
   }else if(magicFestivalIsChainTool(original)){
-    const r=magicFestivalTriggerTool(st,cfg,index,{chain:false,reason:"魔法慶典"});revealed+=r.revealed;collected+=r.collected;chainTriggered+=r.chainTriggered;note=r.note
+    const r=magicFestivalTriggerTool(st,cfg,index,{chain:false,reason:"扭蛋機"});revealed+=r.revealed;collected+=r.collected;chainTriggered+=r.chainTriggered;note=r.note
   }else if(original.kind==="book"){
     const oldIndex=Number(index),bookItemId=magicFestivalSettings(cfg).bookItemId;
     if(bookItemId){magicFestivalGrant(st,cfg,bookItemId,1,"完成地圖・大師魔法帽");collected=1}
@@ -11075,7 +11049,7 @@ flowExamplePlan=function(cfg=config){
 function renderMagicFestivalBoard(){
   const ms=ensureMagicFestivalBoard(state,config),g=magicFestivalSettings(),token=g.gameTokenId;
   $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=false;
-  $("gameplayTitle").textContent="🪄 魔法慶典玩法";$("refreshBoardBtn").textContent="重開棋盤";$("refreshBoardBtn").disabled=false;
+  $("gameplayTitle").textContent="🎩 扭蛋機玩法";$("refreshBoardBtn").textContent="重開棋盤";$("refreshBoardBtn").disabled=false;
   $("multiplierWrap").style.display="none";$("autoRollBtn").textContent="自動探索全部幻想轉蛋幣";$("autoRollBtn").title="依目前已翻開牌面自動選擇效益較高的牌；會優先免費幻想轉蛋幣、吸收與範圍道具，只有其他可用牌不足時才點魔法書換圖。";
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="magicFestival"));
   const revealed=ms.cells.filter(x=>x.revealed).length,used=ms.cells.filter(x=>x.used).length;
@@ -11119,7 +11093,7 @@ renderScoreRules=function(){
   if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagic();
   const rows=(config.scoreRules.pointsPerItemObtained||[]).map(x=>`每獲得 1 ${item(x.itemId).unit}${item(x.itemId).name}：${fmt(x.points)} 分`),fundMeta=fundUnlockMetricMeta(state,config);
   rows.push(`基金：以「${fundMeta.label}」作為解鎖累積條件`);rows.push("一般已翻開牌消耗 1 個幻想轉蛋幣；直接點擊幻想轉蛋幣×3 格可免費取得並翻開周圍 8 格，範圍取得時不額外翻牌");rows.push(`背包中的 ${cfgItem(config,magicFestivalMagnifierItemId(config)).name} 可直接使用，每次消耗 1 個並翻開目前整張圖；來源可為每日廣告禮包、購買禮包、每日進度、基金或兌換`);rows.push(`點擊魔法書會獲得 ${cfgItem(config,magicFestivalSettings().bookItemId).name} ×1，可直接用於基金計數，並以原位置開啟下一張圖`);
-  $("scoreRules").innerHTML=`<div><strong>目前玩法：魔法慶典</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
+  $("scoreRules").innerHTML=`<div><strong>目前玩法：扭蛋機</strong></div>`+rows.map(x=>`<div>• ${escapeHtml(x)}</div>`).join("")
 };
 
 const __statisticFieldDefinitionsBeforeMagic=statisticFieldDefinitions;
@@ -11153,7 +11127,7 @@ async function magicFestivalClick(index){
   if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能探索棋盤");
   const ms=ensureMagicFestivalBoard(),cell=ms.cells?.[Number(index)];if(!cell?.revealed)return toast("蓋住的牌不能點擊");if(cell.used)return;
   if(cell.kind!=="potion3"&&Number(state.resources?.[magicFestivalSettings().gameTokenId]||0)<1)return toast(`${item(magicFestivalSettings().gameTokenId).name}不足`);
-  recordHistory(`魔法慶典：${magicFestivalCellKindLabel(cell)}`);const r=magicFestivalPerformCell(state,config,Number(index));if(!r.ok)return toast(r.note||"無法使用這張牌");$("rollMessage").textContent=r.note;render()
+  recordHistory(`扭蛋機：${magicFestivalCellKindLabel(cell)}`);const r=magicFestivalPerformCell(state,config,Number(index));if(!r.ok)return toast(r.note||"無法使用這張牌");$("rollMessage").textContent=r.note;render()
 }
 function magicFestivalUseMagnifierManual(){
   if(config.gameplay.type!=="magicFestival")return;if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用放大鏡");
@@ -11164,7 +11138,7 @@ async function autoMagicFestival({reuseSnapshot=false}={}){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能自動探索");const token=magicFestivalSettings().gameTokenId;
   ensureMagicFestivalBoard();magicFestivalCollectFreeRevealed(state,config);
   if(Number(state.resources?.[token]||0)<1&&magicFestivalPickBestCell(state,config)<0)return toast(`${item(token).name}不足且目前沒有可用免費藥水格`);
-  if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};recordHistory("魔法慶典自動探索");stopAuto=false;$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;$("undoAutoRollBtn").disabled=true;$("retryAutoRollBtn").disabled=true;
+  if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};recordHistory("扭蛋機自動探索");stopAuto=false;$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true;$("undoAutoRollBtn").disabled=true;$("retryAutoRollBtn").disabled=true;
   let used=0,free=0,guard=0;
   try{
     while(!stopAuto&&guard++<20000){
@@ -11215,18 +11189,18 @@ const __validateConfigBeforeMagic=validateConfig;
 validateConfig=function(c){
   const ok=__validateConfigBeforeMagic(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;
   const ids=new Set((c.items||[]).map(x=>x.id));
-  if(!ids.has(g.gameTokenId))throw new Error("魔法慶典的幻想轉蛋幣物品不存在");
-  for(const [color,id] of Object.entries(g.gemItemIds||{})){if(!ids.has(id))throw new Error(`魔法慶典 ${color} 寶石物品不存在：${id}`)}
-  if(!ids.has(g.magnifierItemId))throw new Error("魔法慶典的放大鏡物品不存在");
-  if(!ids.has(g.bookItemId))throw new Error("魔法慶典的大師魔法帽計數物品不存在");
+  if(!ids.has(g.gameTokenId))throw new Error("扭蛋機的幻想轉蛋幣物品不存在");
+  for(const [color,id] of Object.entries(g.gemItemIds||{})){if(!ids.has(id))throw new Error(`扭蛋機 ${color} 寶石物品不存在：${id}`)}
+  if(!ids.has(g.magnifierItemId))throw new Error("扭蛋機的放大鏡物品不存在");
+  if(!ids.has(g.bookItemId))throw new Error("扭蛋機的大師魔法帽計數物品不存在");
   const allowed=new Set(magicFestivalBoardEntryKinds().map(x=>x.value)),entries=g.boardProbabilityEntries||[];
-  if(!entries.length)throw new Error("魔法慶典棋盤內容至少需要一項");
+  if(!entries.length)throw new Error("扭蛋機棋盤內容至少需要一項");
   entries.forEach((x,i)=>{
-    if(!allowed.has(x.kind))throw new Error(`魔法慶典棋盤第 ${i+1} 項內容類型無效`);
-    if((x.kind==="item"||x.kind==="absorb")&&!ids.has(x.itemId))throw new Error(`魔法慶典棋盤第 ${i+1} 項物品不存在`);
-    if(Number(x.probability)<0||Number(x.probability)>100)throw new Error(`魔法慶典棋盤第 ${i+1} 項機率必須介於 0～100%`)
+    if(!allowed.has(x.kind))throw new Error(`扭蛋機棋盤第 ${i+1} 項內容類型無效`);
+    if((x.kind==="item"||x.kind==="absorb")&&!ids.has(x.itemId))throw new Error(`扭蛋機棋盤第 ${i+1} 項物品不存在`);
+    if(Number(x.probability)<0||Number(x.probability)>100)throw new Error(`扭蛋機棋盤第 ${i+1} 項機率必須介於 0～100%`)
   });
-  const probabilityTotal=magicFestivalBoardProbabilityTotal(c);if(Math.abs(probabilityTotal-100)>.001)throw new Error(`魔法慶典棋盤內容機率合計 ${fmt(probabilityTotal)}%，必須為 100%`);
+  const probabilityTotal=magicFestivalBoardProbabilityTotal(c);if(Math.abs(probabilityTotal-100)>.001)throw new Error(`扭蛋機棋盤內容機率合計 ${fmt(probabilityTotal)}%，必須為 100%`);
   return ok
 };
 
@@ -11269,7 +11243,7 @@ $("refreshBoardBtn").addEventListener("click",()=>{
   if(config.gameplay.type==="pinball"){
     recordHistory("手動刷新彈珠機槽位");generatePinballSlots();log("手動刷新彈珠機槽位");render()
   }else if(config.gameplay.type==="magicFestival"){
-    recordHistory("手動重開魔法慶典棋盤");generateMagicFestivalBoard(state,config,{freshInitial:true});log("手動重開魔法慶典棋盤");render()
+    recordHistory("手動重開扭蛋機棋盤");generateMagicFestivalBoard(state,config,{freshInitial:true});log("手動重開扭蛋機棋盤");render()
   }else{
     recordHistory("手動刷新地圖");generateBoard();log("手動刷新地圖");render()
   }
@@ -11398,7 +11372,7 @@ window.addEventListener("resize",()=>{clearTimeout(window.__boardResize);window.
 
 
 /* =========================================================
-   v20：魔法慶典正式改為「扭蛋魔術」
+   v20：扭蛋機正式改為「扭蛋魔術」
    - 幻想轉蛋幣：每抽消耗 1
    - 普通兌換幣：見習魔法帽
    - 高級兌換幣：大師魔法帽
@@ -11632,7 +11606,7 @@ async function magicFestivalDrawMultiple(count=1,{auto=false,reuseSnapshot=false
   if(!auto&&availableNow()<want)return toast(ms.luckyMode?`幸運值不足，${fmt(want)} 抽需要 ${fmt(want*g.luckyDrawLuckCost)} 幸運值`:`${item(token).name}不足，需要 ${fmt(want)} 個`);
   if(auto&&Number(state.resources?.[token]||0)<1&&(!ms.luckyMode||ms.luck<g.luckyDrawLuckCost))return toast(`${item(token).name}不足`);
   if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};
-  recordHistory(auto?"魔法慶典自動扭蛋":`魔法慶典扭蛋 ×${want}`);stopAuto=false;if(auto){$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true}
+  recordHistory(auto?"扭蛋機自動扭蛋":`扭蛋機扭蛋 ×${want}`);stopAuto=false;if(auto){$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true}
   let done=0,last=null,guard=0;
   try{
     while(done<want&&!stopAuto&&guard++<200000){
@@ -11650,7 +11624,7 @@ async function autoMagicFestival(opts={}){return magicFestivalDrawMultiple(Infin
 function renderMagicFestivalBoard(){
   const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId,giftId=g.magicGiftItemId;
   $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=false;
-  $("gameplayTitle").textContent="🪄 魔法慶典｜扭蛋魔術";$("refreshBoardBtn").style.display="none";$("multiplierWrap").style.display="none";
+  $("gameplayTitle").textContent="🎩 扭蛋機";$("refreshBoardBtn").style.display="none";$("multiplierWrap").style.display="none";
   $("autoRollBtn").textContent="自動使用全部幻想轉蛋幣";$("autoRollBtn").title="依目前幸運值自動切換普通／幸運模式，使用背包內全部幻想轉蛋幣。";
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="magicFestival"));
   $("boardMeta").textContent=`普通：每抽 +${fmt(g.luckPerNormalDraw)} 幸運值｜滿 ${fmt(g.luckAutoThreshold)} 自動進幸運模式｜幸運抽每次消耗 ${fmt(g.luckyDrawLuckCost)} 幸運值`;
@@ -11713,7 +11687,7 @@ function gameplayRandomBoxesEditorHtml(c,gameplay){
 function magicFestivalSettingsHtml(c){
   normalizeMagicFestivalConfig(c);const g=c.gameplaySettings.magicFestival;
   return `<section class="setting-section active">
-    <div class="editor-head"><div><h2>🪄 魔法慶典玩法</h2><div class="help">共通設定與大富翁／彈珠機使用相同版型；只有幸運值與普通／幸運獎池放在「扭蛋機規則」。</div></div><span class="badge warn">玩法專用</span></div>
+    <div class="editor-head"><div><h2>🎩 扭蛋機玩法</h2><div class="help">共通設定與大富翁／彈珠機使用相同版型；只有幸運值與普通／幸運獎池放在「扭蛋機規則」。</div></div><span class="badge warn">玩法專用</span></div>
 
     <div class="editor-card">
       <h3 style="margin-top:0">玩法使用物品</h3>
@@ -11762,7 +11736,7 @@ const __updateSettingsProbabilityBadgeBeforeMagicGacha=updateSettingsProbability
 updateSettingsProbabilityBadgeForInput=function(el){__updateSettingsProbabilityBadgeBeforeMagicGacha(el);if(!settingsDraft||!el?.dataset?.path)return;const m=el.dataset.path.match(/^gameplaySettings\.magicFestival\.(normalRewards|luckyRewards)\.\d+\.probability$/);if(m){const pool=m[1],total=magicFestivalRewardPoolTotal(settingsDraft.gameplaySettings.magicFestival[pool]),badge=document.querySelector(`[data-magic-gacha-total="${pool}"]`);if(badge){badge.textContent=`機率 ${fmt(total)}%`;badge.classList.toggle("bad",Math.abs(total-100)>.001)}}};
 
 const __validateConfigBeforeMagicGacha=validateConfig;
-validateConfig=function(c){const ok=__validateConfigBeforeMagicGacha(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;for(const [key,label] of [["normalRewards","普通模式"],["luckyRewards","幸運模式"]]){if(!Array.isArray(g[key])||!g[key].length)throw new Error(`魔法慶典${label}至少需要一項獎勵`);const total=magicFestivalRewardPoolTotal(g[key]);if(Math.abs(total-100)>.001)throw new Error(`魔法慶典${label}獎勵機率合計 ${fmt(total)}%，必須為 100%`)}return ok};
+validateConfig=function(c){const ok=__validateConfigBeforeMagicGacha(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;for(const [key,label] of [["normalRewards","普通模式"],["luckyRewards","幸運模式"]]){if(!Array.isArray(g[key])||!g[key].length)throw new Error(`扭蛋機${label}至少需要一項獎勵`);const total=magicFestivalRewardPoolTotal(g[key]);if(Math.abs(total-100)>.001)throw new Error(`扭蛋機${label}獎勵機率合計 ${fmt(total)}%，必須為 100%`)}return ok};
 
 function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋"});if(!r.ok)return r;if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;flowAutoClaimStages(st,cfg,stats);return r}
 const __flowUseAllBallsBeforeMagicGacha=flowUseAllBalls;
@@ -11785,7 +11759,7 @@ const __flowExamplePlanBeforeMagicGacha=flowExamplePlan;
 flowExamplePlan=function(cfg=config){if(batchGameplayType(cfg)!=="magicFestival")return __flowExamplePlanBeforeMagicGacha(cfg);const target=flowClampStage(cfg,2);return Array.from({length:7},(_,d)=>({actions:d===6?[{type:"free"},{type:"allBalls"}]:[{type:"free"},{type:"stage",stage:target}]}))};
 
 const __renderWeeklyFlowPlannerBeforeMagicGacha=renderWeeklyFlowPlanner;
-renderWeeklyFlowPlanner=function(){__renderWeeklyFlowPlannerBeforeMagicGacha();if(batchGameplayType(config)==="magicFestival"){const help=$("weeklyFlowHelp");if(help)help.innerHTML=`每次模擬都從魔法慶典自己的基準開始跑週一 → 週日。固定收益暫時卡住時，每扭 1 次就重新檢查基金／箱子／兌換／進度；普通抽累積幸運值，滿 ${fmt(magicFestivalSettings(config).luckAutoThreshold)} 自動進入幸運模式。若流程需要使用魔術好禮，請加入「使用魔術好禮」步驟。`}};
+renderWeeklyFlowPlanner=function(){__renderWeeklyFlowPlannerBeforeMagicGacha();if(batchGameplayType(config)==="magicFestival"){const help=$("weeklyFlowHelp");if(help)help.innerHTML=`每次模擬都從扭蛋機自己的基準開始跑週一 → 週日。固定收益暫時卡住時，每扭 1 次就重新檢查基金／箱子／兌換／進度；普通抽累積幸運值，滿 ${fmt(magicFestivalSettings(config).luckAutoThreshold)} 自動進入幸運模式。若流程需要使用魔術好禮，請加入「使用魔術好禮」步驟。`}};
 
 const __gameplayActionVerbBeforeMagicGacha=gameplayActionVerb;
 gameplayActionVerb=function(type=batchGameplayType(config)){return type==="magicFestival"?"扭蛋":__gameplayActionVerbBeforeMagicGacha(type)};
@@ -11810,6 +11784,76 @@ $("magicFestivalPlayArea")?.addEventListener("click",e=>{
   const gift=e.target.closest("[data-magic-gacha-gift]");if(gift){if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用魔術好禮");recordHistory("使用魔術好禮");const r=magicFestivalUseGift(state,config,Number(gift.dataset.magicGachaGift||1));if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render();return}
   if(e.target.closest("[data-magic-gacha-lucky]")){if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能切換模式");recordHistory("手動開啟幸運模式");const r=magicFestivalEnableLucky(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()}
 });
+
+
+
+/* =========================================================
+   v22：三玩法共用查看機率
+   ========================================================= */
+function probabilityItemText(itemId,amount=1,cfg=config){
+  const it=resourceDisplayItem(itemId,cfg);
+  return `${it.icon||""}${it.name} ×${fmt(amount)}`
+}
+function probabilityRowsTable(headers,rows){
+  if(!rows.length)return `<div class="empty">目前沒有可顯示的機率資料。</div>`;
+  return `<div class="probability-table-wrap"><table class="probability-table"><thead><tr>${headers.map(x=>`<th>${escapeHtml(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+}
+function randomBoxesProbabilityHtml(type,cfg=config){
+  const g=cfg.gameplaySettings?.[type]||{},boxes=Array.isArray(g.randomBoxes)?g.randomBoxes:[];
+  if(!boxes.length)return `<div class="probability-section"><h3>🎁 隨機箱</h3><div class="empty">目前玩法沒有設定隨機箱。</div></div>`;
+  return `<div class="probability-section"><h3>🎁 隨機箱</h3>${boxes.map(box=>{
+    const reward=resourceDisplayItem(box.rewardItemId,cfg),total=(box.outcomes||[]).reduce((a,x)=>a+Math.max(0,Number(x.probability||0)),0);
+    const rows=(box.outcomes||[]).map(x=>[escapeHtml(`${reward.icon||""}${reward.name} ×${fmt(x.amount)}`),`<strong>${fmt(x.probability)}%</strong>`]);
+    return `<div style="margin-bottom:12px"><div style="font-weight:1000;margin-bottom:6px">${escapeHtml(box.name||"隨機箱")} <span class="probability-pill">合計 ${fmt(total)}%</span></div>${probabilityRowsTable(["結果","機率"],rows)}</div>`
+  }).join("")}</div>`
+}
+function monopolyProbabilityHtml(cfg=config){
+  const types=Array.isArray(cfg.cellTypes)?cfg.cellTypes:[],weightTotal=types.reduce((a,x)=>a+Math.max(0,Number(x.distributionWeight||0)),0);
+  const typeRows=types.map(x=>[
+    escapeHtml(x.name||x.id),
+    fmt(x.distributionWeight||0),
+    `<strong>${fmt(weightTotal?Math.max(0,Number(x.distributionWeight||0))/weightTotal*100:0)}%</strong>`
+  ]);
+  const rewards=types.map(type=>{
+    const total=(type.rewards||[]).reduce((a,x)=>a+Math.max(0,Number(x.probability||0)),0);
+    const rows=(type.rewards||[]).map(r=>[escapeHtml(probabilityItemText(r.itemId,r.amount,cfg)),`<strong>${fmt(r.probability)}%</strong>`]);
+    return `<div style="margin-top:11px"><strong>${escapeHtml(type.name||type.id)}</strong> <span class="probability-pill">合計 ${fmt(total)}%</span>${probabilityRowsTable(["獎勵","機率"],rows)}</div>`
+  }).join("");
+  return `<div class="probability-section"><h3>🎲 地圖格子生成</h3><div class="help" style="margin-bottom:7px">格子類型以分配權重換算成生成比例；每種格子的獎勵再依自己的機率抽取。</div>${probabilityRowsTable(["格子類型","權重","換算比例"],typeRows)}${rewards}</div>${randomBoxesProbabilityHtml("monopoly",cfg)}`
+}
+function pinballProbabilityHtml(cfg=config){
+  const g=pinballSettings(cfg),pcts=pinballLandingPercentages(cfg),slotRows=Array.from({length:Math.max(2,Number(g.slotCount||8))},(_,i)=>{
+    const reward=g.normalSlotRewards?.[i]||{itemId:g.normalExchangeId,amount:1};
+    return [`第 ${i+1} 格`,escapeHtml(probabilityItemText(reward.itemId,reward.amount,cfg)),`<strong>${fmt(pcts[i]||0)}%</strong>`,fmt(g.targetHitRequirements?.[i]||0)]
+  });
+  const hidden=(g.hiddenVaultRewards||[]).map(r=>[escapeHtml(probabilityItemText(r.itemId,r.amount,cfg)),`<strong>${fmt(r.probability)}%</strong>`]);
+  return `<div class="probability-section"><h3>🔮 普通彈珠落點</h3><div class="help" style="margin-bottom:7px">先依 8 格落點權重決定最終格，再播放碰釘動畫。</div>${probabilityRowsTable(["格子","固定獎勵","落點機率","特殊格門檻"],slotRows)}</div><div class="probability-section"><h3>🌌 隱藏寶庫</h3>${probabilityRowsTable(["寶庫獎勵","機率"],hidden)}</div>${randomBoxesProbabilityHtml("pinball",cfg)}`
+}
+function gachaProbabilityHtml(cfg=config){
+  const g=magicFestivalSettings(cfg);
+  const pool=(key,title)=>{
+    const list=Array.isArray(g[key])?g[key]:[],total=list.reduce((a,x)=>a+Math.max(0,Number(x.probability||0)),0);
+    const rows=list.map(r=>[escapeHtml(probabilityItemText(r.itemId,r.amount,cfg)),`<strong>${fmt(r.probability)}%</strong>`]);
+    return `<div class="probability-section"><h3>${title}</h3><div class="help" style="margin-bottom:7px">機率合計 ${fmt(total)}%。</div>${probabilityRowsTable(["獎勵","機率"],rows)}</div>`
+  };
+  return pool("normalRewards","🎩 普通模式扭蛋")+pool("luckyRewards","🍀 幸運模式扭蛋")+randomBoxesProbabilityHtml("magicFestival",cfg)
+}
+function gameplayProbabilityHtml(type=batchGameplayType(config),cfg=config){
+  if(type==="pinball")return pinballProbabilityHtml(cfg);
+  if(type==="magicFestival")return gachaProbabilityHtml(cfg);
+  return monopolyProbabilityHtml(cfg)
+}
+function openProbabilityModal(){
+  const type=batchGameplayType(config),title=`${gameplayIcon(type)} ${gameplayLabel(type)}｜查看機率`;
+  $("probabilityModalTitle").textContent=title;
+  $("probabilityContent").innerHTML=gameplayProbabilityHtml(type,config);
+  $("probabilityModal").classList.add("open")
+}
+function closeProbabilityModal(){$("probabilityModal").classList.remove("open")}
+$("probabilityBtn")?.addEventListener("click",openProbabilityModal);
+$("closeProbabilityBtn")?.addEventListener("click",closeProbabilityModal);
+$("closeProbabilityFootBtn")?.addEventListener("click",closeProbabilityModal);
+$("probabilityModal")?.addEventListener("click",e=>{if(e.target===$("probabilityModal"))closeProbabilityModal()});
 
 try{normalizeFundConfig(config);validateConfig(config)}catch{config=normalizeFundConfig(clone(DEFAULT_CONFIG))}
 strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);
