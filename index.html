@@ -1846,6 +1846,8 @@ const DEFAULT_CONFIG = {
       normalExchangeId:"kiwiJuice",
       dailyMissionMaxGameTokens:30,
       dailyMissionRewardItemId:"dice",
+      firstDayLoginGiftItemId:"dice",
+      firstDayLoginGiftAmount:5,
       pointsPerItemObtained:[{itemId:"dice",points:2},{itemId:"dragonFruitJuice",points:0}],
       statistics:{items:[
         {id:"statDragon",itemId:"dragonFruitJuice",label:"火龍果汁",summary:true,daily:true,result:true,freeCompare:true},
@@ -1864,6 +1866,8 @@ const DEFAULT_CONFIG = {
       normalExchangeId:"normalScroll",
       dailyMissionMaxGameTokens:30,
       dailyMissionRewardItemId:"CraftTicket",
+      firstDayLoginGiftItemId:"CraftTicket",
+      firstDayLoginGiftAmount:5,
       pointsPerItemObtained:[{itemId:"CraftTicket",points:10},{itemId:"premiumScroll",points:1}],
       statistics:{items:[
         {id:"statPremiumScroll",itemId:"premiumScroll",label:"高級捲軸",summary:true,daily:true,result:true,freeCompare:true},
@@ -2237,14 +2241,17 @@ function dailyMissionRewardItemId(cfg=config){
 function firstDayLoginGift(cfg=config){
   const active=cfg.gameplay?.type||"monopoly";
   const gp=cfg.gameplaySettings?.[active]||{};
-  const itemId=active==="pinball"
-    ?(gp.craftTicketId||"CraftTicket")
+  const fallbackItemId=active==="pinball"
+    ?(gp.craftTicketId||gp.gameTokenId||"CraftTicket")
     :(gp.gameTokenId||cfg.currencies?.gameTokenId||"dice");
-  return{itemId,amount:5,label:`首日登入贈送 ${cfgItem(cfg,itemId).name} ×5`}
+  const configuredItemId=gp.firstDayLoginGiftItemId;
+  const itemId=(cfg.items||[]).some(x=>x.id===configuredItemId)?configuredItemId:fallbackItemId;
+  const amount=Math.max(0,Number(gp.firstDayLoginGiftAmount??5));
+  return{itemId,amount,label:`首日登入贈送 ${cfgItem(cfg,itemId).name} ×${fmt(amount)}`}
 }
 function canClaimFirstDayLoginGift(targetState=state,cfg=config){
   const day=targetState.days?.[Number(targetState.currentDay||0)]||dayState();
-  return Number(targetState.currentDay||0)===0&&!day.firstLoginClaimed
+  return Number(targetState.currentDay||0)===0&&!day.firstLoginClaimed&&firstDayLoginGift(cfg).amount>0
 }
 function migrateV50PinballRewardsToCraft(cfg,mono,pin){
   if(Number(cfg.configSchemaVersion||0)>=50)return;
@@ -2728,6 +2735,11 @@ function normalizeFundConfig(cfg){
   migrateV68AllStatisticLayouts(cfg,mono,pin);
   if(!mono.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===mono.dailyMissionRewardItemId))mono.dailyMissionRewardItemId=mono.gameTokenId;
   if(!pin.dailyMissionRewardItemId||!cfg.items.some(x=>x.id===pin.dailyMissionRewardItemId))pin.dailyMissionRewardItemId=pin.craftTicketId;
+  [["monopoly",mono],["pinball",pin]].forEach(([type,g])=>{
+    const fallback=type==="pinball"?(g.craftTicketId||g.gameTokenId):(g.gameTokenId||cfg.items[0]?.id||"");
+    if(!g.firstDayLoginGiftItemId||!cfg.items.some(x=>x.id===g.firstDayLoginGiftItemId))g.firstDayLoginGiftItemId=fallback;
+    g.firstDayLoginGiftAmount=Math.max(0,Number(g.firstDayLoginGiftAmount??5));
+  });
   [mono,pin].forEach(g=>{
     if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
     g.exchangeShop=g.exchangeShop.map((offer,i)=>({
@@ -3068,7 +3080,7 @@ function deterministicLedger(targetState,cfg){
   const cost=(id,amount)=>{ledger.spent[id]=Number(ledger.spent[id]||0)+Number(amount||0)};
   targetState.days.forEach((day,d)=>{
     if(day.missionClaimed)grant(d,day.missionItemId||dailyMissionRewardItemId(cfg),day.missionAmount);
-    if(day.firstLoginClaimed)grant(d,day.firstLoginItemId||firstDayLoginGift(cfg).itemId,day.firstLoginAmount||5);
+    if(day.firstLoginClaimed)grant(d,day.firstLoginItemId||firstDayLoginGift(cfg).itemId,Object.prototype.hasOwnProperty.call(day,"firstLoginAmount")?Number(day.firstLoginAmount||0):firstDayLoginGift(cfg).amount);
     (day.claimedStages||[]).forEach(stageNo=>{const stage=cfg.progressStages.find(x=>Number(x.stage)===Number(stageNo));(stage?.rewards||[]).forEach(r=>grant(d,r.itemId,r.amount))});
     cfg.packageGroups.forEach(group=>group.packages.forEach(pack=>{const n=Number(day.packagePurchases?.[`${group.id}:${pack.id}`]||0);if(!n)return;cost(pack.cost.itemId,Number(pack.cost.amount)*n);pack.rewards.forEach(r=>grant(d,r.itemId,Number(r.amount)*n))}))
   });
@@ -3295,7 +3307,7 @@ function noPayDailyBundleLabel(cfg=config){
   const parts=[`每日 ${dailyItem.name} ×${fmt(cfg.dailyMission.maxGameTokens)}`];
   if(Number(state.currentDay||0)===0){
     const gift=firstDayLoginGift(cfg);
-    parts.push(`首日登入 ${cfgItem(cfg,gift.itemId).name} ×${fmt(gift.amount)}`)
+    if(gift.amount>0)parts.push(`首日登入 ${cfgItem(cfg,gift.itemId).name} ×${fmt(gift.amount)}`)
   }
   noPayDicePackages(cfg).forEach(({pack})=>parts.push(`${pack.name} ×${fmt(pack.limit)}`));
   return parts.join("＋")
@@ -4197,6 +4209,8 @@ function validateConfig(c){
   });
   Object.entries(c.gameplaySettings||{}).forEach(([gameplay,g])=>{
     if(g.dailyMissionRewardItemId&&!ids.includes(g.dailyMissionRewardItemId))throw new Error(`${gameplay} 每日任務獎勵物品不存在：${g.dailyMissionRewardItemId}`);
+    if(g.firstDayLoginGiftItemId&&!ids.includes(g.firstDayLoginGiftItemId))throw new Error(`${gameplay} 首日贈送物品不存在：${g.firstDayLoginGiftItemId}`);
+    if(Number(g.firstDayLoginGiftAmount??5)<0)throw new Error(`${gameplay} 首日贈送數量不可小於 0`);
     normalizeGameplayStatistics(c,gameplay,g);
     (g.statistics?.items||[]).forEach((x,i)=>{
       if(!ids.includes(x.itemId))throw new Error(`${gameplay} 第 ${i+1} 個統計物品不存在：${x.itemId}`)
@@ -4721,7 +4735,7 @@ function refundFreeDailyBundle(){
     if(state.resources[missionItem]<0)negative=true
   }
   if(u.firstLogin&&day.firstLoginClaimed){
-    const giftItem=u.firstLoginItemId||day.firstLoginItemId||firstDayLoginGift(config).itemId,amount=Number(u.firstLoginAmount||day.firstLoginAmount||5);
+    const giftItem=u.firstLoginItemId||day.firstLoginItemId||firstDayLoginGift(config).itemId,amount=Number(u.firstLoginAmount??day.firstLoginAmount??firstDayLoginGift(config).amount);
     state.resources[giftItem]=Number(state.resources[giftItem]||0)-amount;
     if(giftItem===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-amount);
     day.score=Math.max(0,Number(day.score||0)-scorePerItem(giftItem)*amount);
@@ -4764,7 +4778,7 @@ function refundDailyClaim(){
   const amount=Number(dayState().missionAmount||0),missionItem=dayState().missionItemId||dailyMissionRewardItemId(config);
   const hadGift=dayState().firstLoginClaimed;
   const giftItem=dayState().firstLoginItemId||firstDayLoginGift(config).itemId;
-  const giftAmount=Number(dayState().firstLoginAmount||5);
+  const giftAmount=Number(dayState().firstLoginAmount??firstDayLoginGift(config).amount);
   recordHistory(`退回${config.event.dayLabels[state.currentDay]}每日任務`);
   state.resources[missionItem]=Number(state.resources[missionItem]||0)-amount;
   if(missionItem===config.currencies.gameTokenId)adjustGameTokenGain(state.currentDay,-amount);
@@ -5507,9 +5521,11 @@ function flowClaimFree(st,cfg,stats,ctx={}){
   }
   if(Number(st.currentDay||0)===0&&!day.firstLoginClaimed){
     const gift=firstDayLoginGift(cfg);
-    day.firstLoginClaimed=true;day.firstLoginAmount=gift.amount;day.firstLoginItemId=gift.itemId;
-    flowAddItem(st,cfg,gift.itemId,gift.amount);notes.push(`首登${cfgItem(cfg,gift.itemId).name}×${fmt(gift.amount)}`);
-    flowAutoClaimStages(st,cfg,stats);flowCheckFundInterrupts(st,cfg,ctx,stats)
+    if(gift.amount>0){
+      day.firstLoginClaimed=true;day.firstLoginAmount=gift.amount;day.firstLoginItemId=gift.itemId;
+      flowAddItem(st,cfg,gift.itemId,gift.amount);notes.push(`首登${cfgItem(cfg,gift.itemId).name}×${fmt(gift.amount)}`);
+      flowAutoClaimStages(st,cfg,stats);flowCheckFundInterrupts(st,cfg,ctx,stats)
+    }
   }
   noPayDicePackages(cfg).forEach(({group,pack})=>{
     const key=`${group.id}:${pack.id}`,bought=Number(day.packagePurchases[key]||0),remain=Math.max(0,Number(pack.limit||0)-bought);
@@ -6865,8 +6881,10 @@ function freeCompareClaimTasksOnly(st,cfg,stats){
   }
   if(Number(st.currentDay||0)===0&&!day.firstLoginClaimed){
     const gift=firstDayLoginGift(cfg);
-    day.firstLoginClaimed=true;day.firstLoginAmount=Number(gift.amount||0);day.firstLoginItemId=gift.itemId;
-    flowAddItem(st,cfg,gift.itemId,gift.amount)
+    if(gift.amount>0){
+      day.firstLoginClaimed=true;day.firstLoginAmount=Number(gift.amount||0);day.firstLoginItemId=gift.itemId;
+      flowAddItem(st,cfg,gift.itemId,gift.amount)
+    }
   }
   flowAutoClaimStages(st,cfg,stats);
   freeCompareMaybeClaimFund(st,cfg,stats)
@@ -9465,7 +9483,8 @@ function renderDaily(){
   const dailyTokenItem=item(dailyMissionRewardItemId(config));
   $("claimDailyBtn").disabled=dayState().missionClaimed;
   $("claimDailyBtn").textContent=dayState().missionClaimed?"本日已領取":`領取每日${dailyTokenItem.name}`;
-  const firstDayGiftNote=Number(state.currentDay||0)===0?`；另含首日登入 ${item(firstDayLoginGift(config).itemId).name} ×${fmt(firstDayLoginGift(config).amount)}`:"";
+  const firstGift=firstDayLoginGift(config);
+  const firstDayGiftNote=Number(state.currentDay||0)===0&&firstGift.amount>0?`；另含首日登入 ${item(firstGift.itemId).name} ×${fmt(firstGift.amount)}`:"";
   $("claimDailyBtn").title=`每日任務最多可領 ${fmt(config.dailyMission.maxGameTokens)} ${dailyTokenItem.unit||"個"}${dailyTokenItem.name}${firstDayGiftNote}`;
   $("refundDailyBtn").disabled=!dayState().missionClaimed;
 
@@ -9687,7 +9706,7 @@ function itemOptions(selected){
   return settingsDraft.items.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===selected?"selected":""}>${escapeHtml(x.icon)} ${escapeHtml(x.name)}</option>`).join("")
 }
 function replaceItemReferences(root,oldId,newId){
-  const refKeys=new Set(["itemId","boxItemId","rewardItemId","gameTokenId","premiumExchangeId","normalExchangeId","paidCurrencyId","unlockItemId","craftTicketId","dailyMissionRewardItemId","magnifierItemId","bookItemId"]);
+  const refKeys=new Set(["itemId","boxItemId","rewardItemId","gameTokenId","premiumExchangeId","normalExchangeId","paidCurrencyId","unlockItemId","craftTicketId","dailyMissionRewardItemId","firstDayLoginGiftItemId","magnifierItemId","bookItemId"]);
   const walk=value=>{
     if(!value||typeof value!=="object")return;
     if(Array.isArray(value)){value.forEach(walk);return}
@@ -9793,6 +9812,8 @@ function renderSettings(){
         <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.monopoly.gameTokenId">${itemOptions(c.gameplaySettings.monopoly.gameTokenId)}</select></div>
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.monopoly.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.monopoly.dailyMissionRewardItemId||c.gameplaySettings.monopoly.gameTokenId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.monopoly.dailyMissionMaxGameTokens",c.gameplaySettings.monopoly.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+        <div class="field"><label>首日贈送物品</label><select data-path="gameplaySettings.monopoly.firstDayLoginGiftItemId">${itemOptions(c.gameplaySettings.monopoly.firstDayLoginGiftItemId||c.gameplaySettings.monopoly.gameTokenId)}</select></div>
+        <div class="field"><label>首日贈送數量</label>${pathInput("gameplaySettings.monopoly.firstDayLoginGiftAmount",c.gameplaySettings.monopoly.firstDayLoginGiftAmount??5,"number",'min="0" step="any"')}</div>
       </div>
       <h3>取得物品的計分規則</h3>
       <div class="editor-table">
@@ -9863,6 +9884,8 @@ function renderSettings(){
         <div class="field"><label>可製作彈珠持有上限</label>${pathInput("gameplaySettings.pinball.ballCapacity",c.gameplaySettings.pinball.ballCapacity,"number",'min="1" step="1"')}</div>
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.pinball.dailyMissionRewardItemId">${itemOptions(c.gameplaySettings.pinball.dailyMissionRewardItemId||c.gameplaySettings.pinball.craftTicketId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.pinball.dailyMissionMaxGameTokens",c.gameplaySettings.pinball.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+        <div class="field"><label>首日贈送物品</label><select data-path="gameplaySettings.pinball.firstDayLoginGiftItemId">${itemOptions(c.gameplaySettings.pinball.firstDayLoginGiftItemId||c.gameplaySettings.pinball.craftTicketId||c.gameplaySettings.pinball.gameTokenId)}</select></div>
+        <div class="field"><label>首日贈送數量</label>${pathInput("gameplaySettings.pinball.firstDayLoginGiftAmount",c.gameplaySettings.pinball.firstDayLoginGiftAmount??5,"number",'min="0" step="any"')}</div>
       </div>
 
       <h3>取得物品的計分規則</h3>
@@ -10065,7 +10088,7 @@ function settingsAction(btn){
   if(a==="removeReward")getByPath(settingsDraft,btn.dataset.base).splice(Number(btn.dataset.index),1);
   if(a==="addGameplayScoreRule"){
     const gameplay=btn.dataset.gameplay||settingsDraft.gameplay.type;
-    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,randomBoxes:[],exchangeShop:[],pointsPerItemObtained:[],statistics:{items:[]}};
+    if(!settingsDraft.gameplaySettings[gameplay])settingsDraft.gameplaySettings[gameplay]={gameTokenId:settingsDraft.items[0].id,dailyMissionMaxGameTokens:0,dailyMissionRewardItemId:settingsDraft.items[0].id,firstDayLoginGiftItemId:settingsDraft.items[0].id,firstDayLoginGiftAmount:5,randomBoxes:[],exchangeShop:[],pointsPerItemObtained:[],statistics:{items:[]}};
     settingsDraft.gameplaySettings[gameplay].pointsPerItemObtained.push({itemId:settingsDraft.items[0].id,points:0})
   }
   if(a==="removeGameplayScoreRule"){
@@ -10541,6 +10564,9 @@ function normalizeMagicFestivalConfig(cfg){
   // 否則已刪除的四色寶石會被舊版 ensureMagicFestivalItems 強制加回並重新建立引用。
   if(g&&typeof g==="object"&&(Array.isArray(g.normalRewards)||Array.isArray(g.luckyRewards)||Object.prototype.hasOwnProperty.call(g,"luckPerNormalDraw"))){
     g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??0));
+    if(!g.dailyMissionRewardItemId||!(cfg.items||[]).some(x=>x.id===g.dailyMissionRewardItemId))g.dailyMissionRewardItemId=g.gameTokenId||cfg.items?.[0]?.id||"";
+    if(!g.firstDayLoginGiftItemId||!(cfg.items||[]).some(x=>x.id===g.firstDayLoginGiftItemId))g.firstDayLoginGiftItemId=g.gameTokenId||cfg.items?.[0]?.id||"";
+    g.firstDayLoginGiftAmount=Math.max(0,Number(g.firstDayLoginGiftAmount??5));
     if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
     if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
     if(!Array.isArray(g.progressStages))g.progressStages=clone(mono.progressStages||cfg.progressStages||[]);
@@ -10557,6 +10583,7 @@ function normalizeMagicFestivalConfig(cfg){
     const fund=magicFestivalFundConfig(ids,cfg,mono.fund?.premiumCost||cfg.fund?.premiumCost);
     g=cfg.gameplaySettings.magicFestival={
       gameTokenId:ids.potion,dailyMissionRewardItemId:ids.potion,dailyMissionMaxGameTokens:10,
+      firstDayLoginGiftItemId:ids.potion,firstDayLoginGiftAmount:5,
       gemItemIds:{green:ids.green,purple:ids.purple,blue:ids.blue,red:ids.red},
       magnifierItemId:ids.magnifier,bookItemId:ids.book,potionTileAmount:3,boardCounts:magicFestivalDefaultCounts(),toolProbabilities:magicFestivalDefaultToolProbabilities(),
       boardProbabilityEntries:magicFestivalDefaultBoardEntries(ids,3),
@@ -10578,6 +10605,8 @@ function normalizeMagicFestivalConfig(cfg){
   ["green","purple","blue","red"].forEach(k=>{if(!(cfg.items||[]).some(x=>x.id===g.gemItemIds[k]))g.gemItemIds[k]=ids[k]});
   g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??10));
   if(!g.dailyMissionRewardItemId||!(cfg.items||[]).some(x=>x.id===g.dailyMissionRewardItemId))g.dailyMissionRewardItemId=g.gameTokenId;
+  if(!g.firstDayLoginGiftItemId||!(cfg.items||[]).some(x=>x.id===g.firstDayLoginGiftItemId))g.firstDayLoginGiftItemId=g.gameTokenId;
+  g.firstDayLoginGiftAmount=Math.max(0,Number(g.firstDayLoginGiftAmount??5));
   g.potionTileAmount=Math.max(1,Math.floor(Number(g.potionTileAmount||3)));
   if(!g.magnifierItemId||!(cfg.items||[]).some(x=>x.id===g.magnifierItemId))g.magnifierItemId=ids.magnifier;
   if(!g.bookItemId||!(cfg.items||[]).some(x=>x.id===g.bookItemId))g.bookItemId=ids.book;
@@ -11162,21 +11191,8 @@ flowExchange=function(st,cfg,action,stats,ctx={}){
 
 const __validateConfigBeforeMagic=validateConfig;
 validateConfig=function(c){
-  const ok=__validateConfigBeforeMagic(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;
-  const ids=new Set((c.items||[]).map(x=>x.id));
-  if(!ids.has(g.gameTokenId))throw new Error("扭蛋機的幻想轉蛋幣物品不存在");
-  for(const [color,id] of Object.entries(g.gemItemIds||{})){if(!ids.has(id))throw new Error(`扭蛋機 ${color} 寶石物品不存在：${id}`)}
-  if(!ids.has(g.magnifierItemId))throw new Error("扭蛋機的放大鏡物品不存在");
-  if(!ids.has(g.bookItemId))throw new Error("扭蛋機的大師魔法帽計數物品不存在");
-  const allowed=new Set(magicFestivalBoardEntryKinds().map(x=>x.value)),entries=g.boardProbabilityEntries||[];
-  if(!entries.length)throw new Error("扭蛋機棋盤內容至少需要一項");
-  entries.forEach((x,i)=>{
-    if(!allowed.has(x.kind))throw new Error(`扭蛋機棋盤第 ${i+1} 項內容類型無效`);
-    if((x.kind==="item"||x.kind==="absorb")&&!ids.has(x.itemId))throw new Error(`扭蛋機棋盤第 ${i+1} 項物品不存在`);
-    if(Number(x.probability)<0||Number(x.probability)>100)throw new Error(`扭蛋機棋盤第 ${i+1} 項機率必須介於 0～100%`)
-  });
-  const probabilityTotal=magicFestivalBoardProbabilityTotal(c);if(Math.abs(probabilityTotal-100)>.001)throw new Error(`扭蛋機棋盤內容機率合計 ${fmt(probabilityTotal)}%，必須為 100%`);
-  return ok
+  // v24：舊翻牌玩法驗證已完全移除。扭蛋機的獎池驗證由後續 gacha validator 負責。
+  return __validateConfigBeforeMagic(c)
 };
 
 $("magicFestivalBoard")?.addEventListener("click",e=>{const cell=e.target.closest("[data-magic-cell]");if(cell)magicFestivalClick(Number(cell.dataset.magicCell))});
@@ -11516,6 +11532,8 @@ normalizeMagicFestivalConfig=function(cfg){
   g.normalExchangeId=(cfg.items||[]).some(x=>x.id===g.normalExchangeId)?g.normalExchangeId:ids.noviceHat;
   g.premiumExchangeId=(cfg.items||[]).some(x=>x.id===g.premiumExchangeId)?g.premiumExchangeId:ids.book;
   g.magicGiftItemId=(cfg.items||[]).some(x=>x.id===g.magicGiftItemId)?g.magicGiftItemId:ids.magicGift;
+  if(!g.firstDayLoginGiftItemId||(cfg.items||[]).every(x=>x.id!==g.firstDayLoginGiftItemId))g.firstDayLoginGiftItemId=g.gameTokenId;
+  g.firstDayLoginGiftAmount=Math.max(0,Number(g.firstDayLoginGiftAmount??5));
   g.luckPerNormalDraw=Math.max(0,Number(g.luckPerNormalDraw??5));
   g.luckPerGift=Math.max(0,Number(g.luckPerGift??15));
   g.luckyDrawLuckCost=Math.max(1,Number(g.luckyDrawLuckCost??20));
@@ -11530,7 +11548,7 @@ normalizeMagicFestivalConfig=function(cfg){
   {const legacy=new Set(["magicGreenGem","magicPurpleGem","magicBlueGem","magicRedGem"]),elsewhere=JSON.stringify({...cfg,items:[]});cfg.items=(cfg.items||[]).filter(it=>!legacy.has(it.id)||elsewhere.includes(`"${it.id}"`))}
   cleanupLegacyMagicMagnifier(cfg);
   normalizeGameplayStatistics(cfg,"magicFestival",g);
-  if(Number(cfg.configSchemaVersion||0)<77)cfg.configSchemaVersion=77;
+  if(Number(cfg.configSchemaVersion||0)<78)cfg.configSchemaVersion=78;
   return g
 };
 
@@ -11709,6 +11727,8 @@ function magicFestivalSettingsHtml(c){
         <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.magicFestival.gameTokenId">${itemOptions(g.gameTokenId)}</select></div>
         <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(g.dailyMissionRewardItemId||g.gameTokenId)}</select></div>
         <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",g.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+        <div class="field"><label>首日贈送物品</label><select data-path="gameplaySettings.magicFestival.firstDayLoginGiftItemId">${itemOptions(g.firstDayLoginGiftItemId||g.gameTokenId)}</select></div>
+        <div class="field"><label>首日贈送數量</label>${pathInput("gameplaySettings.magicFestival.firstDayLoginGiftAmount",g.firstDayLoginGiftAmount??5,"number",'min="0" step="any"')}</div>
       </div>
       <h3>取得物品的計分規則</h3>
       <div class="editor-table">${(g.pointsPerItemObtained||[]).map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.magicFestival.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.magicFestival.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="magicFestival" data-index="${i}">刪除</button></div>`).join("")}</div>
