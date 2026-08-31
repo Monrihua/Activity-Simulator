@@ -1719,7 +1719,7 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
           <div class="help" id="weeklyFlowGameplayNote" style="margin:8px 0;font-weight:900"></div><div class="weekly-flow-planner" id="weeklyFlowPlanner"></div>
           <div class="sim-controls weekly-sim-controls">
             <div class="field"><label>模擬次數</label><input class="input" type="number" id="simulationCount" min="1" max="1000" value="100"></div>
-            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜自適應快取＋分段更新" readonly></div>
+            <div class="field"><label>執行方式</label><input class="input" value="高速批次｜自適應快取＋扭蛋快速帳本＋分段更新" readonly></div>
             <div class="field"><label>每日進度獎勵</label><input class="input" value="解鎖即自動全部領取" readonly></div>
             <div class="field"><label>執行整週流程</label><button class="btn green" id="runSimulationBtn" style="width:100%">依序模擬週一～週日</button></div>
           </div>
@@ -5478,7 +5478,12 @@ function flowAddItem(st,cfg,id,amount){
   const n=Number(amount||0);if(!id||!n)return;
   st.resources[id]=Number(st.resources[id]||0)+n;
   st.obtained[id]=Math.max(0,Number(st.obtained[id]||0)+Math.max(0,n));
-  if(id===cfg.currencies.gameTokenId)adjustGameTokenGain(st.currentDay,n,st,cfg);
+  if(id===cfg.currencies.gameTokenId){
+    if(st?._flowFastTokenLedger&&Array.isArray(st.gameTokenFlow)&&st.gameTokenFlowActiveGameplay===batchGameplayType(cfg)){
+      const d=Math.max(0,Math.min(st.gameTokenFlow.length-1,Number(st.currentDay||0)));
+      st.gameTokenFlow[d].gained=Number(st.gameTokenFlow[d].gained||0)+n
+    }else adjustGameTokenGain(st.currentDay,n,st,cfg)
+  }
   flowDayState(st).score=Number(flowDayState(st).score||0)+flowScorePerItemFast(cfg,id)*n
 }
 function flowSpend(st,cfg,cost,{actual=false}={}){
@@ -5494,19 +5499,25 @@ function flowSpend(st,cfg,cost,{actual=false}={}){
 function flowAutoClaimStages(st,cfg,stats){
   const day=flowDayState(st),stages=flowSortedStages(cfg);
   let claimed=0;
-
-  // 階段數通常很少，直接單次順序掃描即可；
-  // 不再每擲1骰/每投1球反覆 sort + filter + includes 多輪。
   const claimedSet=flowClaimedStageSet(day);
-  for(const s of stages){
-    if(Number(day.score||0)<Number(s.requiredScore||0))break;
-    if(claimedSet.has(s.stage))continue;
 
-    day.claimedStages.push(s.stage);
-    claimedSet.add(s.stage);
-    (s.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
-    claimed++
+  // 批次分數只會往上增加，已領階段也只會增加；用游標記住下一個可能階段，
+  // 避免扭蛋數百抽時每抽都從第1階重新掃描。
+  let i=Math.max(0,Math.min(stages.length,Number(day._flowNextStageIndex||0)));
+  while(i<stages.length&&claimedSet.has(stages[i].stage))i++;
+  while(i<stages.length){
+    const stage=stages[i];
+    if(Number(day.score||0)<Number(stage.requiredScore||0))break;
+    if(!claimedSet.has(stage.stage)){
+      day.claimedStages.push(stage.stage);
+      claimedSet.add(stage.stage);
+      (stage.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount));
+      claimed++
+    }
+    i++;
+    while(i<stages.length&&claimedSet.has(stages[i].stage))i++
   }
+  Object.defineProperty(day,"_flowNextStageIndex",{value:i,writable:true,configurable:true,enumerable:false});
 
   if(stats)stats.stageClaims+=claimed;
   return claimed
@@ -6010,32 +6021,45 @@ function flowClaimUnlockedFund(st,cfg,stats){
   const gained={};
   let count=0;
 
-  for(const m of milestones){
-    if(fundMilestoneTarget(m)>currentMetric+1e-9)break;
-
-    const tracks=[
-      ["free",m.freeRewards||[]],
-      ["premium",st.fundPremiumPurchased?(m.premiumRewards||[]):[]]
-    ];
-
-    for(const [kind,rewards] of tracks){
-      if(Object.prototype.hasOwnProperty.call(st.fundClaims[kind]||{},m.id))continue;
-      st.fundClaims[kind][m.id]=st.currentDay;
-
-      for(const r of rewards){
-        flowAddItem(st,cfg,r.itemId,r.amount);
-        gained[r.itemId]=Number(gained[r.itemId]||0)+Number(r.amount||0)
-      }
-      count++
-    }
+  // 基金門檻與已領狀態在單次模擬中都是單向前進。
+  // 分免費/進階各自保存下一個待檢查里程，避免每抽都重新掃完整張基金表。
+  let cursor=st._flowFundClaimCursor;
+  if(!cursor||typeof cursor!=="object"){
+    cursor={free:0,premium:0};
+    Object.defineProperty(st,"_flowFundClaimCursor",{value:cursor,writable:true,configurable:true,enumerable:false})
   }
+  const claimTrack=(kind,rewardKey,enabled)=>{
+    if(!enabled)return;
+    const claims=st.fundClaims[kind]||(st.fundClaims[kind]={});
+    let i=Math.max(0,Math.min(milestones.length,Number(cursor[kind]||0)));
+    while(i<milestones.length&&Object.prototype.hasOwnProperty.call(claims,milestones[i].id))i++;
+    while(i<milestones.length){
+      const milestone=milestones[i];
+      if(fundMilestoneTarget(milestone)>currentMetric+1e-9)break;
+      if(!Object.prototype.hasOwnProperty.call(claims,milestone.id)){
+        claims[milestone.id]=st.currentDay;
+        for(const r of (milestone[rewardKey]||[])){
+          flowAddItem(st,cfg,r.itemId,r.amount);
+          gained[r.itemId]=Number(gained[r.itemId]||0)+Number(r.amount||0)
+        }
+        count++
+      }
+      i++;
+      while(i<milestones.length&&Object.prototype.hasOwnProperty.call(claims,milestones[i].id))i++
+    }
+    cursor[kind]=i
+  };
 
-  // 真實基金一次會把當下所有已解鎖軌道一起領取。
-  // 其他物品可能因此「順便提早領到」，先記成基金信用額，
-  // 後面的基金目標可直接承接，不應再因剩餘里程已被領空而判失敗。
-  if(count)flowBumpFundRevision(st);
-  flowAddFundCredit(st,gained);
-  flowAutoClaimStages(st,cfg,stats);
+  claimTrack("free","freeRewards",true);
+  claimTrack("premium","premiumRewards",!!st.fundPremiumPurchased);
+
+  // 沒有新基金獎勵時，不可能因基金本身再增加每日分數，
+  // 因此不要每抽都重跑一次進度判斷。
+  if(count){
+    flowBumpFundRevision(st);
+    flowAddFundCredit(st,gained);
+    flowAutoClaimStages(st,cfg,stats)
+  }
   return{gained,count}
 }
 function flowFundCreditMap(st){
@@ -6817,6 +6841,8 @@ function freeCompareCreateFreshState(cfg){
     exchangePurchases:{},lastExchangeUndo:null,lastFundUndo:null,lastBoxUndo:null,activeStrategy:null,log:[]
   };
   ensureStateSchema(st,cfg,{skipNormalize:true});
+  // 批次狀態固定在同一玩法，不會在模擬中切玩法；帳本已在此同步一次，之後可走快速更新。
+  st._flowFastTokenLedger=true;
   if(batchGameplayType(cfg)==="pinball")flowPinballEnsure(st,cfg);
   return st
 }
@@ -6869,6 +6895,15 @@ function freeComparePackageDailyTokenText(info,cfg=config){
   return[...map.entries()].map(([id,n])=>`${cfgItem(cfg,id).icon||""}${cfgItem(cfg,id).name}×${fmt(n)}`).join("、")||"—"
 }
 function freeCompareMaybeClaimFund(st,cfg,stats){
+  const metric=flowFundMetricValue(st,cfg),premium=!!st.fundPremiumPurchased;
+  let cache=st._freeCompareFundCheck;
+  if(!cache||typeof cache!=="object"){
+    cache={metric:NaN,premium:null};
+    Object.defineProperty(st,"_freeCompareFundCheck",{value:cache,writable:true,configurable:true,enumerable:false})
+  }
+  // 解鎖指標與進階基金狀態都沒變，就不可能突然多出可領里程。
+  if(cache.metric===metric&&cache.premium===premium)return{gained:{},count:0};
+  cache.metric=metric;cache.premium=premium;
   return flowClaimUnlockedFund(st,cfg,stats)
 }
 function freeCompareClaimTasksOnly(st,cfg,stats){
@@ -6898,12 +6933,13 @@ function freeCompareBuyGemTokens(st,cfg,info,stats){
     const bought=Math.max(0,Number(day.packagePurchases?.[key]||0));
     const remain=Math.max(0,Math.floor(Number(pack.limit||0)-bought));
 
-    for(let i=0;i<remain;i++){
+    if(remain>0){
       const cost=Math.max(0,Number(pack.cost?.amount||0));
-      day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+1;
-      st.spent[pack.cost.itemId]=Number(st.spent[pack.cost.itemId]||0)+cost;
-      spent+=cost;
-      (pack.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,r.amount))
+      day.packagePurchases[key]=Number(day.packagePurchases[key]||0)+remain;
+      st.spent[pack.cost.itemId]=Number(st.spent[pack.cost.itemId]||0)+cost*remain;
+      spent+=cost*remain;
+      // 無課比較原本也是整個禮包買滿後才檢查進度／基金；固定獎勵可一次合併寫入，結果完全相同。
+      (pack.rewards||[]).forEach(r=>flowAddItem(st,cfg,r.itemId,Number(r.amount||0)*remain))
     }
   });
 
@@ -7166,6 +7202,7 @@ function flowPrepareBatchBase(source,cfg){
     })
   }
   ensureStateSchema(st,cfg);
+  st._flowFastTokenLedger=true;
   return st
 }
 
@@ -11591,13 +11628,20 @@ function magicFestivalRewardText(reward,cfg=config){return reward?itemText(rewar
 function magicFestivalPoolLines(pool,cfg=config){return(pool||[]).map(x=>`${itemText(x.itemId,x.amount,cfg)}｜${fmt(x.probability)}%`)}
 function magicFestivalSpendDrawToken(st,cfg){
   const token=magicFestivalSettings(cfg).gameTokenId;if(Number(st.resources?.[token]||0)<1)return false;
-  st.resources[token]=Number(st.resources[token]||0)-1;st.spent[token]=Number(st.spent?.[token]||0)+1;adjustGameTokenSpend(st.currentDay,1,st,cfg);return true
+  st.resources[token]=Number(st.resources[token]||0)-1;st.spent[token]=Number(st.spent?.[token]||0)+1;
+  // 批次狀態在建立時已完成玩法帳本同步，直接更新當日欄位即可；
+  // 不必每一抽重新正規化三種玩法的7日帳本。
+  if(st?._flowFastTokenLedger&&Array.isArray(st.gameTokenFlow)&&st.gameTokenFlowActiveGameplay===batchGameplayType(cfg)){
+    const d=Math.max(0,Math.min(st.gameTokenFlow.length-1,Number(st.currentDay||0)));
+    st.gameTokenFlow[d].spent=Number(st.gameTokenFlow[d].spent||0)+1
+  }else adjustGameTokenSpend(st.currentDay,1,st,cfg);
+  return true
 }
 function magicFestivalGrantGachaReward(st,cfg,reward,reason){
   if(!reward)return;
   if(st===state&&cfg===config)addItem(reward.itemId,reward.amount,reason,true);else flowAddItem(st,cfg,reward.itemId,reward.amount)
 }
-function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋"}={}){
+function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋",quiet=false}={}){
   const g=magicFestivalSettings(cfg),ms=magicFestivalState(st),day=st.days?.[st.currentDay];
   if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;
   const wasLucky=!!ms.luckyMode;
@@ -11607,7 +11651,7 @@ function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋"}={}){
   }else{
     if(!magicFestivalSpendDrawToken(st,cfg))return{ok:false,note:`${cfgItem(cfg,g.gameTokenId).name}不足`}
   }
-  const pool=wasLucky?g.luckyRewards:g.normalRewards,reward=clone(weightedPick(pool)||pool?.[0]);
+  const pool=wasLucky?g.luckyRewards:g.normalRewards,picked=flowWeightedPickFast(pool)||pool?.[0],reward=picked||null;
   if(reward)magicFestivalGrantGachaReward(st,cfg,reward,wasLucky?"幸運模式扭蛋":"普通模式扭蛋");
   // 普通扭蛋才增加幸運值；幸運模式以 20 幸運值本身作為抽獎成本。
   if(!wasLucky)ms.luck=Math.min(g.luckAutoThreshold,ms.luck+g.luckPerNormalDraw);
@@ -11615,7 +11659,7 @@ function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋"}={}){
   else if(wasLucky&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;
   ms.totalDraws++;if(wasLucky)ms.luckyDraws++;else ms.normalDraws++;ms.lastReward=reward?{...reward,lucky:wasLucky}:null;
   if(day)day.magicClicks=Number(day.magicClicks||0)+1;
-  return{ok:true,lucky:wasLucky,reward,luck:ms.luck,consumedToken:!wasLucky,note:`${wasLucky?"🍀 幸運":"🎩 普通"}扭蛋：${magicFestivalRewardText(reward,cfg)}｜幸運值 ${fmt(ms.luck)}/${fmt(g.luckAutoThreshold)}`}
+  return{ok:true,lucky:wasLucky,reward,luck:ms.luck,consumedToken:!wasLucky,note:quiet?"":`${wasLucky?"🍀 幸運":"🎩 普通"}扭蛋：${magicFestivalRewardText(reward,cfg)}｜幸運值 ${fmt(ms.luck)}/${fmt(g.luckAutoThreshold)}`}
 }
 function magicFestivalUseGift(st=state,cfg=config,count=1){
   const g=magicFestivalSettings(cfg),ms=magicFestivalState(st),id=g.magicGiftItemId,have=Math.max(0,Math.floor(Number(st.resources?.[id]||0))),n=Math.max(0,Math.min(have,Math.floor(Number(count||0))));
@@ -11771,7 +11815,7 @@ updateSettingsProbabilityBadgeForInput=function(el){__updateSettingsProbabilityB
 const __validateConfigBeforeMagicGacha=validateConfig;
 validateConfig=function(c){const ok=__validateConfigBeforeMagicGacha(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;for(const [key,label] of [["normalRewards","普通模式"],["luckyRewards","幸運模式"]]){if(!Array.isArray(g[key])||!g[key].length)throw new Error(`扭蛋機${label}至少需要一項獎勵`);const total=magicFestivalRewardPoolTotal(g[key]);if(Math.abs(total-100)>.001)throw new Error(`扭蛋機${label}獎勵機率合計 ${fmt(total)}%，必須為 100%`)}return ok};
 
-function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋"});if(!r.ok)return r;if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;flowAutoClaimStages(st,cfg,stats);return r}
+function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋",quiet:true});if(!r.ok)return r;if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;if(r.reward&&flowScorePerItemFast(cfg,r.reward.itemId)*Number(r.reward.amount||0)!==0)flowAutoClaimStages(st,cfg,stats);return r}
 const __flowUseAllBallsBeforeMagicGacha=flowUseAllBalls;
 flowUseAllBalls=function(st,cfg,stats,ctx={}){if(batchGameplayType(cfg)!=="magicFestival")return __flowUseAllBallsBeforeMagicGacha(st,cfg,stats,ctx);const g=magicFestivalSettings(cfg),token=g.gameTokenId,ms=magicFestivalState(st);let draws=0,paid=0,guard=0;while(guard++<200000){if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;if(!ms.luckyMode&&Number(st.resources?.[token]||0)<1){if(ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;else break}const r=flowMagicFestivalPlay(st,cfg,stats);if(!r.ok)break;draws++;if(r.consumedToken)paid++;flowCheckFundInterrupts(st,cfg,ctx,stats)}return{ok:true,note:`已用完可用扭蛋資源：普通付費抽 ${fmt(paid)} 次、總扭蛋 ${fmt(draws)} 次｜剩餘 ${fmt(st.resources?.[token]||0)} ${cfgItem(cfg,token).name}｜幸運值 ${fmt(ms.luck)}`}};
 const __flowGameplayCanObtainByPlayingBeforeMagicGacha=flowGameplayCanObtainByPlaying;
