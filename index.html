@@ -1420,6 +1420,14 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
   .magic-gacha-resource-grid{grid-template-columns:1fr 1fr}.magic-gacha-rules-body{grid-template-columns:1fr}.magic-gacha-btn{min-height:50px;font-size:14px}
 }
 
+
+/* v21：物品清單拖曳排序 */
+.item-sort-list{display:grid;gap:10px}
+.item-sort-row{display:grid;grid-template-columns:46px minmax(0,1fr);gap:8px;align-items:stretch}
+.item-sort-handle{width:46px;min-height:46px;border:1px solid #cbd8e2;border-radius:11px;background:#eef4f8;color:#607487;font-size:23px;font-weight:1000;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.item-sort-row.dragging{opacity:.58;transform:scale(.995)}
+.item-sort-row.drag-over .editor-card{box-shadow:0 0 0 3px rgba(47,141,228,.22)}
+@media(max-width:720px){.item-sort-row{grid-template-columns:40px minmax(0,1fr)}.item-sort-handle{width:40px}}
 </style>
 </head>
 <body>
@@ -9798,6 +9806,7 @@ function renderSettings(){
     </div>
 
     <div class="editor-card">
+      <h3 style="margin-top:0">大富翁規則</h3>
       <div class="setting-grid">
         <div class="field"><label>大富翁格數</label>${pathInput("board.cellCount",c.board.cellCount,"number",'min="8" max="100"')}</div>
         <div class="field"><label>骰子面數</label>${pathInput("board.diceSides",c.board.diceSides,"number",'min="2" max="100"')}</div>
@@ -9989,17 +9998,19 @@ function renderSettings(){
   </section>`;
 
   sections.items=`<section class="setting-section active">
-    <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。系統識別碼可自行修改；修改後會同步更新設定內對此物品的引用。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
-    ${c.items.map((x,i)=>`<div class="editor-card">
-      <div class="setting-grid">
-        <div class="field"><label>圖示</label>${pathInput(`items.${i}.icon`,x.icon)}</div>
-        <div class="field"><label>物品名稱</label>${pathInput(`items.${i}.name`,x.name)}</div>
-        <div class="field"><label>單位</label>${pathInput(`items.${i}.unit`,x.unit)}</div>
-        <div class="field"><label>系統識別碼</label>${pathInput(`items.${i}.id`,x.id,"text",'placeholder="例如：myItemId"')}</div>
+    <div class="editor-head"><div><h2>物品與箱子</h2><div class="help">物品、背包與開箱屬於共用活動環境，可被所有玩法、基金、禮包與每日進度使用。按住左側 ☰ 可拖曳調整物品順序；下拉選單、背包與統計選物品時都會沿用這個順序。</div></div><button class="btn green small" data-settings-action="addItem">＋新增物品</button></div>
+    <div class="item-sort-list" data-item-sort-list>${c.items.map((x,i)=>`<div class="item-sort-row" data-item-sort-row data-item-index="${i}" data-item-id="${escapeHtml(x.id)}">
+      <button type="button" class="item-sort-handle" data-item-sort-handle title="按住拖曳調整順序" aria-label="按住拖曳調整順序">☰</button>
+      <div class="editor-card" style="margin:0">
+        <div class="setting-grid">
+          <div class="field"><label>圖示</label>${pathInput(`items.${i}.icon`,x.icon)}</div>
+          <div class="field"><label>物品名稱</label>${pathInput(`items.${i}.name`,x.name)}</div>
+          <div class="field"><label>單位</label>${pathInput(`items.${i}.unit`,x.unit)}</div>
+          <div class="field"><label>系統識別碼</label>${pathInput(`items.${i}.id`,x.id,"text",'placeholder="例如：myItemId"')}</div>
+        </div>
+        <div class="form-row" style="margin-top:8px;justify-content:flex-end"><button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button></div>
       </div>
-      <div class="form-row" style="margin-top:8px;justify-content:flex-end"><button class="btn red small" data-settings-action="removeItem" data-index="${i}">刪除</button></div>
-    </div>`).join("")}
-
+    </div>`).join("")}</div>
   </section>`;
 
 
@@ -10226,6 +10237,22 @@ function syncStatisticLayoutOrderFromDom(list){
   const old=new Map((g.statistics.layouts?.[surface]||[]).map(x=>[x.id,x]));
   g.statistics.layouts[surface]=[...list.children].filter(row=>row.matches?.("[data-stat-layout-row]")).map(row=>old.get(row.dataset.fieldId)).filter(Boolean)
 }
+let itemSortDragState=null;
+function startItemSortDrag(handle,e){
+  if(!settingsDraft||activeSettingsTab!=="items"||itemSortDragState)return;const row=handle.closest("[data-item-sort-row]"),list=row?.closest("[data-item-sort-list]");if(!row||!list)return;
+  const drag={pointerId:e.pointerId,row,list,handle,active:false,timer:null};itemSortDragState=drag;try{handle.setPointerCapture(e.pointerId)}catch{}
+  drag.timer=setTimeout(()=>{if(itemSortDragState!==drag)return;drag.active=true;drag.row.classList.add("dragging");if(navigator.vibrate)try{navigator.vibrate(18)}catch{}},220)
+}
+function moveItemSortDrag(e){
+  const d=itemSortDragState;if(!d||e.pointerId!==d.pointerId||!d.active)return;e.preventDefault();
+  const scroller=$("settingsContent");if(scroller){const sr=scroller.getBoundingClientRect(),edge=64;if(e.clientY<sr.top+edge)scroller.scrollTop-=Math.max(8,(sr.top+edge-e.clientY)*.35);else if(e.clientY>sr.bottom-edge)scroller.scrollTop+=Math.max(8,(e.clientY-(sr.bottom-edge))*.35)}
+  const under=document.elementFromPoint(e.clientX,e.clientY)?.closest?.("[data-item-sort-row]");d.list.querySelectorAll(".drag-over").forEach(x=>x.classList.remove("drag-over"));if(!under||under===d.row||under.closest("[data-item-sort-list]")!==d.list)return;under.classList.add("drag-over");const rect=under.getBoundingClientRect(),before=e.clientY<rect.top+rect.height/2;d.list.insertBefore(d.row,before?under:under.nextSibling)
+}
+function endItemSortDrag(e){
+  const d=itemSortDragState;if(!d||e.pointerId!==d.pointerId)return;if(d.timer)clearTimeout(d.timer);d.row.classList.remove("dragging");d.list.querySelectorAll(".drag-over").forEach(x=>x.classList.remove("drag-over"));itemSortDragState=null;if(!d.active)return;
+  const old=new Map(settingsDraft.items.map(x=>[x.id,x]));settingsDraft.items=[...d.list.querySelectorAll("[data-item-sort-row]")].map(row=>old.get(row.dataset.itemId)).filter(Boolean);renderSettings()
+}
+
 function startStatisticLayoutDrag(handle,e){
   const info=statisticLayoutEntryFromElement(handle);if(!info||statisticLayoutDrag)return;
   const drag={...info,handle,pointerId:e.pointerId,active:false,timer:null};
@@ -10559,8 +10586,22 @@ function magicFestivalCloneReplaceItemId(value,fromId,toId){
   walk(v);return v
 }
 function normalizeMagicFestivalConfig(cfg){
-  const ids=ensureMagicFestivalItems(cfg),mono=cfg.gameplaySettings?.monopoly||{};
+  const mono=cfg.gameplaySettings?.monopoly||{};
   let g=cfg.gameplaySettings.magicFestival;
+  // 已經是 v20 扭蛋資料時，初始載入階段不要再跑舊翻牌棋盤正規化，
+  // 否則已刪除的四色寶石會被舊版 ensureMagicFestivalItems 強制加回並重新建立引用。
+  if(g&&typeof g==="object"&&(Array.isArray(g.normalRewards)||Array.isArray(g.luckyRewards)||Object.prototype.hasOwnProperty.call(g,"luckPerNormalDraw"))){
+    g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??0));
+    if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
+    if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
+    if(!Array.isArray(g.progressStages))g.progressStages=clone(mono.progressStages||cfg.progressStages||[]);
+    if(!Array.isArray(g.packageGroups))g.packageGroups=[];
+    if(!g.fund||typeof g.fund!=="object")g.fund=clone(mono.fund||cfg.fund||{});
+    if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
+    normalizeGameplayStatistics(cfg,"magicFestival",g);
+    return g
+  }
+  const ids=ensureMagicFestivalItems(cfg);
   if(!g||typeof g!=="object"){
     const progress=magicFestivalCloneReplaceItemId(mono.progressStages||cfg.progressStages||[],mono.gameTokenId||"dice",ids.potion);
     const packages=magicFestivalCloneReplaceItemId(mono.packageGroups||cfg.packageGroups||[],mono.gameTokenId||"dice",ids.potion);
@@ -11299,10 +11340,10 @@ $("clearStrategyBtn").addEventListener("click",clearStrategy);
 $("saveBtn").addEventListener("click",save);$("loadBtn").addEventListener("click",load);$("resetBtn").addEventListener("click",reset);
 $("settingsBtn").addEventListener("click",openSettings);$("closeSettingsBtn").addEventListener("click",closeSettings);
 $("cancelSettingsBtn").addEventListener("click",closeSettings);$("applySettingsBtn").addEventListener("click",applySettings);
-$("settingsContent").addEventListener("pointerdown",e=>{const handle=e.target.closest("[data-stat-drag-handle]");if(handle)startStatisticLayoutDrag(handle,e)});
-document.addEventListener("pointermove",moveStatisticLayoutDrag,{passive:false});
-document.addEventListener("pointerup",endStatisticLayoutDrag);
-document.addEventListener("pointercancel",endStatisticLayoutDrag);
+$("settingsContent").addEventListener("pointerdown",e=>{const itemHandle=e.target.closest("[data-item-sort-handle]");if(itemHandle){startItemSortDrag(itemHandle,e);return}const handle=e.target.closest("[data-stat-drag-handle]");if(handle)startStatisticLayoutDrag(handle,e)});
+document.addEventListener("pointermove",e=>{moveItemSortDrag(e);moveStatisticLayoutDrag(e)},{passive:false});
+document.addEventListener("pointerup",e=>{endItemSortDrag(e);endStatisticLayoutDrag(e)});
+document.addEventListener("pointercancel",e=>{endItemSortDrag(e);endStatisticLayoutDrag(e)});
 $("settingsContent").addEventListener("input",e=>{
   const el=e.target;
   if(!settingsDraft)return;
@@ -11370,17 +11411,28 @@ const MAGIC_GACHA_SCHEMA_VERSION=76;
 
 const __ensureMagicFestivalItemsBeforeGacha=ensureMagicFestivalItems;
 ensureMagicFestivalItems=function(cfg){
-  const ids=__ensureMagicFestivalItemsBeforeGacha(cfg);
   const ensure=(id,name,unit,icon)=>{
     const byId=(cfg.items||[]).find(x=>x.id===id);if(byId){byId.name=name;byId.unit=unit;byId.icon=icon;return byId.id}
     const byName=(cfg.items||[]).find(x=>x.name===name);if(byName)return byName.id;
     cfg.items.push({id,name,unit,icon});return id
   };
-  const gift=(cfg.items||[]).find(x=>x.id===ids.magicGift);if(gift){gift.name="魔術好禮";gift.icon="🎁"}
   return{
-    ...ids,
+    potion:ensure("magicPotion","幻想轉蛋幣","個","🪙"),
+    fantasyCoin:"magicPotion",
+    book:ensure("magicBook","大師魔法帽","個","🎩"),
+    masterMagicHat:"magicBook",
+    magicGift:ensure("magicGift","魔術好禮","個","🎁"),
     noviceHat:ensure("magicNoviceHat","見習魔法帽","個","🧙"),
-    starWishFragment:ensure("starWishCrystalFragment","星願魔晶(碎片)","個","✨")
+    starWishFragment:ensure("starWishCrystalFragment","星願魔晶(碎片)","個","✨"),
+    amethystBox:ensure("magicAmethystBox","寶石寶箱","個","💎"),
+    guildGiftBox1:ensure("guildGiftBox1","公會禮物寶箱 I","個","📦"),
+    guildGiftBox2:ensure("guildGiftBox2","公會禮物寶箱 II","個","📦"),
+    guildGiftBox3:ensure("guildGiftBox3","公會禮物寶箱 III","個","📦"),
+    guildGiftBox4:ensure("guildGiftBox4","公會禮物寶箱 IV","個","📦"),
+    guildGiftBox5:ensure("guildGiftBox5","公會禮物寶箱 V","個","📦"),
+    ssBrandSelectBox:ensure("ssBrandSelectBox","SS限定烙印自選箱","個","🎁"),
+    supremeSelectBox:ensure("supremeSelectBox","至尊自選寶箱","個","🎁"),
+    magicCoin:ensure("magicCoin","魔法幣","個","🪙")
   }
 };
 
@@ -11486,7 +11538,12 @@ normalizeMagicFestivalConfig=function(cfg){
   g.luckAutoThreshold=Math.max(g.luckyDrawLuckCost,Number(g.luckAutoThreshold??200));
   g.normalRewards=magicFestivalNormalizeRewardPool(g.normalRewards,ids,cfg,magicFestivalDefaultNormalRewards(ids,cfg));
   g.luckyRewards=magicFestivalNormalizeRewardPool(g.luckyRewards,ids,cfg,magicFestivalDefaultLuckyRewards(ids,cfg));
+  if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
   if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
+  // v20 扭蛋玩法已不使用舊翻牌棋盤欄位；移除殘留引用，讓舊四色寶石可正常刪除。
+  delete g.gemItemIds;delete g.boardProbabilityEntries;delete g.toolProbabilities;delete g.potionTileAmount;delete g.magnifierItemId;delete g.bookItemId;
+  // 若舊四色寶石已沒有任何其他用途，遷移成扭蛋玩法後直接移除；若使用者已把它們用在禮包／獎池等處則保留。
+  {const legacy=new Set(["magicGreenGem","magicPurpleGem","magicBlueGem","magicRedGem"]),elsewhere=JSON.stringify({...cfg,items:[]});cfg.items=(cfg.items||[]).filter(it=>!legacy.has(it.id)||elsewhere.includes(`"${it.id}"`))}
   normalizeGameplayStatistics(cfg,"magicFestival",g);
   return g
 };
@@ -11591,7 +11648,7 @@ async function magicFestivalDrawMultiple(count=1,{auto=false,reuseSnapshot=false
 async function autoMagicFestival(opts={}){return magicFestivalDrawMultiple(Infinity,{auto:true,reuseSnapshot:!!opts.reuseSnapshot})}
 
 function renderMagicFestivalBoard(){
-  const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId,normalId=g.normalExchangeId,premiumId=g.premiumExchangeId,giftId=g.magicGiftItemId;
+  const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId,giftId=g.magicGiftItemId;
   $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=false;
   $("gameplayTitle").textContent="🪄 魔法慶典｜扭蛋魔術";$("refreshBoardBtn").style.display="none";$("multiplierWrap").style.display="none";
   $("autoRollBtn").textContent="自動使用全部幻想轉蛋幣";$("autoRollBtn").title="依目前幸運值自動切換普通／幸運模式，使用背包內全部幻想轉蛋幣。";
@@ -11602,14 +11659,7 @@ function renderMagicFestivalBoard(){
     <div class="magic-gacha-head"><span>🎩 扭蛋魔術</span><span class="magic-gacha-mode ${ms.luckyMode?"lucky":""}">${ms.luckyMode?"🍀 幸運模式":"普通模式"}</span></div>
     <div class="magic-gacha-window"><div class="magic-gacha-result-icon">${escapeHtml(it?.icon||"🎩")}</div><div class="magic-gacha-result">${last?escapeHtml(`${last.lucky?"幸運":"普通"}：${it?.name||last.itemId} ×${fmt(last.amount)}`):"等待扭蛋"}</div><div class="magic-gacha-sub">累計 ${fmt(ms.totalDraws)} 抽｜普通 ${fmt(ms.normalDraws)}｜幸運 ${fmt(ms.luckyDraws)}</div></div>
     <div class="magic-luck-panel"><div class="magic-luck-row"><span>⭐ 幸運值</span><span>${fmt(ms.luck)} / ${fmt(g.luckAutoThreshold)}${ms.luck>g.luckAutoThreshold?"（超額儲存）":""}</span></div><div class="magic-luck-bar"><div class="magic-luck-fill" style="width:${progress}%"></div></div></div>
-    <div class="magic-gacha-resource-grid">
-      <div class="magic-gacha-resource"><div class="k">${escapeHtml(cfgItem(config,token).name)}</div><div class="v">${escapeHtml(cfgItem(config,token).icon||"🪙")} ${fmt(state.resources?.[token]||0)}</div></div>
-      <div class="magic-gacha-resource"><div class="k">${escapeHtml(cfgItem(config,normalId).name)}</div><div class="v">${escapeHtml(cfgItem(config,normalId).icon||"🧙")} ${fmt(state.resources?.[normalId]||0)}</div></div>
-      <div class="magic-gacha-resource"><div class="k">${escapeHtml(cfgItem(config,premiumId).name)}</div><div class="v">${escapeHtml(cfgItem(config,premiumId).icon||"🎩")} ${fmt(state.resources?.[premiumId]||0)}</div></div>
-      <div class="magic-gacha-resource"><div class="k">${escapeHtml(cfgItem(config,giftId).name)}</div><div class="v">${escapeHtml(cfgItem(config,giftId).icon||"🎁")} ${fmt(state.resources?.[giftId]||0)}</div></div>
-    </div>
     <div class="magic-gacha-actions"><button class="magic-gacha-btn one" data-magic-gacha-draw="1" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost:Number(state.resources?.[token]||0)<1)?"disabled":""}>扭一次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×1`}</small></button><button class="magic-gacha-btn ten" data-magic-gacha-draw="10" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost*10:Number(state.resources?.[token]||0)<10)?"disabled":""}>扭十次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost*10)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×10`}</small></button><button class="magic-gacha-btn gift" data-magic-gacha-gift="1" ${Number(state.resources?.[giftId]||0)<1?"disabled":""}>贈送魔術好禮<br><small>幸運值 +${fmt(g.luckPerGift)}</small></button><button class="magic-gacha-btn lucky-toggle" data-magic-gacha-lucky ${canLucky?"":"disabled"}>${ms.luckyMode?"幸運模式中":"手動開啟幸運模式"}<br><small>需 ${fmt(g.luckyDrawLuckCost)} 幸運值</small></button></div>
-    <details class="magic-gacha-rules"><summary>查看扭蛋機率</summary><div class="magic-gacha-rules-body"><div class="magic-gacha-pool"><strong>普通模式</strong>${magicFestivalPoolLines(g.normalRewards).map(x=>escapeHtml(x)).join("<br>")}</div><div class="magic-gacha-pool"><strong>🍀 幸運模式</strong>${magicFestivalPoolLines(g.luckyRewards).map(x=>escapeHtml(x)).join("<br>")}</div></div></details>
   </div>`
 }
 
@@ -11655,26 +11705,51 @@ function magicFestivalStatisticLayoutEditorHtml(c){
   return `<div class="stat-layout-groups">${surfaces.map(([surface,title,desc],si)=>{const layout=gameplayStatisticLayout(c,gameplay,surface,false);return `<details class="stat-layout-group" ${si===0?"open":""}><summary><span>${escapeHtml(title)}</span><span class="help">${escapeHtml(desc)}</span></summary><div class="stat-layout-list" data-stat-layout-list data-gameplay="${gameplay}" data-surface="${surface}">${layout.map(entry=>`<div class="stat-layout-row" data-stat-layout-row data-field-id="${escapeHtml(entry.id)}"><button type="button" class="stat-drag-handle" data-stat-drag-handle aria-label="按住拖曳調整順序" title="按住拖曳調整順序">☰</button><label class="stat-layout-enabled"><input type="checkbox" data-stat-enabled ${entry.enabled?"checked":""}> 顯示</label><div class="stat-layout-name"><input class="input" type="text" data-stat-label value="${escapeHtml(String(entry.label===entry.defaultLabel?"":entry.label||""))}" placeholder="${escapeHtml(entry.defaultLabel)}"><span class="stat-layout-kind">${escapeHtml(entry.kind)}</span></div></div>`).join("")}</div></details>`}).join("")}</div>`
 }
 
+function gameplayRandomBoxesEditorHtml(c,gameplay){
+  const g=c.gameplaySettings?.[gameplay]||{},boxes=Array.isArray(g.randomBoxes)?g.randomBoxes:[];
+  return `<div class="editor-head" style="margin-top:18px"><div><h3>隨機箱設定</h3><div class="help">三種玩法使用相同設定方式：指定箱子物品、開箱獲得物品，以及各數量的機率。</div></div><button class="btn green small" data-settings-action="addGameplayBox" data-gameplay="${gameplay}">＋新增隨機箱</button></div>${boxes.map((box,i)=>{const total=(box.outcomes||[]).reduce((sum,x)=>sum+Number(x.probability||0),0);return `<div class="editor-card"><div class="editor-head"><h3>${escapeHtml(box.name)}</h3><div><span class="prob-total ${Math.abs(total-100)>.001?"bad":""}" data-prob-gameplay="${gameplay}" data-prob-box="${i}">機率 ${fmt(total)}%</span> <button class="btn red small" data-settings-action="removeGameplayBox" data-gameplay="${gameplay}" data-box="${i}">刪除箱子</button></div></div><div class="setting-grid"><div class="field"><label>箱子名稱</label>${pathInput(`gameplaySettings.${gameplay}.randomBoxes.${i}.name`,box.name)}</div><div class="field"><label>消耗的箱子物品</label><select data-path="gameplaySettings.${gameplay}.randomBoxes.${i}.boxItemId">${itemOptions(box.boxItemId)}</select></div><div class="field"><label>開箱獲得物品</label><select data-path="gameplaySettings.${gameplay}.randomBoxes.${i}.rewardItemId">${itemOptions(box.rewardItemId)}</select></div></div><div class="editor-table">${(box.outcomes||[]).map((x,j)=>`<div class="editor-row package-reward">${pathInput(`gameplaySettings.${gameplay}.randomBoxes.${i}.outcomes.${j}.amount`,x.amount,"number",'step="any" min="0"')}${pathInput(`gameplaySettings.${gameplay}.randomBoxes.${i}.outcomes.${j}.probability`,x.probability,"number",'step="0.1" min="0"')}<button class="btn red small" data-settings-action="removeGameplayBoxOutcome" data-gameplay="${gameplay}" data-box="${i}" data-index="${j}">刪除</button></div>`).join("")}</div><button class="btn secondary small" data-settings-action="addGameplayBoxOutcome" data-gameplay="${gameplay}" data-box="${i}">＋加入開箱結果</button></div>`}).join("")}`
+}
+
 function magicFestivalSettingsHtml(c){
   normalizeMagicFestivalConfig(c);const g=c.gameplaySettings.magicFestival;
-  return `<section class="setting-section active"><div class="editor-head"><div><h2>🪄 魔法慶典｜扭蛋魔術</h2><div class="help">普通模式累積幸運值；滿門檻或手動開啟後進入幸運模式。魔術好禮增加的幸運值可超過門檻儲存。</div></div></div>
-    <div class="setting-grid">
-      <div class="field"><label>扭蛋代幣</label><select data-path="gameplaySettings.magicFestival.gameTokenId">${itemOptions(g.gameTokenId)}</select></div>
-      <div class="field"><label>普通兌換幣</label><select data-path="gameplaySettings.magicFestival.normalExchangeId">${itemOptions(g.normalExchangeId)}</select></div>
-      <div class="field"><label>高級兌換幣</label><select data-path="gameplaySettings.magicFestival.premiumExchangeId">${itemOptions(g.premiumExchangeId)}</select></div>
-      <div class="field"><label>魔術好禮</label><select data-path="gameplaySettings.magicFestival.magicGiftItemId">${itemOptions(g.magicGiftItemId)}</select></div>
-      <div class="field"><label>普通抽每抽增加幸運值</label>${pathInput("gameplaySettings.magicFestival.luckPerNormalDraw",g.luckPerNormalDraw,"number",'min="0" step="any"')}</div>
-      <div class="field"><label>每個魔術好禮增加幸運值</label>${pathInput("gameplaySettings.magicFestival.luckPerGift",g.luckPerGift,"number",'min="0" step="any"')}</div>
-      <div class="field"><label>幸運模式每抽消耗幸運值</label>${pathInput("gameplaySettings.magicFestival.luckyDrawLuckCost",g.luckyDrawLuckCost,"number",'min="1" step="any"')}</div>
-      <div class="field"><label>自動進入幸運模式門檻</label>${pathInput("gameplaySettings.magicFestival.luckAutoThreshold",g.luckAutoThreshold,"number",'min="1" step="any"')}</div>
-      <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(g.dailyMissionRewardItemId||g.gameTokenId)}</select></div>
-      <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",g.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+  return `<section class="setting-section active">
+    <div class="editor-head"><div><h2>🪄 魔法慶典玩法</h2><div class="help">共通設定與大富翁／彈珠機使用相同版型；只有幸運值與普通／幸運獎池放在「扭蛋機規則」。</div></div><span class="badge warn">玩法專用</span></div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="help" style="margin-bottom:8px">玩法代幣、每日任務與取得物品計分使用三種玩法共通格式。扭蛋實際獲得哪些兌換物品，直接在下方獎勵池指定，不再額外綁定高級／普通兌換幣角色。</div>
+      <div class="setting-grid">
+        <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.magicFestival.gameTokenId">${itemOptions(g.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.magicFestival.dailyMissionRewardItemId">${itemOptions(g.dailyMissionRewardItemId||g.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.magicFestival.dailyMissionMaxGameTokens",g.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+      </div>
+      <h3>取得物品的計分規則</h3>
+      <div class="editor-table">${(g.pointsPerItemObtained||[]).map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.magicFestival.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.magicFestival.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="magicFestival" data-index="${i}">刪除</button></div>`).join("")}</div>
+      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="magicFestival">＋加入計分物品</button>
     </div>
-    <div class="editor-head" style="margin-top:18px"><div><h3>每日進度計分</h3><div class="help">這次尚未提供扭蛋魔術的每日進度計分規則；可在這裡自行設定取得哪些物品時加分。</div></div></div>
-    <div class="editor-table">${(g.pointsPerItemObtained||[]).map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.magicFestival.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.magicFestival.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="magicFestival" data-index="${i}">刪除</button></div>`).join("")}</div><button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="magicFestival">＋加入計分物品</button>
-    <div class="editor-head" style="margin-top:18px"><div><h3>📊 統計欄位管理</h3><div class="help">固定欄位與物品欄位都可顯示／隱藏、改名稱並拖曳排序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="magicFestival">＋新增物品統計</button></div>${magicFestivalStatisticRowsHtml(c)}${magicFestivalStatisticLayoutEditorHtml(c)}
-    <div class="editor-head" style="margin-top:18px"><div><h3>🎰 扭蛋獎勵機率</h3><div class="help">可新增、刪除或修改獎勵物品、數量與機率。</div></div></div>
+
+    <div class="editor-card">
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">先新增要追蹤的物品；固定欄位與物品欄位都可自由顯示／隱藏、改名稱並拖曳排序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="magicFestival">＋新增物品統計</button></div>
+      <div class="help" style="margin-bottom:7px"><strong>物品統計來源</strong>：刪除只會移除統計，不會刪除背包物品。</div>
+      ${magicFestivalStatisticRowsHtml(c)}${magicFestivalStatisticLayoutEditorHtml(c)}
+    </div>
+
+    <div class="editor-card">
+      <h3 style="margin-top:0">扭蛋機規則</h3>
+      <div class="setting-grid">
+        <div class="field"><label>魔術好禮物品</label><select data-path="gameplaySettings.magicFestival.magicGiftItemId">${itemOptions(g.magicGiftItemId)}</select></div>
+        <div class="field"><label>普通抽每抽增加幸運值</label>${pathInput("gameplaySettings.magicFestival.luckPerNormalDraw",g.luckPerNormalDraw,"number",'min="0" step="any"')}</div>
+        <div class="field"><label>每個魔術好禮增加幸運值</label>${pathInput("gameplaySettings.magicFestival.luckPerGift",g.luckPerGift,"number",'min="0" step="any"')}</div>
+        <div class="field"><label>幸運模式每抽消耗幸運值</label>${pathInput("gameplaySettings.magicFestival.luckyDrawLuckCost",g.luckyDrawLuckCost,"number",'min="1" step="any"')}</div>
+        <div class="field"><label>自動進入幸運模式門檻</label>${pathInput("gameplaySettings.magicFestival.luckAutoThreshold",g.luckAutoThreshold,"number",'min="1" step="any"')}</div>
+      </div>
+      <div class="help">普通模式使用玩法代幣抽獎並增加幸運值；幸運模式使用幸運值抽獎。魔術好禮增加的幸運值可以超過自動切換門檻繼續儲存。</div>
+    </div>
+
+    <div class="editor-head" style="margin-top:18px"><div><h3>扭蛋獎勵機率</h3><div class="help">玩法專屬：普通模式與幸運模式各自設定獎勵物品、數量與機率。</div></div></div>
     ${magicFestivalPoolEditorHtml(c,"normalRewards","普通模式獎勵")}${magicFestivalPoolEditorHtml(c,"luckyRewards","🍀 幸運模式獎勵")}
+
+    ${gameplayRandomBoxesEditorHtml(c,"magicFestival")}
   </section>`
 }
 const __renderSettingsBeforeMagicGacha=renderSettings;
