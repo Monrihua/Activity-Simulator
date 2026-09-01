@@ -11644,6 +11644,8 @@ function magicFestivalGrantGachaReward(st,cfg,reward,reason){
 function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋",quiet=false}={}){
   const g=magicFestivalSettings(cfg),ms=magicFestivalState(st),day=st.days?.[st.currentDay];
   if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;
+  // 滿自動門檻時一定切入幸運模式；低於門檻時則尊重玩家手動開／關。
+  if(!ms.luckyMode&&ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;
   const wasLucky=!!ms.luckyMode;
   if(wasLucky){
     if(ms.luck<g.luckyDrawLuckCost)return{ok:false,note:`幸運值不足，需要 ${fmt(g.luckyDrawLuckCost)}`};
@@ -11653,46 +11655,72 @@ function magicFestivalDrawOne(st=state,cfg=config,{reason="扭蛋",quiet=false}=
   }
   const pool=wasLucky?g.luckyRewards:g.normalRewards,picked=flowWeightedPickFast(pool)||pool?.[0],reward=picked||null;
   if(reward)magicFestivalGrantGachaReward(st,cfg,reward,wasLucky?"幸運模式扭蛋":"普通模式扭蛋");
-  // 普通扭蛋才增加幸運值；幸運模式以 20 幸運值本身作為抽獎成本。
-  if(!wasLucky)ms.luck=Math.min(g.luckAutoThreshold,ms.luck+g.luckPerNormalDraw);
+  // 普通抽提供的幸運值最多只推到自動門檻；若禮物已造成超額幸運值則不會把超額吃掉。
+  if(!wasLucky&&ms.luck<g.luckAutoThreshold)ms.luck=Math.min(g.luckAutoThreshold,ms.luck+g.luckPerNormalDraw);
   if(!wasLucky&&ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;
   else if(wasLucky&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;
   ms.totalDraws++;if(wasLucky)ms.luckyDraws++;else ms.normalDraws++;ms.lastReward=reward?{...reward,lucky:wasLucky}:null;
   if(day)day.magicClicks=Number(day.magicClicks||0)+1;
   return{ok:true,lucky:wasLucky,reward,luck:ms.luck,consumedToken:!wasLucky,note:quiet?"":`${wasLucky?"🍀 幸運":"🎩 普通"}扭蛋：${magicFestivalRewardText(reward,cfg)}｜幸運值 ${fmt(ms.luck)}/${fmt(g.luckAutoThreshold)}`}
 }
-function magicFestivalUseGift(st=state,cfg=config,count=1){
+function magicFestivalUseGift(st=state,cfg=config,count=1,{quiet=false}={}){
   const g=magicFestivalSettings(cfg),ms=magicFestivalState(st),id=g.magicGiftItemId,have=Math.max(0,Math.floor(Number(st.resources?.[id]||0))),n=Math.max(0,Math.min(have,Math.floor(Number(count||0))));
   if(n<1)return{ok:false,count:0,note:`${cfgItem(cfg,id).name}不足`};
   st.resources[id]=have-n;st.spent[id]=Number(st.spent?.[id]||0)+n;ms.luck+=g.luckPerGift*n;ms.totalGiftsUsed+=n;
   const d=st.days?.[st.currentDay];if(d)d.magicGiftsUsed=Number(d.magicGiftsUsed||0)+n;
   if(ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;
-  if(st===state&&cfg===config)log(`贈送 ${itemText(id,n,cfg)}：幸運值 +${fmt(g.luckPerGift*n)}`);
+  if(!quiet&&st===state&&cfg===config)log(`贈送 ${itemText(id,n,cfg)}：幸運值 +${fmt(g.luckPerGift*n)}`);
   return{ok:true,count:n,luck:ms.luck,note:`🎁 使用 ${cfgItem(cfg,id).name} ×${fmt(n)}｜幸運值 +${fmt(g.luckPerGift*n)} → ${fmt(ms.luck)}/${fmt(g.luckAutoThreshold)}`}
 }
 function magicFestivalEnableLucky(st=state,cfg=config){
-  const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(ms.luckyMode)return{ok:true,note:"目前已在幸運模式"};if(ms.luck<g.luckyDrawLuckCost)return{ok:false,note:`至少需要 ${fmt(g.luckyDrawLuckCost)} 幸運值才能手動開啟幸運模式`};ms.luckyMode=true;return{ok:true,note:`🍀 已手動開啟幸運模式｜目前幸運值 ${fmt(ms.luck)}`}
+  const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);
+  if(ms.luckyMode){ms.luckyMode=false;return{ok:true,enabled:false,note:`🍀 已關閉幸運模式｜保留幸運值 ${fmt(ms.luck)}`}}
+  if(ms.luck<g.luckyDrawLuckCost)return{ok:false,note:`至少需要 ${fmt(g.luckyDrawLuckCost)} 幸運值才能開啟幸運模式`};
+  ms.luckyMode=true;return{ok:true,enabled:true,note:`🍀 已開啟幸運模式｜目前幸運值 ${fmt(ms.luck)}`}
 }
 async function magicFestivalDrawMultiple(count=1,{auto=false,reuseSnapshot=false}={}){
   if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能扭蛋");
-  const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId;
+  const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId,giftId=g.magicGiftItemId;
   const availableNow=()=>ms.luckyMode?Math.floor(ms.luck/g.luckyDrawLuckCost):Math.floor(Number(state.resources?.[token]||0));
   const want=auto?Infinity:Math.max(1,Math.floor(Number(count||1)));
   if(!auto&&availableNow()<want)return toast(ms.luckyMode?`幸運值不足，${fmt(want)} 抽需要 ${fmt(want*g.luckyDrawLuckCost)} 幸運值`:`${item(token).name}不足，需要 ${fmt(want)} 個`);
-  if(auto&&Number(state.resources?.[token]||0)<1&&(!ms.luckyMode||ms.luck<g.luckyDrawLuckCost))return toast(`${item(token).name}不足`);
+  const hasAutoResource=()=>Number(state.resources?.[token]||0)>=1||Number(state.resources?.[giftId]||0)>=1||ms.luck>=g.luckyDrawLuckCost;
+  if(auto&&!hasAutoResource())return toast("目前沒有可繼續使用的扭蛋資源");
   if(!reuseSnapshot)lastAutoRollSnapshot={state:clone(state),config:clone(config),createdAt:Date.now(),day:state.currentDay};
-  recordHistory(auto?"扭蛋機自動扭蛋":`扭蛋機扭蛋 ×${want}`);stopAuto=false;if(auto){$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true}
-  let done=0,last=null,guard=0;
+  recordHistory(auto?"扭蛋機自動用完所有資源":`扭蛋機扭蛋 ×${want}`);stopAuto=false;if(auto){$("stopAutoBtn").disabled=false;$("autoRollBtn").disabled=true}
+  let done=0,last=null,guard=0,giftsUsed=0;
   try{
     while(done<want&&!stopAuto&&guard++<200000){
-      // 幸運模式抽到不足 20 時會自動回普通；普通模式如果扭到 200 又會立刻切回幸運。
       if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;
-      if(!ms.luckyMode&&Number(state.resources?.[token]||0)<1){if(auto&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;else break}
-      last=magicFestivalDrawOne(state,config);if(!last.ok)break;done++;
+      if(!ms.luckyMode&&ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;
+
+      // 自動模式先依目前模式把可抽的抽完；普通幣暫時沒有時，才把送禮物品全部兌成幸運值。
+      if(auto&&!ms.luckyMode&&Number(state.resources?.[token]||0)<1){
+        const giftHave=Math.max(0,Math.floor(Number(state.resources?.[giftId]||0)));
+        if(giftHave>0){
+          const giftResult=magicFestivalUseGift(state,config,giftHave,{quiet:true});
+          if(giftResult.ok)giftsUsed+=giftResult.count;
+          // 禮物若只湊到 20～199，也要把可用的幸運抽榨乾。
+          if(!ms.luckyMode&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;
+          if(done%80===0){render();await wait(0)}
+          continue
+        }
+        if(ms.luck>=g.luckyDrawLuckCost){ms.luckyMode=true;continue}
+        break
+      }
+
+      last=magicFestivalDrawOne(state,config,{quiet:auto});if(!last.ok)break;done++;
+      // 幸運抽可能又抽到送禮物品或幻想轉蛋幣；迴圈會在現有幸運值用盡後重新利用它們。
       if(done%80===0){render();await wait(0)}
     }
   }finally{if(auto){$("stopAutoBtn").disabled=true;$("autoRollBtn").disabled=false}}
-  $("rollMessage").textContent=stopAuto?`已停止自動扭蛋；完成 ${fmt(done)} 抽。`:`完成 ${fmt(done)} 抽${last?.reward?`｜最後獲得 ${magicFestivalRewardText(last.reward)}`:""}。`;render();return{done,last}
+  if(auto){
+    const remainGift=Math.max(0,Math.floor(Number(state.resources?.[giftId]||0)));
+    $("rollMessage").textContent=stopAuto
+      ?`已停止自動扭蛋；完成 ${fmt(done)} 抽、使用送禮物品 ${fmt(giftsUsed)} 個。`
+      :`已榨乾可用扭蛋資源：共 ${fmt(done)} 抽、使用送禮物品 ${fmt(giftsUsed)} 個｜剩餘 ${fmt(state.resources?.[token]||0)} ${cfgItem(config,token).name}、${fmt(remainGift)} ${cfgItem(config,giftId).name}、幸運值 ${fmt(ms.luck)}。`
+  }else $("rollMessage").textContent=`完成 ${fmt(done)} 抽${last?.reward?`｜最後獲得 ${magicFestivalRewardText(last.reward)}`:""}。`;
+  render();return{done,last,giftsUsed}
 }
 async function autoMagicFestival(opts={}){return magicFestivalDrawMultiple(Infinity,{auto:true,reuseSnapshot:!!opts.reuseSnapshot})}
 
@@ -11700,15 +11728,15 @@ function renderMagicFestivalBoard(){
   const g=magicFestivalSettings(),ms=magicFestivalState(),token=g.gameTokenId,giftId=g.magicGiftItemId;
   $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=false;
   $("gameplayTitle").textContent="🎩 扭蛋機";$("refreshBoardBtn").style.display="none";$("multiplierWrap").style.display="none";
-  $("autoRollBtn").textContent="自動使用全部幻想轉蛋幣";$("autoRollBtn").title="依目前幸運值自動切換普通／幸運模式，使用背包內全部幻想轉蛋幣。";
+  $("autoRollBtn").textContent="自動用完全部扭蛋資源";$("autoRollBtn").title="自動用完幻想轉蛋幣、送禮物品與可用幸運抽；抽到新的幣或禮物會繼續利用，直到無法再抽。";
   document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="magicFestival"));
   $("boardMeta").textContent=`普通：每抽 +${fmt(g.luckPerNormalDraw)} 幸運值｜滿 ${fmt(g.luckAutoThreshold)} 自動進幸運模式｜幸運抽每次消耗 ${fmt(g.luckyDrawLuckCost)} 幸運值`;
-  const last=ms.lastReward,it=last?resourceDisplayItem(last.itemId,config):null,progress=Math.min(100,ms.luck/Math.max(1,g.luckAutoThreshold)*100),canLucky=ms.luck>=g.luckyDrawLuckCost&&!ms.luckyMode;
+  const last=ms.lastReward,it=last?resourceDisplayItem(last.itemId,config):null,progress=Math.min(100,ms.luck/Math.max(1,g.luckAutoThreshold)*100),canLucky=ms.luckyMode||ms.luck>=g.luckyDrawLuckCost;
   $("magicFestivalPlayArea").innerHTML=`<div class="magic-gacha-machine">
     <div class="magic-gacha-head"><span>🎩 扭蛋魔術</span><span class="magic-gacha-mode ${ms.luckyMode?"lucky":""}">${ms.luckyMode?"🍀 幸運模式":"普通模式"}</span></div>
     <div class="magic-gacha-window"><div class="magic-gacha-result-icon">${escapeHtml(it?.icon||"🎩")}</div><div class="magic-gacha-result">${last?escapeHtml(`${last.lucky?"幸運":"普通"}：${it?.name||last.itemId} ×${fmt(last.amount)}`):"等待扭蛋"}</div><div class="magic-gacha-sub">累計 ${fmt(ms.totalDraws)} 抽｜普通 ${fmt(ms.normalDraws)}｜幸運 ${fmt(ms.luckyDraws)}</div></div>
     <div class="magic-luck-panel"><div class="magic-luck-row"><span>⭐ 幸運值</span><span>${fmt(ms.luck)} / ${fmt(g.luckAutoThreshold)}${ms.luck>g.luckAutoThreshold?"（超額儲存）":""}</span></div><div class="magic-luck-bar"><div class="magic-luck-fill" style="width:${progress}%"></div></div></div>
-    <div class="magic-gacha-actions"><button class="magic-gacha-btn one" data-magic-gacha-draw="1" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost:Number(state.resources?.[token]||0)<1)?"disabled":""}>扭一次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×1`}</small></button><button class="magic-gacha-btn ten" data-magic-gacha-draw="10" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost*10:Number(state.resources?.[token]||0)<10)?"disabled":""}>扭十次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost*10)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×10`}</small></button><button class="magic-gacha-btn gift" data-magic-gacha-gift="1" ${Number(state.resources?.[giftId]||0)<1?"disabled":""}>贈送魔術好禮<br><small>幸運值 +${fmt(g.luckPerGift)}</small></button><button class="magic-gacha-btn lucky-toggle" data-magic-gacha-lucky ${canLucky?"":"disabled"}>${ms.luckyMode?"幸運模式中":"手動開啟幸運模式"}<br><small>需 ${fmt(g.luckyDrawLuckCost)} 幸運值</small></button></div>
+    <div class="magic-gacha-actions"><button class="magic-gacha-btn one" data-magic-gacha-draw="1" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost:Number(state.resources?.[token]||0)<1)?"disabled":""}>扭一次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×1`}</small></button><button class="magic-gacha-btn ten" data-magic-gacha-draw="10" ${(ms.luckyMode?ms.luck<g.luckyDrawLuckCost*10:Number(state.resources?.[token]||0)<10)?"disabled":""}>扭十次<br><small>${ms.luckyMode?`⭐ ×${fmt(g.luckyDrawLuckCost*10)}`:`${escapeHtml(cfgItem(config,token).icon||"🪙")} ×10`}</small></button><button class="magic-gacha-btn gift" data-magic-gacha-gift="1" ${Number(state.resources?.[giftId]||0)<1?"disabled":""}>贈送魔術好禮<br><small>幸運值 +${fmt(g.luckPerGift)}</small></button><button class="magic-gacha-btn lucky-toggle" data-magic-gacha-lucky ${canLucky?"":"disabled"}>${ms.luckyMode?"關閉幸運模式":"開啟幸運模式"}<br><small>${ms.luckyMode?`保留 ⭐${fmt(ms.luck)}`:`需 ⭐${fmt(g.luckyDrawLuckCost)}`}</small></button></div>
   </div>`
 }
 
@@ -11722,7 +11750,7 @@ const __renderScoreRulesBeforeMagicGacha=renderScoreRules;
 renderScoreRules=function(){
   if(config.gameplay.type!=="magicFestival")return __renderScoreRulesBeforeMagicGacha();
   const g=magicFestivalSettings();
-  $("scoreRules").innerHTML=`<div><strong>扭蛋魔術規則</strong></div><div>• 普通抽每次消耗 1 ${escapeHtml(cfgItem(config,g.gameTokenId).name)}，幸運值 +${fmt(g.luckPerNormalDraw)}。</div><div>• 使用 1 ${escapeHtml(cfgItem(config,g.magicGiftItemId).name)}，幸運值 +${fmt(g.luckPerGift)}；這部分可以超過 ${fmt(g.luckAutoThreshold)} 儲存。</div><div>• 滿 ${fmt(g.luckAutoThreshold)} 自動進入幸運模式；有至少 ${fmt(g.luckyDrawLuckCost)} 幸運值也能手動開啟。</div><div>• 幸運模式每抽消耗 ${fmt(g.luckyDrawLuckCost)} 幸運值，不消耗幻想轉蛋幣；幸運抽本身不再增加幸運值。</div>`
+  $("scoreRules").innerHTML=`<div><strong>扭蛋魔術規則</strong></div><div>• 普通抽每次消耗 1 ${escapeHtml(cfgItem(config,g.gameTokenId).name)}，幸運值 +${fmt(g.luckPerNormalDraw)}。</div><div>• 使用 1 ${escapeHtml(cfgItem(config,g.magicGiftItemId).name)}，幸運值 +${fmt(g.luckPerGift)}；這部分可以超過 ${fmt(g.luckAutoThreshold)} 儲存。</div><div>• 滿 ${fmt(g.luckAutoThreshold)} 自動進入幸運模式；有至少 ${fmt(g.luckyDrawLuckCost)} 幸運值也能手動開啟，且可在幸運值用完前手動關閉。</div><div>• 幸運模式每抽消耗 ${fmt(g.luckyDrawLuckCost)} 幸運值，不消耗幻想轉蛋幣；幸運抽本身不再增加幸運值。</div>`
 };
 
 const __statisticFieldDefinitionsBeforeMagicGacha=statisticFieldDefinitions;
@@ -11817,16 +11845,16 @@ validateConfig=function(c){const ok=__validateConfigBeforeMagicGacha(c),g=c.game
 
 function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋",quiet:true});if(!r.ok)return r;if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;if(r.reward&&flowScorePerItemFast(cfg,r.reward.itemId)*Number(r.reward.amount||0)!==0)flowAutoClaimStages(st,cfg,stats);return r}
 const __flowUseAllBallsBeforeMagicGacha=flowUseAllBalls;
-flowUseAllBalls=function(st,cfg,stats,ctx={}){if(batchGameplayType(cfg)!=="magicFestival")return __flowUseAllBallsBeforeMagicGacha(st,cfg,stats,ctx);const g=magicFestivalSettings(cfg),token=g.gameTokenId,ms=magicFestivalState(st);let draws=0,paid=0,guard=0;while(guard++<200000){if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;if(!ms.luckyMode&&Number(st.resources?.[token]||0)<1){if(ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;else break}const r=flowMagicFestivalPlay(st,cfg,stats);if(!r.ok)break;draws++;if(r.consumedToken)paid++;flowCheckFundInterrupts(st,cfg,ctx,stats)}return{ok:true,note:`已用完可用扭蛋資源：普通付費抽 ${fmt(paid)} 次、總扭蛋 ${fmt(draws)} 次｜剩餘 ${fmt(st.resources?.[token]||0)} ${cfgItem(cfg,token).name}｜幸運值 ${fmt(ms.luck)}`}};
+flowUseAllBalls=function(st,cfg,stats,ctx={}){if(batchGameplayType(cfg)!=="magicFestival")return __flowUseAllBallsBeforeMagicGacha(st,cfg,stats,ctx);const g=magicFestivalSettings(cfg),token=g.gameTokenId,giftId=g.magicGiftItemId,ms=magicFestivalState(st);let draws=0,paid=0,giftsUsed=0,guard=0;while(guard++<200000){if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;if(!ms.luckyMode&&ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;if(!ms.luckyMode&&Number(st.resources?.[token]||0)<1){const giftHave=Math.max(0,Math.floor(Number(st.resources?.[giftId]||0)));if(giftHave>0){const giftResult=magicFestivalUseGift(st,cfg,giftHave,{quiet:true});if(giftResult.ok){giftsUsed+=giftResult.count;flowCheckFundInterrupts(st,cfg,ctx,stats)}if(!ms.luckyMode&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;continue}if(ms.luck>=g.luckyDrawLuckCost){ms.luckyMode=true;continue}break}const r=flowMagicFestivalPlay(st,cfg,stats);if(!r.ok)break;draws++;if(r.consumedToken)paid++;flowCheckFundInterrupts(st,cfg,ctx,stats)}return{ok:true,note:`已榨乾可用扭蛋資源：普通付費抽 ${fmt(paid)} 次、總扭蛋 ${fmt(draws)} 次、送禮 ${fmt(giftsUsed)} 個｜剩餘 ${fmt(st.resources?.[token]||0)} ${cfgItem(cfg,token).name}、${fmt(st.resources?.[giftId]||0)} ${cfgItem(cfg,giftId).name}｜幸運值 ${fmt(ms.luck)}`}};
 const __flowGameplayCanObtainByPlayingBeforeMagicGacha=flowGameplayCanObtainByPlaying;
 flowGameplayCanObtainByPlaying=function(cfg,itemId){if(batchGameplayType(cfg)!=="magicFestival")return __flowGameplayCanObtainByPlayingBeforeMagicGacha(cfg,itemId);if((cfg.progressStages||[]).some(s=>flowRewardContains(s.rewards,itemId)))return true;const g=magicFestivalSettings(cfg);return [...(g.normalRewards||[]),...(g.luckyRewards||[])].some(x=>x.itemId===itemId)};
 const __flowFundProgressCapabilitiesBeforeMagicGacha=flowFundProgressCapabilities;
 flowFundProgressCapabilities=function(cfg=config,precomputedSpec=null){if(batchGameplayType(cfg)!=="magicFestival")return __flowFundProgressCapabilitiesBeforeMagicGacha(cfg,precomputedSpec);const {basis,itemId}=precomputedSpec||flowFundMetricSpec(cfg),g=magicFestivalSettings(cfg),caps=[];if((basis==="itemSpent"&&itemId===g.gameTokenId)||(basis==="itemObtained"&&flowGameplayCanObtainByPlaying(cfg,itemId)))caps.push({id:"play",label:"扭蛋",deterministic:basis==="itemSpent"&&itemId===g.gameTokenId});return caps};
 
 const __flowActionTypeOptionsBeforeMagicGacha=flowActionTypeOptions;
-flowActionTypeOptions=function(selected,cfg=config){let html=__flowActionTypeOptionsBeforeMagicGacha(selected,cfg);if(batchGameplayType(cfg)==="magicFestival"){html=html.replaceAll("使用剩餘幻想轉蛋幣探索","使用剩餘幻想轉蛋幣扭蛋");const opt=`<option value="magicGift" ${selected==="magicGift"?"selected":""}>使用魔術好禮</option>`;html=html.replace(/<option value="allBalls"/,opt+'<option value="allBalls"')}return html};
+flowActionTypeOptions=function(selected,cfg=config){let html=__flowActionTypeOptionsBeforeMagicGacha(selected,cfg);if(batchGameplayType(cfg)==="magicFestival"){html=html.replaceAll("使用剩餘幻想轉蛋幣探索","用完全部扭蛋資源");const opt=`<option value="magicGift" ${selected==="magicGift"?"selected":""}>使用魔術好禮</option>`;html=html.replace(/<option value="allBalls"/,opt+'<option value="allBalls"')}return html};
 const __flowActionFieldsBeforeMagicGacha=flowActionFields;
-flowActionFields=function(action,cfg=config){if(batchGameplayType(cfg)==="magicFestival"&&action.type==="magicGift"){const id=magicFestivalSettings(cfg).magicGiftItemId;return `<div class="flow-field-line"><div class="input" style="display:flex;align-items:center">${escapeHtml(cfgItem(cfg,id).icon||"🎁")} ${escapeHtml(cfgItem(cfg,id).name)}</div><label class="flow-number-unit"><input class="input" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span>個</span></label></div><span class="help">每使用 1 個增加 ${fmt(magicFestivalSettings(cfg).luckPerGift)} 幸運值；禮物增加的幸運值可以超過上限儲存。</span>`}const html=__flowActionFieldsBeforeMagicGacha(action,cfg);return batchGameplayType(cfg)==="magicFestival"?html.replaceAll("逐次探索魔法棋盤","逐次扭蛋").replaceAll("使用目前剩餘幻想轉蛋幣自動探索","使用目前剩餘幻想轉蛋幣扭蛋"):html};
+flowActionFields=function(action,cfg=config){if(batchGameplayType(cfg)==="magicFestival"&&action.type==="magicGift"){const id=magicFestivalSettings(cfg).magicGiftItemId;return `<div class="flow-field-line"><div class="input" style="display:flex;align-items:center">${escapeHtml(cfgItem(cfg,id).icon||"🎁")} ${escapeHtml(cfgItem(cfg,id).name)}</div><label class="flow-number-unit"><input class="input" type="number" min="1" step="1" value="${Math.max(1,Number(action.count||1))}" data-flow-field="count"><span>個</span></label></div><span class="help">每使用 1 個增加 ${fmt(magicFestivalSettings(cfg).luckPerGift)} 幸運值；禮物增加的幸運值可以超過上限儲存。</span>`}const html=__flowActionFieldsBeforeMagicGacha(action,cfg);return batchGameplayType(cfg)==="magicFestival"?html.replaceAll("逐次探索魔法棋盤","逐次扭蛋").replaceAll("使用目前剩餘幻想轉蛋幣自動探索","使用目前剩餘幻想轉蛋幣、送禮物品與幸運值，直到無法再扭蛋"):html};
 const __flowNewActionBeforeMagicGacha=flowNewAction;
 flowNewAction=function(type="free",cfg=config){if(batchGameplayType(cfg)==="magicFestival"&&type==="magicGift")return{type,count:1};return __flowNewActionBeforeMagicGacha(type,cfg)};
 const __flowExecuteActionBeforeMagicGacha=flowExecuteAction;
@@ -11836,7 +11864,7 @@ const __flowExamplePlanBeforeMagicGacha=flowExamplePlan;
 flowExamplePlan=function(cfg=config){if(batchGameplayType(cfg)!=="magicFestival")return __flowExamplePlanBeforeMagicGacha(cfg);const target=flowClampStage(cfg,2);return Array.from({length:7},(_,d)=>({actions:d===6?[{type:"free"},{type:"allBalls"}]:[{type:"free"},{type:"stage",stage:target}]}))};
 
 const __renderWeeklyFlowPlannerBeforeMagicGacha=renderWeeklyFlowPlanner;
-renderWeeklyFlowPlanner=function(){__renderWeeklyFlowPlannerBeforeMagicGacha();if(batchGameplayType(config)==="magicFestival"){const help=$("weeklyFlowHelp");if(help)help.innerHTML=`每次模擬都從扭蛋機自己的基準開始跑週一 → 週日。固定收益暫時卡住時，每扭 1 次就重新檢查基金／箱子／兌換／進度；普通抽累積幸運值，滿 ${fmt(magicFestivalSettings(config).luckAutoThreshold)} 自動進入幸運模式。若流程需要使用魔術好禮，請加入「使用魔術好禮」步驟。`}};
+renderWeeklyFlowPlanner=function(){__renderWeeklyFlowPlannerBeforeMagicGacha();if(batchGameplayType(config)==="magicFestival"){const help=$("weeklyFlowHelp");if(help)help.innerHTML=`每次模擬都從扭蛋機自己的基準開始跑週一 → 週日。固定收益暫時卡住時，每扭 1 次就重新檢查基金／箱子／兌換／進度；普通抽累積幸運值，滿 ${fmt(magicFestivalSettings(config).luckAutoThreshold)} 自動進入幸運模式。「用完全部扭蛋資源」會連送禮物品與幸運抽一起榨乾；若要在特定時間點先送固定數量，仍可加入「使用魔術好禮」步驟。`}};
 
 const __gameplayActionVerbBeforeMagicGacha=gameplayActionVerb;
 gameplayActionVerb=function(type=batchGameplayType(config)){return type==="magicFestival"?"扭蛋":__gameplayActionVerbBeforeMagicGacha(type)};
@@ -11859,7 +11887,7 @@ flowPlayableText=function(st,cfg){if(batchGameplayType(cfg)!=="magicFestival")re
 $("magicFestivalPlayArea")?.addEventListener("click",e=>{
   const draw=e.target.closest("[data-magic-gacha-draw]");if(draw){magicFestivalDrawMultiple(Number(draw.dataset.magicGachaDraw||1));return}
   const gift=e.target.closest("[data-magic-gacha-gift]");if(gift){if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能使用魔術好禮");recordHistory("使用魔術好禮");const r=magicFestivalUseGift(state,config,Number(gift.dataset.magicGachaGift||1));if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render();return}
-  if(e.target.closest("[data-magic-gacha-lucky]")){if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能切換模式");recordHistory("手動開啟幸運模式");const r=magicFestivalEnableLucky(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()}
+  if(e.target.closest("[data-magic-gacha-lucky]")){if(strategyIsPastReadOnly())return toast("過去日期只能查看，不能切換模式");recordHistory(magicFestivalState().luckyMode?"關閉幸運模式":"開啟幸運模式");const r=magicFestivalEnableLucky(state,config);if(!r.ok)return toast(r.note);$("rollMessage").textContent=r.note;render()}
 });
 
 
