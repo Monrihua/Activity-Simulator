@@ -2506,7 +2506,7 @@ function statisticFieldDefinitions(cfg,gameplay,surface,g=null){
     add("daily.mission","每日任務實領");add("daily.tokenUsed",`當日使用${tokenName}`);add("daily.boxesOpened","當日開箱");
     items.forEach(stat=>{
       const label=gameplayStatisticLabel(stat,cfg),enabled=!!stat.daily;
-      add(`item:${stat.id}:gain`,`當日${label}增加`,enabled,"物品");
+      add(`item:${stat.id}:gain`,`當日獲得${label}`,enabled,"物品");
       add(`item:${stat.id}:total`,`${label}累計`,enabled,"物品");
     });
     add("daily.score","平均最終分數");add("daily.stage","平均階段");
@@ -6510,6 +6510,9 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
     const statItems=gameplayStatisticItems(cfg,batchGameplayType(cfg));
     const trackedIds=[...new Set(statItems.map(x=>x.itemId).filter(Boolean))];
     const dayStatStart=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
+    // 「獲得／增加」應統計本次實際取得量，不是用背包淨變化推算。
+    // 例如扭蛋抽到魔術好禮後立刻送掉，背包淨變化可能為 0，但實際仍有取得。
+    const dayObtainedStart=Object.fromEntries(trackedIds.map(id=>[id,Number(st.obtained?.[id]||0)]));
 
     const stageAction=actions.find(a=>a?.type==="stage")||null;
     const dayGoal=stageAction
@@ -6743,9 +6746,11 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
 
         if(settlePlay){
           const playable=flowPlayableSnapshot(st,cfg);
-          const totalPlayable=batchGameplayType(cfg)==="pinball"
-            ?Math.max(0,Number(playable.balls||0))+Math.max(0,Number(playable.tickets||0))
-            :Math.max(0,Number(playable.tokens||0));
+          const totalPlayable=typeof flowSettlePlayableCount==="function"
+            ?flowSettlePlayableCount(st,cfg)
+            :(batchGameplayType(cfg)==="pinball"
+              ?Math.max(0,Number(playable.balls||0))+Math.max(0,Number(playable.tickets||0))
+              :Math.max(0,Number(playable.tokens||0)));
           if(totalPlayable>0){
             const beforeUsed=Number(stats.ballsUsed||0);
             const r=flowUseAllBalls(st,cfg,stats,{
@@ -6785,8 +6790,10 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
       )
     }
 
-    const itemValues=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
-    const itemGainsToday=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(dayStatStart[id]||0)]));
+    // 每日「累計」指本次七日流程開始後累計取得，不把基準原有庫存混進來。
+    // 若要看含基準庫存的最後背包量，使用「每次結果」中的物品最終欄位。
+    const itemValues=Object.fromEntries(trackedIds.map(id=>[id,Math.max(0,Number(st.obtained?.[id]||0)-Number(base.obtained?.[id]||0))]));
+    const itemGainsToday=Object.fromEntries(trackedIds.map(id=>[id,Math.max(0,Number(st.obtained?.[id]||0)-Number(dayObtainedStart[id]||0))]));
     stats.daily.push({
       day:d,
       score:Number(flowDayState(st).score||0),
@@ -6811,7 +6818,7 @@ function runWeeklyFlowOnce(base,cfg,run,compiledPlan=null){
   const statItems=gameplayStatisticItems(cfg,batchGameplayType(cfg));
   const trackedIds=[...new Set(statItems.map(x=>x.itemId).filter(Boolean))];
   const itemFinal=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)]));
-  const itemGained=Object.fromEntries(trackedIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(base.resources?.[id]||0)]));
+  const itemGained=Object.fromEntries(trackedIds.map(id=>[id,Math.max(0,Number(st.obtained?.[id]||0)-Number(base.obtained?.[id]||0))]));
   return{
     run,success:stats.failures.length===0,failures:stats.failures,steps:stats.steps||[],
     ballsUsed:stats.ballsUsed,boxesOpened:stats.boxesOpened,stageClaims:stats.stageClaims,daily:stats.daily,
@@ -7004,6 +7011,7 @@ function runFreeCompareOnce(base,cfg,gemDays,info){
   const compareStats=statisticItemsForSurface(cfg,type,"freeCompare");
   const compareIds=[...new Set(compareStats.map(x=>x.itemId).filter(Boolean))];
   const startItems=Object.fromEntries(compareIds.map(id=>[id,Number(st.resources?.[id]||0)]));
+  const startObtained=Object.fromEntries(compareIds.map(id=>[id,Number(st.obtained?.[id]||0)]));
   const stats={ballsUsed:0,boxesOpened:0,stageClaims:0,failures:[]};
 
   const dayCount=Math.min(7,Math.max(1,Number(cfg.event?.totalDays||7)));
@@ -7035,7 +7043,7 @@ function runFreeCompareOnce(base,cfg,gemDays,info){
 
   return{
     gemSpent,
-    itemGains:Object.fromEntries(compareIds.map(id=>[id,Number(st.resources?.[id]||0)-Number(startItems[id]||0)])),
+    itemGains:Object.fromEntries(compareIds.map(id=>[id,Math.max(0,Number(st.obtained?.[id]||0)-Number(startObtained[id]||0))])),
     finalScore:Number(flowDayState(st).score||0),
     finalStage:Number(flowReachedStage(st,cfg)||0),
     ballsUsed:Number(stats.ballsUsed||0),
@@ -7381,7 +7389,7 @@ function renderSimulation(){
       const rewards=(found.pack.rewards||[]).map(r=>`${cfgItem(cfg,r.itemId).name}×${fmt(Number(r.amount||0)*Number(a.count||1))}`).join("＋");
       return `${found.pack.name}(${rewards||"無獎勵"})`
     }).join("、")||"無";
-    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。</div>`;
+    const diagnostic=`<div class="free-plan-compare-meta" style="margin:0 0 8px"><strong>自適應判定：</strong>固定目標暫時不足時，會在每使用 1 次${escapeHtml(tokenName)}後重新掃描基金／箱子／兌換／進度，不再鎖死單一步驟。${minTarget?`本次最難的一天是 <strong>${escapeHtml(cfg.event.dayLabels?.[minTarget.d]||`第${minTarget.d+1}天`)}</strong>，目標達成率 ${fmt(minTarget.targetRate)}%。`:""}<br><strong>本次批次實際讀到的固定規則：</strong>每日任務 ${escapeHtml(missionRule)}；一鍵無課+寶石禮包：${escapeHtml(freePackRule)}；週一額外購買：${escapeHtml(firstDayPackRule)}。<br><strong>物品統計：</strong>「當日獲得／累計」只算本次七日模擬新取得的數量，不含建立基準前已持有的庫存；「每次結果」的物品最終欄位才包含基準原有庫存。</div>`;
     const dailyLayout=gameplayStatisticLayout(cfg,type,"daily");
     const dailyHead=dailyLayout.map(entry=>`<th>${escapeHtml(entry.label)}</th>`).join("");
     const dailyCell=(entry,x)=>{
@@ -11843,7 +11851,7 @@ updateSettingsProbabilityBadgeForInput=function(el){__updateSettingsProbabilityB
 const __validateConfigBeforeMagicGacha=validateConfig;
 validateConfig=function(c){const ok=__validateConfigBeforeMagicGacha(c),g=c.gameplaySettings?.magicFestival;if(!g)return ok;for(const [key,label] of [["normalRewards","普通模式"],["luckyRewards","幸運模式"]]){if(!Array.isArray(g[key])||!g[key].length)throw new Error(`扭蛋機${label}至少需要一項獎勵`);const total=magicFestivalRewardPoolTotal(g[key]);if(Math.abs(total-100)>.001)throw new Error(`扭蛋機${label}獎勵機率合計 ${fmt(total)}%，必須為 100%`)}return ok};
 
-function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋",quiet:true});if(!r.ok)return r;if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;if(r.reward&&flowScorePerItemFast(cfg,r.reward.itemId)*Number(r.reward.amount||0)!==0)flowAutoClaimStages(st,cfg,stats);return r}
+function flowMagicFestivalPlay(st,cfg,stats){const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);if(!ms.luckyMode&&Number(st.resources?.[g.gameTokenId]||0)<1&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;const r=magicFestivalDrawOne(st,cfg,{reason:"批次扭蛋",quiet:true});if(!r.ok)return r;if(stats&&r.consumedToken)stats.ballsUsed=Number(stats.ballsUsed||0)+1;if(r.reward&&flowScorePerItemFast(cfg,r.reward.itemId)*Number(r.reward.amount||0)!==0)flowAutoClaimStages(st,cfg,stats);return r}
 const __flowUseAllBallsBeforeMagicGacha=flowUseAllBalls;
 flowUseAllBalls=function(st,cfg,stats,ctx={}){if(batchGameplayType(cfg)!=="magicFestival")return __flowUseAllBallsBeforeMagicGacha(st,cfg,stats,ctx);const g=magicFestivalSettings(cfg),token=g.gameTokenId,giftId=g.magicGiftItemId,ms=magicFestivalState(st);let draws=0,paid=0,giftsUsed=0,guard=0;while(guard++<200000){if(ms.luckyMode&&ms.luck<g.luckyDrawLuckCost)ms.luckyMode=false;if(!ms.luckyMode&&ms.luck>=g.luckAutoThreshold)ms.luckyMode=true;if(!ms.luckyMode&&Number(st.resources?.[token]||0)<1){const giftHave=Math.max(0,Math.floor(Number(st.resources?.[giftId]||0)));if(giftHave>0){const giftResult=magicFestivalUseGift(st,cfg,giftHave,{quiet:true});if(giftResult.ok){giftsUsed+=giftResult.count;flowCheckFundInterrupts(st,cfg,ctx,stats)}if(!ms.luckyMode&&ms.luck>=g.luckyDrawLuckCost)ms.luckyMode=true;continue}if(ms.luck>=g.luckyDrawLuckCost){ms.luckyMode=true;continue}break}const r=flowMagicFestivalPlay(st,cfg,stats);if(!r.ok)break;draws++;if(r.consumedToken)paid++;flowCheckFundInterrupts(st,cfg,ctx,stats)}return{ok:true,note:`已榨乾可用扭蛋資源：普通付費抽 ${fmt(paid)} 次、總扭蛋 ${fmt(draws)} 次、送禮 ${fmt(giftsUsed)} 個｜剩餘 ${fmt(st.resources?.[token]||0)} ${cfgItem(cfg,token).name}、${fmt(st.resources?.[giftId]||0)} ${cfgItem(cfg,giftId).name}｜幸運值 ${fmt(ms.luck)}`}};
 const __flowGameplayCanObtainByPlayingBeforeMagicGacha=flowGameplayCanObtainByPlaying;
@@ -11959,7 +11967,138 @@ $("closeProbabilityBtn")?.addEventListener("click",closeProbabilityModal);
 $("closeProbabilityFootBtn")?.addEventListener("click",closeProbabilityModal);
 $("probabilityModal")?.addEventListener("click",e=>{if(e.target===$("probabilityModal"))closeProbabilityModal()});
 
+
+/* =========================================================
+   v27：扭蛋批次資料一致性修正
+   - 舊版可能留下「同名但不同 ID」的幻想轉蛋幣／魔法帽／魔術好禮。
+   - 批次「獲得」改用 obtained 累計，不再用背包淨變化推算。
+   - 扭蛋的「使用幻想轉蛋幣」只計普通抽實際消耗的代幣。
+   ========================================================= */
+const MAGIC_GACHA_DATA_FIX_SCHEMA_VERSION=79;
+
+function magicGachaRegisterItemAlias(cfg,oldId,newId){
+  if(!cfg||!oldId||!newId||oldId===newId)return;
+  if(!cfg.itemIdAliases||typeof cfg.itemIdAliases!=="object"||Array.isArray(cfg.itemIdAliases))cfg.itemIdAliases={};
+  cfg.itemIdAliases[oldId]=newId
+}
+
+function magicGachaMergeSameMeaningItems(cfg,g){
+  if(!cfg||!g||!Array.isArray(cfg.items))return g;
+  const roles=[
+    {field:"gameTokenId",names:new Set(["幻想轉蛋幣","魔法藥水"]),known:new Set(["magicFantasyGachaCoin","magicPotion"])},
+    {field:"normalExchangeId",names:new Set(["見習魔法帽"]),known:new Set(["magicNoviceHat"])},
+    {field:"premiumExchangeId",names:new Set(["大師魔法帽","魔法書"]),known:new Set(["masterMagicHat","magicBook"])},
+    {field:"magicGiftItemId",names:new Set(["魔術好禮","魔法禮物"]),known:new Set(["magicGift"])}
+  ];
+  const removeIds=new Set();
+
+  for(const role of roles){
+    let targetId=g[role.field];
+    let target=cfg.items.find(x=>x.id===targetId);
+    if(!target){
+      target=cfg.items.find(x=>role.names.has(String(x?.name||"")))
+        ||cfg.items.find(x=>role.known.has(String(x?.id||"")));
+      if(target){targetId=target.id;g[role.field]=targetId}
+    }
+    if(!targetId||!target)continue;
+
+    const targetIsCore=role.names.has(String(target.name||""))||role.known.has(String(target.id||""));
+    if(!targetIsCore)continue;
+
+    const aliases=cfg.items.filter(it=>{
+      if(!it||it.id===targetId)return false;
+      return role.names.has(String(it.name||""))||role.known.has(String(it.id||""))
+    });
+
+    for(const alias of aliases){
+      replaceItemReferences(cfg,alias.id,targetId);
+      magicGachaRegisterItemAlias(cfg,alias.id,targetId);
+      removeIds.add(alias.id)
+    }
+    g[role.field]=targetId
+  }
+
+  if(removeIds.size)cfg.items=cfg.items.filter(it=>!removeIds.has(it.id));
+  if(Number(cfg.configSchemaVersion||0)<MAGIC_GACHA_DATA_FIX_SCHEMA_VERSION)cfg.configSchemaVersion=MAGIC_GACHA_DATA_FIX_SCHEMA_VERSION;
+  return g
+}
+
+const __normalizeMagicFestivalConfigBeforeV27=normalizeMagicFestivalConfig;
+normalizeMagicFestivalConfig=function(cfg){
+  const g=__normalizeMagicFestivalConfigBeforeV27(cfg);
+  magicGachaMergeSameMeaningItems(cfg,g);
+  return g
+};
+
+const __ensureStateSchemaBeforeV27=ensureStateSchema;
+ensureStateSchema=function(targetState=state,cfg=config,opts={}){
+  const st=__ensureStateSchemaBeforeV27(targetState,cfg,opts);
+  const aliases=cfg?.itemIdAliases;
+  if(aliases&&typeof aliases==="object"){
+    for(const [oldId,newId] of Object.entries(aliases)){
+      if(oldId&&newId&&oldId!==newId)migrateStateItemId(st,oldId,newId)
+    }
+  }
+  return st
+};
+
+const __flowPlayableSnapshotBeforeV27=flowPlayableSnapshot;
+flowPlayableSnapshot=function(st,cfg){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowPlayableSnapshotBeforeV27(st,cfg);
+  const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);
+  const tokens=Math.max(0,Number(st.resources?.[g.gameTokenId]||0));
+  const gifts=Math.max(0,Math.floor(Number(st.resources?.[g.magicGiftItemId]||0)));
+  const luckyDraws=Math.max(0,Math.floor(Number(ms.luck||0)/Math.max(1,Number(g.luckyDrawLuckCost||1))));
+  return{tokenId:g.gameTokenId,tokens,ballId:g.gameTokenId,ticketId:null,balls:tokens,tickets:0,gifts,luckyDraws,totalPlayable:tokens+gifts+luckyDraws}
+};
+
+const __flowPlayableTextBeforeV27=flowPlayableText;
+flowPlayableText=function(st,cfg){
+  if(batchGameplayType(cfg)!=="magicFestival")return __flowPlayableTextBeforeV27(st,cfg);
+  const g=magicFestivalSettings(cfg),ms=magicFestivalState(st);
+  return `${cfgItem(cfg,g.gameTokenId).name} ${fmt(st.resources?.[g.gameTokenId]||0)}｜${cfgItem(cfg,g.magicGiftItemId).name} ${fmt(st.resources?.[g.magicGiftItemId]||0)}｜幸運值 ${fmt(ms.luck)}${ms.luckyMode?"（幸運模式）":""}`
+};
+
+function flowSettlePlayableCount(st,cfg){
+  const p=flowPlayableSnapshot(st,cfg);
+  if(batchGameplayType(cfg)==="pinball")return Math.max(0,Number(p.balls||0))+Math.max(0,Number(p.tickets||0));
+  if(batchGameplayType(cfg)==="magicFestival")return Math.max(0,Number(p.totalPlayable||0));
+  return Math.max(0,Number(p.tokens||0))
+}
+
+const __freeCompareUseFinalDayBeforeV27=freeCompareUseFinalDay;
+freeCompareUseFinalDay=function(st,cfg,stats){
+  if(batchGameplayType(cfg)!=="magicFestival")return __freeCompareUseFinalDayBeforeV27(st,cfg,stats);
+  let outer=0;
+  while(outer++<100){
+    let changed=false;
+    const beforeFund=Object.keys(st.fundClaims?.free||{}).length;
+    freeCompareMaybeClaimFund(st,cfg,stats);
+    if(Object.keys(st.fundClaims?.free||{}).length>beforeFund)changed=true;
+
+    const beforeToken=Number(st.spent?.[magicFestivalSettings(cfg).gameTokenId]||0);
+    const beforeDraws=Number(magicFestivalState(st).totalDraws||0);
+    const r=flowUseAllBalls(st,cfg,stats,{});
+    if(r?.ok&&(
+      Number(st.spent?.[magicFestivalSettings(cfg).gameTokenId]||0)!==beforeToken ||
+      Number(magicFestivalState(st).totalDraws||0)!==beforeDraws
+    ))changed=true;
+
+    let opened=0;
+    for(const box of (cfg.randomBoxes||[])){
+      if(Number(st.resources?.[box.boxItemId]||0)<1)continue;
+      const before=Number(stats.boxesOpened||0);
+      flowOpenBox(st,cfg,{type:"allBoxes",boxId:box.id},stats,true,{});
+      opened+=Math.max(0,Number(stats.boxesOpened||0)-before)
+    }
+    if(opened){changed=true;freeCompareMaybeClaimFund(st,cfg,stats)}
+    if(!changed)break
+  }
+};
+
 try{normalizeFundConfig(config);validateConfig(config)}catch{config=normalizeFundConfig(clone(DEFAULT_CONFIG))}
+// 前段初始化發生在三玩法覆寫完成以前；此處用最終玩法判定重新載入正確的玩法基準。
+simulationBaseline=loadStoredBaseline(batchGameplayType(config));
 strategyPlan=null;localStorage.removeItem(STORAGE_STRATEGY);
 state=createState();state.activeStrategy=null;ensureStateSchema(state,config);generateBoard();generatePinballSlots();$("dailyDiceInput").value=config.dailyMission.maxGameTokens;render();
 </script>
