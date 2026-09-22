@@ -1773,9 +1773,9 @@ select{min-height:42px;padding-top:7px;padding-bottom:7px}
       <section class="card">
         <div class="card-title"><h3>操作說明</h3></div>
         <div class="help">
-          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／扭蛋機；
+          週一至週日共用同一個活動背包與資源環境。上方可切換大富翁／彈珠機／扭蛋機／釣魚；
           各玩法可各自設定自己的每日進度、禮包、基金、代幣、隨機箱與計分規則，但取得的資源仍會回到同一個活動背包。
-          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。扭蛋機只能點擊已翻開的牌，未翻開牌統一顯示黃色＋🔒，不會顯示真正顏色；炸彈／鞭炮的取得範圍碰到其他功能道具會連鎖觸發，魔法書完成本圖時會獲得 🎩大師魔法帽 ×1 供基金／統計計數，並以原書位置作為下一張圖的普通物品初始翻開點。
+          彈珠機特殊格累積達標後，待場上普通彈珠落完會自動進入隱藏模式；隱藏模式中可按「跳過動畫」直接結算剩餘粉色彈珠。扭蛋機使用幻想轉蛋幣進行普通抽並累積幸運值；釣魚則依目前地圖倍率隨機產生重量、釣魚積分與魚王之證。
         </div>
       </section>
     </aside>
@@ -12117,7 +12117,6 @@ state=createState();state.activeStrategy=null;ensureStateSchema(state,config);ge
 .fishing-progress-panel{margin-top:10px;padding:10px;border-radius:14px;background:#fff;border:1px solid #9bc9d8}.fishing-progress-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;font-weight:1000}.fishing-progress{height:13px;border-radius:999px;background:#dcecf2;overflow:hidden;margin-top:7px}.fishing-progress>div{height:100%;background:linear-gradient(90deg,#4cc4e8,#2c8eb9)}
 .fishing-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:10px}.fishing-stat{background:#fff;border:1px solid #a9cfdb;border-radius:12px;padding:8px;text-align:center;min-width:0}.fishing-stat .k{font-size:11px;color:#668391;font-weight:900}.fishing-stat .v{font-size:17px;font-weight:1000;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fishing-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.fishing-actions .btn{min-height:46px}.fishing-recent{margin-top:10px;border-radius:13px;background:rgba(255,255,255,.82);border:1px solid #9bc9d8;padding:9px}.fishing-recent-title{font-weight:1000;font-size:12px;margin-bottom:5px}.fishing-recent-row{display:grid;grid-template-columns:52px 1fr auto;gap:7px;padding:5px 0;border-bottom:1px dashed #c8dde4;font-size:12px;align-items:center}.fishing-recent-row:last-child{border-bottom:0}
-body.fishing-active #dailyProgressSection,body.fishing-active .fund-toolbar,body.fishing-active #fundClaimPreview,body.fishing-active .fund-goal-tool,body.fishing-active #fundDetails{display:none!important}
 body.fishing-active #refreshBoardBtn{display:none!important}
 @media(max-width:720px){.fishing-machine{padding:9px;border-radius:19px}.fishing-water{min-height:150px;padding:12px}.fishing-stats{grid-template-columns:1fr 1fr}.fishing-last-icon{font-size:46px}.fishing-map-name{font-size:17px}}
 </style>
@@ -12318,5 +12317,318 @@ $("fishingPlayArea")?.addEventListener("click",e=>{if(e.target.closest("[data-fi
 normalizeFundConfig(config);ensureStateSchema(state,config);ensureFishingState(state);render();
 </script>
 
-</body>
+\n<script id="fishingV29FormalScript">
+/* =========================================================
+   v29：釣魚正式接入共通活動框架
+   - 每日任務魚餌 40、首日魚餌 5
+   - 每日進度門檻 210 / 630 / 1060 / 2520 / 3980
+   - 第2~5階魚王之證隨機箱：1 / 5 / 20 / 24
+   - 隨機箱：魚王之證 1 / 2 / 3，95% / 4.9% / 0.1%
+   - 基金依累計獲得釣魚積分，獎勵沿用扭蛋基金並將魔法幣替換成魚餌
+   - 正式接入七日流程 / 批次模擬
+   ========================================================= */
+const FISHING_FORMAL_SCHEMA_VERSION=1;
+const FISHING_PROGRESS_THRESHOLDS=[210,630,1060,2520,3980];
+const FISHING_PROGRESS_BOX_COUNTS=[0,1,5,20,24];
+const FISHING_FUND_THRESHOLDS=[...Array.from({length:28},(_,i)=>i*2000),57000,60000]; // 0..54000，再 57000、60000
+
+function fishingEnsureFormalItems(cfg,g){
+  const bait=g.gameTokenId||fishingEnsureNamedItem(cfg,"fishBait","魚餌","個","🪱");
+  const points=g.normalExchangeId||fishingEnsureNamedItem(cfg,"fishingPoint","釣魚積分","枚","🥈");
+  const king=g.premiumExchangeId||fishingEnsureNamedItem(cfg,"fishKingCertificate","魚王之證","枚","🥇");
+  const box=fishingEnsureNamedItem(cfg,"fishKingCertificateBox","魚王之證隨機箱","個","🎁");
+  return{bait,points,king,box}
+}
+function fishingReplaceMagicCoinRewards(rewards,cfg,baitId){
+  const magicCoinIds=new Set((cfg.items||[]).filter(x=>x.id==="magicCoin"||String(x.name||"")==="魔法幣").map(x=>x.id));
+  return clone(rewards||[]).map(r=>({...r,itemId:magicCoinIds.has(r.itemId)?baitId:r.itemId}))
+}
+function fishingFallbackFundSource(cfg,baitId){
+  const gem=fishingEnsureNamedItem(cfg,"gem","寶石","個","💎");
+  const immortal=fishingEnsureNamedItem(cfg,"immortalGemBox","隨機不朽寶石箱","個","💠");
+  const limited=fishingEnsureNamedItem(cfg,"limitedWishLetter","限時祈願函","個","✉️");
+  const guild2=fishingEnsureNamedItem(cfg,"guildGiftBox2","公會禮物寶箱 II","個","📦");
+  const r=(itemId,amount)=>({itemId,amount});
+  return[
+    [[r(gem,50)],[r(immortal,1)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300),r(guild2,1)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,1)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,2)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,2)],[r(baitId,5)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,2)],[r(baitId,10)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,2)],[r(baitId,10)]],[[r(gem,50)],[r(gem,300)]],
+    [[r(baitId,2)],[r(limited,50)]]
+  ]
+}
+function fishingBuildFormalFund(cfg,g,ids){
+  const magicFund=cfg.gameplaySettings?.magicFestival?.fund;
+  const source=(magicFund?.milestones||[]).length>=30
+    ?magicFund.milestones.slice(0,30).map(m=>[
+      fishingReplaceMagicCoinRewards(m.freeRewards,cfg,ids.bait),
+      fishingReplaceMagicCoinRewards(m.premiumRewards,cfg,ids.bait)
+    ])
+    :fishingFallbackFundSource(cfg,ids.bait);
+  const paidDefault=cfg.currencies?.paidCurrencyId||"emerald";
+  const premiumCost=clone(magicFund?.premiumCost||g.fund?.premiumCost||{itemId:paidDefault,amount:0});
+  if(!(cfg.items||[]).some(x=>x.id===premiumCost.itemId))premiumCost.itemId=paidDefault;
+  return{
+    unlockBasis:"itemObtained",unlockItemId:ids.points,premiumCost,
+    milestones:FISHING_FUND_THRESHOLDS.map((threshold,i)=>({
+      id:`fishingFund${threshold}`,laps:threshold,
+      freeRewards:clone(source[i]?.[0]||[]),premiumRewards:clone(source[i]?.[1]||[])
+    }))
+  }
+}
+function fishingBuildFormalStages(cfg,ids){
+  const mono=cfg.gameplaySettings?.monopoly||{};
+  const source=(mono.progressStages||cfg.progressStages||[]);
+  const randomBoxItemIds=new Set();
+  Object.values(cfg.gameplaySettings||{}).forEach(gp=>(gp?.randomBoxes||[]).forEach(b=>b?.boxItemId&&randomBoxItemIds.add(b.boxItemId)));
+  (cfg.randomBoxes||[]).forEach(b=>b?.boxItemId&&randomBoxItemIds.add(b.boxItemId));
+  return FISHING_PROGRESS_THRESHOLDS.map((requiredScore,i)=>{
+    const src=source[i]||{};
+    const rewards=clone(src.rewards||[]).filter(r=>{
+      if(randomBoxItemIds.has(r.itemId))return false;
+      const name=String(cfgItem(cfg,r.itemId)?.name||"");
+      return !name.includes("隨機箱")
+    });
+    if(FISHING_PROGRESS_BOX_COUNTS[i]>0)rewards.unshift({itemId:ids.box,amount:FISHING_PROGRESS_BOX_COUNTS[i]});
+    return{stage:i+1,requiredScore,rewards}
+  })
+}
+function fishingApplyFormalDefaults(cfg,g){
+  const ids=fishingEnsureFormalItems(cfg,g);
+  if(Number(g.formalSchemaVersion||0)<FISHING_FORMAL_SCHEMA_VERSION){
+    g.gameTokenId=ids.bait;g.normalExchangeId=ids.points;g.premiumExchangeId=ids.king;
+    g.dailyMissionRewardItemId=ids.bait;g.dailyMissionMaxGameTokens=40;
+    g.firstDayLoginGiftItemId=ids.bait;g.firstDayLoginGiftAmount=5;
+    g.randomBoxes=[{id:"fishingKingBox",name:"魚王之證隨機箱",boxItemId:ids.box,rewardItemId:ids.king,outcomes:[
+      {amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}
+    ]}];
+    g.progressStages=fishingBuildFormalStages(cfg,ids);
+    g.fund=fishingBuildFormalFund(cfg,g,ids);
+    if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
+    g.statistics={items:[
+      {id:"statFishingPoint",itemId:ids.points,label:"釣魚積分",summary:true,daily:true,result:true,freeCompare:true},
+      {id:"statFishKing",itemId:ids.king,label:"魚王之證",summary:true,daily:true,result:true,freeCompare:true}
+    ]};
+    g.formalSchemaVersion=FISHING_FORMAL_SCHEMA_VERSION
+  }
+  g.dailyMissionMaxGameTokens=Math.max(0,Number(g.dailyMissionMaxGameTokens??40));
+  g.firstDayLoginGiftAmount=Math.max(0,Number(g.firstDayLoginGiftAmount??5));
+  if(!Array.isArray(g.randomBoxes))g.randomBoxes=[];
+  if(!Array.isArray(g.progressStages))g.progressStages=[];
+  if(!Array.isArray(g.packageGroups))g.packageGroups=[];
+  if(!Array.isArray(g.exchangeShop))g.exchangeShop=[];
+  if(!Array.isArray(g.pointsPerItemObtained))g.pointsPerItemObtained=[];
+  if(!g.fund||typeof g.fund!=="object")g.fund=fishingBuildFormalFund(cfg,g,ids);
+  normalizeGameplayStatistics(cfg,"fishing",g);
+  return g
+}
+
+const __ensureFishingConfigBeforeFormal=ensureFishingConfig;
+ensureFishingConfig=function(cfg){return fishingApplyFormalDefaults(cfg,__ensureFishingConfigBeforeFormal(cfg))};
+fishingSettings=function(cfg=config){return ensureFishingConfig(cfg)};
+
+// 重新同步 active gameplay 鏡像，使每日任務 / 進度 / 基金 / 箱子正式接入共通系統。
+const __normalizeFundConfigBeforeFishingFormal=normalizeFundConfig;
+normalizeFundConfig=function(cfg){
+  const out=__normalizeFundConfigBeforeFishingFormal(cfg),g=ensureFishingConfig(out);
+  if(out.gameplay?.type==="fishing"){
+    out.currencies.gameTokenId=g.gameTokenId;out.currencies.normalExchangeId=g.normalExchangeId;out.currencies.premiumExchangeId=g.premiumExchangeId;
+    out.dailyMission.maxGameTokens=g.dailyMissionMaxGameTokens;out.dailyMission.rewardItemId=g.dailyMissionRewardItemId;
+    out.scoreRules.pointsPerItemObtained=clone(g.pointsPerItemObtained||[]);
+    out.randomBoxes=clone(g.randomBoxes||[]);out.exchangeShop=clone(g.exchangeShop||[]);out.progressStages=clone(g.progressStages||[]);out.packageGroups=clone(g.packageGroups||[]);out.fund=clone(g.fund||{})
+  }
+  return out
+};
+
+// 釣魚固定統計欄位沿用共通統計骨架，只改成正確的「竿數」。
+const __statisticFieldDefinitionsBeforeFishingFormal=statisticFieldDefinitions;
+statisticFieldDefinitions=function(cfg,gameplay,surface,g=null){
+  const defs=__statisticFieldDefinitionsBeforeFishingFormal(cfg,gameplay,surface,g);
+  if(gameplay!=="fishing"||surface!=="live")return defs;
+  return defs.map(x=>x.id==="live.gameplayToday"?{...x,label:"本日釣魚"}:x.id==="live.gameplayTotal"?{...x,label:"累積釣魚"}:x)
+};
+
+// 實玩單竿：正式寫入 obtained / score / 代幣帳本。
+fishingCastOne=function(st=state,cfg=config){
+  const g=fishingSettings(cfg),fs=ensureFishingState(st),bait=g.gameTokenId;
+  if(Number(st.resources?.[bait]||0)<1)return{ok:false,note:`${cfgItem(cfg,bait).name}不足`};
+  const mapIndex=fishingCurrentMapIndex(fs,cfg),map=g.maps[mapIndex],range=g.weightVariancePct/100;
+  const weight=fishingRound(Number(map.multiplier)*(1-range+Math.random()*2*range),g.weightDecimals);
+  const points=Math.max(0,Math.round(weight*g.pointsPerKg)),king=Math.random()*100<g.kingCertificateChance;
+  st.resources[bait]=Number(st.resources[bait]||0)-1;st.spent[bait]=Number(st.spent[bait]||0)+1;adjustGameTokenSpend(st.currentDay,1,st,cfg);
+  if(st===state&&cfg===config){
+    addItem(g.normalExchangeId,points,"釣魚",true);
+    if(king)addItem(g.premiumExchangeId,1,"釣到魚王",true)
+  }else{
+    flowAddItem(st,cfg,g.normalExchangeId,points);if(king)flowAddItem(st,cfg,g.premiumExchangeId,1)
+  }
+  fs.totalWeight=fishingRound(fs.totalWeight+weight,2);fs.totalCasts++;fs.totalPoints+=points;if(king)fs.totalKingCertificates++;
+  const result={ok:true,mapIndex,mapId:map.id,mapName:map.name,weight,points,king,castNo:fs.totalCasts};
+  fs.lastCast=result;fs.recentCasts.unshift(result);fs.recentCasts=fs.recentCasts.slice(0,12);
+  const day=st.days?.[st.currentDay];if(day)day.fishingCasts=Math.max(0,Number(day.fishingCasts||0))+1;
+  return result
+};
+
+function flowFishingCast(st,cfg,stats){
+  const g=fishingSettings(cfg),fs=ensureFishingState(st),bait=g.gameTokenId;
+  if(Number(st.resources?.[bait]||0)<1)return{ok:false,note:`${cfgItem(cfg,bait).name}不足`};
+  const mapIndex=fishingCurrentMapIndex(fs,cfg),map=g.maps[mapIndex],range=g.weightVariancePct/100;
+  const weight=fishingRound(Number(map.multiplier)*(1-range+Math.random()*2*range),g.weightDecimals);
+  const points=Math.max(0,Math.round(weight*g.pointsPerKg)),king=Math.random()*100<g.kingCertificateChance;
+  st.resources[bait]=Number(st.resources[bait]||0)-1;st.spent[bait]=Number(st.spent[bait]||0)+1;adjustGameTokenSpend(st.currentDay,1,st,cfg);
+  flowAddItem(st,cfg,g.normalExchangeId,points);if(king)flowAddItem(st,cfg,g.premiumExchangeId,1);
+  fs.totalWeight=fishingRound(fs.totalWeight+weight,2);fs.totalCasts++;fs.totalPoints+=points;if(king)fs.totalKingCertificates++;
+  const day=st.days?.[st.currentDay];if(day)day.fishingCasts=Math.max(0,Number(day.fishingCasts||0))+1;
+  if(stats)stats.ballsUsed=Number(stats.ballsUsed||0)+1;
+  flowAutoClaimStages(st,cfg,stats);
+  return{ok:true,mapIndex,mapId:map.id,mapName:map.name,weight,points,king,castNo:fs.totalCasts}
+}
+
+const __flowPlayOneTokenBeforeFishingFormal=flowPlayOneToken;
+flowPlayOneToken=function(st,cfg,stats,opts={}){return batchGameplayType(cfg)==="fishing"?flowFishingCast(st,cfg,stats):__flowPlayOneTokenBeforeFishingFormal(st,cfg,stats,opts)};
+const __flowPlayableSnapshotBeforeFishingFormal=flowPlayableSnapshot;
+flowPlayableSnapshot=function(st,cfg){
+  if(batchGameplayType(cfg)!=="fishing")return __flowPlayableSnapshotBeforeFishingFormal(st,cfg);
+  const g=fishingSettings(cfg),n=Math.max(0,Number(st.resources?.[g.gameTokenId]||0));
+  return{tokenId:g.gameTokenId,tokens:n,ballId:g.gameTokenId,ticketId:null,balls:n,tickets:0,totalPlayable:n}
+};
+const __flowPlayableTextBeforeFishingFormal=flowPlayableText;
+flowPlayableText=function(st,cfg){return batchGameplayType(cfg)==="fishing"?`${cfgItem(cfg,fishingSettings(cfg).gameTokenId).name} ${fmt(st.resources?.[fishingSettings(cfg).gameTokenId]||0)}`:__flowPlayableTextBeforeFishingFormal(st,cfg)};
+const __flowUseAllBallsBeforeFishingFormal=flowUseAllBalls;
+flowUseAllBalls=function(st,cfg,stats,ctx={}){
+  if(batchGameplayType(cfg)!=="fishing")return __flowUseAllBallsBeforeFishingFormal(st,cfg,stats,ctx);
+  const g=fishingSettings(cfg),bait=g.gameTokenId;let used=0,guard=0;
+  while(Number(st.resources?.[bait]||0)>0&&guard++<200000){const r=flowFishingCast(st,cfg,stats);if(!r.ok)break;used++;flowCheckFundInterrupts(st,cfg,ctx,stats)}
+  return{ok:true,note:`已用完剩餘魚餌：共釣魚 ${fmt(used)} 竿｜剩餘 ${fmt(st.resources?.[bait]||0)} ${cfgItem(cfg,bait).name}`}
+};
+const __flowGameplayCanObtainByPlayingBeforeFishingFormal=flowGameplayCanObtainByPlaying;
+flowGameplayCanObtainByPlaying=function(cfg,itemId){
+  if(batchGameplayType(cfg)!=="fishing")return __flowGameplayCanObtainByPlayingBeforeFishingFormal(cfg,itemId);
+  if((cfg.progressStages||[]).some(s=>flowRewardContains(s.rewards,itemId)))return true;
+  const g=fishingSettings(cfg);return itemId===g.normalExchangeId||itemId===g.premiumExchangeId
+};
+const __flowFundProgressCapabilitiesBeforeFishingFormal=flowFundProgressCapabilities;
+flowFundProgressCapabilities=function(cfg=config,precomputedSpec=null){
+  if(batchGameplayType(cfg)!=="fishing")return __flowFundProgressCapabilitiesBeforeFishingFormal(cfg,precomputedSpec);
+  const {basis,itemId}=precomputedSpec||flowFundMetricSpec(cfg),g=fishingSettings(cfg),caps=[];
+  if((basis==="itemSpent"&&itemId===g.gameTokenId)||(basis==="itemObtained"&&flowGameplayCanObtainByPlaying(cfg,itemId)))caps.push({id:"play",label:"釣魚",deterministic:basis==="itemSpent"&&itemId===g.gameTokenId});
+  return caps
+};
+const __flowPlayToStageBeforeFishingFormal=flowPlayToStage;
+flowPlayToStage=function(st,cfg,action,stats,ctx={}){const r=__flowPlayToStageBeforeFishingFormal(st,cfg,action,stats,ctx);if(batchGameplayType(cfg)==="fishing"&&r?.note)r.note=r.note.replaceAll("逐次擲骰","逐竿釣魚");return r};
+
+const __flowExamplePlanBeforeFishingFormal=flowExamplePlan;
+flowExamplePlan=function(cfg=config){
+  if(batchGameplayType(cfg)!=="fishing")return __flowExamplePlanBeforeFishingFormal(cfg);
+  const box=cfg.randomBoxes?.[0];
+  return Array.from({length:7},(_,d)=>({actions:d===6?[{type:"free"},{type:"allBalls"},...(box?[{type:"allBoxes",boxId:box.id}]:[])]:[{type:"free"}]}))
+};
+const __flowActionTypeOptionsBeforeFishingFormal=flowActionTypeOptions;
+flowActionTypeOptions=function(selected,cfg=config){let html=__flowActionTypeOptionsBeforeFishingFormal(selected,cfg);if(batchGameplayType(cfg)==="fishing")html=html.replaceAll("使用剩餘骰子","使用剩餘魚餌");return html};
+const __flowActionFieldsBeforeFishingFormal=flowActionFields;
+flowActionFields=function(action,cfg=config){
+  const html=__flowActionFieldsBeforeFishingFormal(action,cfg);
+  if(batchGameplayType(cfg)!=="fishing")return html;
+  if(action.type==="allBalls")return `<span class="help">把目前持有的魚餌全部使用完；每竿仍會立即結算重量、釣魚積分、魚王之證、每日進度與基金條件。</span>`;
+  return html.replaceAll("逐次擲骰","逐竿釣魚").replaceAll("骰子","魚餌")
+};
+
+// 七日模擬正式開放。
+const __renderSimulationFishingV28Wrapper=renderSimulation;
+renderSimulation=function(){if(batchGameplayType(config)==="fishing")return __renderSimulationBeforeFishing();return __renderSimulationFishingV28Wrapper()};
+const __renderWeeklyFlowPlannerBeforeFishingFormal=renderWeeklyFlowPlanner;
+renderWeeklyFlowPlanner=function(){
+  const r=__renderWeeklyFlowPlannerBeforeFishingFormal();
+  if(batchGameplayType(config)==="fishing"){
+    const note=$("weeklyFlowGameplayNote");if(note)note.textContent="🎣 目前編輯：釣魚七日流程（與其他玩法完全獨立）";
+    const help=$("weeklyFlowHelp");if(help)help.innerHTML=`每次模擬都會從釣魚自己的基準開始跑週一 → 週日。每使用 1 個魚餌就依目前累積重量決定地圖倍率，隨機結算重量、釣魚積分與魚王之證；達到 75 / 230 / 500 kg 後，下一竿自動切換新地圖。`
+  }
+  return r
+};
+
+// 正式釣魚設定頁：共通骨架 + 玩法專屬參數 + 隨機箱。
+fishingSettingsHtml=function(c){
+  const g=ensureFishingConfig(c);normalizeGameplayStatistics(c,"fishing",g);
+  return `<section class="setting-section active">
+    <div class="editor-head"><div><h2>🎣 釣魚</h2><div class="help">共通設定與大富翁／彈珠機／扭蛋機一致；釣魚專屬部分只保留四張地圖倍率、重量浮動與魚王之證機率。</div></div><span class="badge warn">玩法專用</span></div>
+    <div class="editor-card">
+      <h3 style="margin-top:0">玩法使用物品</h3>
+      <div class="setting-grid">
+        <div class="field"><label>遊戲代幣</label><select data-path="gameplaySettings.fishing.gameTokenId">${itemOptions(g.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務獎勵物品</label><select data-path="gameplaySettings.fishing.dailyMissionRewardItemId">${itemOptions(g.dailyMissionRewardItemId||g.gameTokenId)}</select></div>
+        <div class="field"><label>每日任務最多獲得數量</label>${pathInput("gameplaySettings.fishing.dailyMissionMaxGameTokens",g.dailyMissionMaxGameTokens,"number",'min="0"')}</div>
+        <div class="field"><label>首日贈送物品</label><select data-path="gameplaySettings.fishing.firstDayLoginGiftItemId">${itemOptions(g.firstDayLoginGiftItemId||g.gameTokenId)}</select></div>
+        <div class="field"><label>首日贈送數量</label>${pathInput("gameplaySettings.fishing.firstDayLoginGiftAmount",g.firstDayLoginGiftAmount??5,"number",'min="0" step="any"')}</div>
+      </div>
+      <h3>取得物品的計分規則</h3>
+      <div class="help" style="margin-bottom:7px">這裡控制「每日進度」的分數來源；釣魚積分（銀幣）與每日進度分數是分開的。你尚未提供官方每條魚對每日進度的計分公式，因此這裡不硬猜，可自行加入規則。</div>
+      <div class="editor-table">${(g.pointsPerItemObtained||[]).map((x,i)=>`<div class="editor-row package-reward"><select data-path="gameplaySettings.fishing.pointsPerItemObtained.${i}.itemId">${itemOptions(x.itemId)}</select>${pathInput(`gameplaySettings.fishing.pointsPerItemObtained.${i}.points`,x.points,"number",'step="any"')}<button class="btn red small" data-settings-action="removeGameplayScoreRule" data-gameplay="fishing" data-index="${i}">刪除</button></div>`).join("")}</div>
+      <button class="btn secondary small" data-settings-action="addGameplayScoreRule" data-gameplay="fishing">＋加入計分物品</button>
+    </div>
+    <div class="editor-card">
+      <div class="editor-head"><div><h3 style="margin:0">📊 統計欄位管理</h3><div class="help">和其他玩法使用同一套統計欄位，可顯示／隱藏、改名稱與拖曳排序。</div></div><button class="btn green small" data-settings-action="addStatisticItem" data-gameplay="fishing">＋新增物品統計</button></div>
+      <div class="help" style="margin-bottom:7px"><strong>物品統計來源</strong>：刪除只會移除統計，不會刪除背包物品。</div>
+      ${statisticRows("fishing")}
+      ${statisticLayoutEditor("fishing")}
+    </div>
+    <div class="editor-card">
+      <h3 style="margin-top:0">釣魚規則</h3>
+      <div class="setting-grid">
+        <div class="field"><label>重量隨機正負範圍</label>${pathInput("gameplaySettings.fishing.weightVariancePct",g.weightVariancePct,"number",'min="0" max="99.9" step="0.1"')}<span class="help">例如 50 = ±50%</span></div>
+        <div class="field"><label>魚王之證機率</label>${pathInput("gameplaySettings.fishing.kingCertificateChance",g.kingCertificateChance,"number",'min="0" max="100" step="0.1"')}<span class="help">目前預設 2.5% ≈ 40 竿 1 個</span></div>
+        <div class="field"><label>重量換算釣魚積分</label><input class="input" value="1 kg = 100 釣魚積分" disabled></div>
+      </div>
+    </div>
+    <div class="editor-card"><h3 style="margin-top:0">四張地圖重量倍率</h3><div class="editor-table">${g.maps.map((m,i)=>`<div class="editor-row"><div class="input" style="display:flex;align-items:center;font-weight:1000">${escapeHtml(m.icon)} ${escapeHtml(m.name)}${i?`｜${fmt(m.unlockWeight)} kg 解鎖`:"｜初始"}</div>${pathInput(`gameplaySettings.fishing.maps.${i}.multiplier`,m.multiplier,"number",'min="0.0001" step="0.01"')}<div class="input" style="display:flex;align-items:center">期望 ${fmt(m.multiplier)} kg/竿</div></div>`).join("")}</div></div>
+    ${gameplayRandomBoxesEditorHtml(c,"fishing")}
+  </section>`
+};
+
+// 機率視窗把隨機箱也列進來。
+const __gameplayProbabilityHtmlBeforeFishingFormal=gameplayProbabilityHtml;
+gameplayProbabilityHtml=function(type=batchGameplayType(config),cfg=config){
+  if(type!=="fishing")return __gameplayProbabilityHtmlBeforeFishingFormal(type,cfg);
+  const g=fishingSettings(cfg),r=g.weightVariancePct/100,rows=g.maps.map(m=>[escapeHtml(`${m.icon} ${m.name}｜期望 ${fmt(m.multiplier)} kg｜範圍 ${fmt(fishingRound(m.multiplier*(1-r),2))}～${fmt(fishingRound(m.multiplier*(1+r),2))} kg`),"—"]);
+  rows.push([escapeHtml(`🥇 魚王之證 ×1`),`<strong>${fmt(g.kingCertificateChance)}%</strong>`]);
+  return `<div class="probability-section"><h3>🎣 每竿隨機規則</h3>${probabilityRowsTable(["獎勵","機率"],rows)}<div class="help" style="margin-top:8px">重量在設定範圍內均勻隨機；魚王之證為每竿獨立判定。</div></div>${randomBoxesProbabilityHtml("fishing",cfg)}`
+};
+
+// 主畫面移除試作測試按鈕；保留正式 ×1/×3/×5/×10 與自動全部使用。
+renderFishingBoard=function(){
+  const g=fishingSettings(),fs=ensureFishingState(),i=fishingCurrentMapIndex(fs),map=g.maps[i],next=g.maps[i+1]||null,last=fs.lastCast,range=g.weightVariancePct/100,min=fishingRound(map.multiplier*(1-range),2),max=fishingRound(map.multiplier*(1+range),2);
+  $("monopolyPlayArea").hidden=true;$("pinballPlayArea").hidden=true;$("magicFestivalPlayArea").hidden=true;$("fishingPlayArea").hidden=false;document.body.classList.add("fishing-active");
+  $("gameplayTitle").textContent="🎣 釣魚";$("refreshBoardBtn").style.display="none";$("multiplierWrap").style.display="";$("playMultiplierLabel").textContent="每次釣魚";$("rollSelectedBtn").textContent="釣魚";$("autoRollBtn").textContent="自動使用全部魚餌";$("autoRollBtn").title="一次使用目前持有的全部魚餌；每竿照常結算進度與基金。";
+  document.querySelectorAll("[data-gameplay-select]").forEach(x=>x.classList.toggle("active",x.dataset.gameplaySelect==="fishing"));
+  $("boardMeta").textContent=`${map.name}｜期望 ${fmt(map.multiplier)} kg/竿｜隨機範圍 ${fmt(min)}～${fmt(max)} kg｜魚王之證 ${fmt(g.kingCertificateChance)}%`;
+  const progress=next?Math.max(0,Math.min(100,(fs.totalWeight-Number(map.unlockWeight||0))/Math.max(.0001,Number(next.unlockWeight)-Number(map.unlockWeight||0))*100)):100;
+  $("fishingPlayArea").innerHTML=`<div class="fishing-machine"><div class="fishing-head"><span class="fishing-map-name">${escapeHtml(map.icon)} ${escapeHtml(map.name)}</span><span class="fishing-map-badge">第 ${i+1}/4 張圖</span></div><div class="fishing-water"><div class="fishing-last-icon">${last?(last.king?"🥇":"🐟"):"🎣"}</div><div class="fishing-last-title">${last?`${fmt(last.weight)} kg｜+${fmt(last.points)} 釣魚積分${last.king?"｜魚王之證 +1":""}`:"等待下竿"}</div><div class="fishing-last-sub">${last?escapeHtml(last.mapName):`本圖單竿範圍約 ${fmt(min)}～${fmt(max)} kg`}</div></div><div class="fishing-progress-panel"><div class="fishing-progress-row"><span>累積重量 ${fmt(fs.totalWeight)} kg</span><span>${next?`下一張：${escapeHtml(next.name)} ${fmt(next.unlockWeight)} kg`:"已解鎖全部地圖"}</span></div><div class="fishing-progress"><div style="width:${progress}%"></div></div></div><div class="fishing-stats"><div class="fishing-stat"><div class="k">魚餌</div><div class="v">${escapeHtml(cfgItem(config,g.gameTokenId).icon||"🪱")} ${fmt(state.resources?.[g.gameTokenId]||0)}</div></div><div class="fishing-stat"><div class="k">釣魚積分</div><div class="v">🥈 ${fmt(state.resources?.[g.normalExchangeId]||0)}</div></div><div class="fishing-stat"><div class="k">魚王之證</div><div class="v">🥇 ${fmt(state.resources?.[g.premiumExchangeId]||0)}</div></div><div class="fishing-stat"><div class="k">累計竿數</div><div class="v">${fmt(fs.totalCasts)}</div></div></div><div class="fishing-recent"><div class="fishing-recent-title">最近釣魚結果</div>${fs.recentCasts.length?fs.recentCasts.map(x=>`<div class="fishing-recent-row"><span>#${fmt(x.castNo)}</span><span>${escapeHtml(x.mapName)}｜${fmt(x.weight)} kg｜+${fmt(x.points)}</span><strong>${x.king?"🥇 +1":"—"}</strong></div>`).join(""):`<div class="empty">尚無釣魚紀錄</div>`}</div></div>`
+};
+
+// 即時統計仍使用共通可自訂 layout，但釣魚竿數讀 fishing state。
+renderStats=function(){
+  if(batchGameplayType(config)!=="fishing")return __renderStatsBeforeFishing();
+  const s=dailyDiceStats(),stages=[...config.progressStages].sort((a,b)=>Number(a.requiredScore)-Number(b.requiredScore)),totalStages=stages.length,reached=stages.filter(x=>Number(dayState().score)>=Number(x.requiredScore)).length,maxScore=totalStages?Number(stages.at(-1).requiredScore||0):0,scoreNow=Math.max(0,Number(dayState().score||0)),g=fishingSettings(),fs=ensureFishingState(),tokenItem=item(g.gameTokenId),layout=gameplayStatisticLayout(config,"fishing","live");
+  const valueFor=entry=>{
+    if(entry.id==="live.gained")return`${tokenItem.icon||"🪱"} ${fmt(s.gainedToday)}`;if(entry.id==="live.previous")return`${tokenItem.icon||"🪱"} ${fmt(s.previousRemaining)}`;if(entry.id==="live.available")return`${tokenItem.icon||"🪱"} ${fmt(s.availableToday)}`;if(entry.id==="live.spent")return`${tokenItem.icon||"🪱"} ${fmt(s.spentToday)}`;if(entry.id==="live.gameplayToday")return fmt(dayState().fishingCasts||0);if(entry.id==="live.gameplayTotal")return fmt(fs.totalCasts||0);if(entry.id==="live.stage")return`${reached}/${totalStages} 階`;if(entry.id==="live.score")return`${fmt(scoreNow)}/${fmt(maxScore)}`;const stat=statisticItemByLayoutId(config,"fishing",entry.id);if(stat){const it=resourceDisplayItem(stat.itemId,config);return`${it.icon||""} ${fmt(state.resources?.[stat.itemId]||0)}`}return"—"
+  };
+  $("persistentDailyStats").innerHTML=layout.map(entry=>`<div class="daily-dice-stat"><div class="k">${escapeHtml(entry.label)}</div><div class="v">${valueFor(entry)}</div></div>`).join("")
+};
+
+// 套用一次正式資料並重新建立正確的 fishing active mirrors。
+normalizeFundConfig(config);ensureStateSchema(state,config);ensureFishingState(state);
+simulationBaseline=loadStoredBaseline(batchGameplayType(config));
+if(batchGameplayType(config)==="fishing"){$("dailyDiceInput").value=config.dailyMission.maxGameTokens}
+render();
+</script>\n</body>
 </html>
