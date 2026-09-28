@@ -12630,5 +12630,151 @@ normalizeFundConfig(config);ensureStateSchema(state,config);ensureFishingState(s
 simulationBaseline=loadStoredBaseline(batchGameplayType(config));
 if(batchGameplayType(config)==="fishing"){$("dailyDiceInput").value=config.dailyMission.maxGameTokens}
 render();
-</script>\n</body>
+</script>\n
+<script id="fishingV30OfficialDataScript">
+/* =========================================================
+   v30：釣魚官方禮包 / 基金 / 每日進度資料
+   ========================================================= */
+const FISHING_OFFICIAL_SCHEMA_VERSION=1;
+
+function fishingEnsureOfficialItems(cfg,g){
+  const ensure=(id,name,unit,icon)=>fishingEnsureNamedItem(cfg,id,name,unit,icon);
+  return{
+    bait:g.gameTokenId||ensure("fishBait","魚餌","個","🪱"),
+    points:g.normalExchangeId||ensure("fishingPoint","釣魚積分","枚","🥈"),
+    king:g.premiumExchangeId||ensure("fishKingCertificate","魚王之證","枚","🥇"),
+    box:ensure("fishKingCertificateBox","魚王之證隨機箱","個","🎁"),
+    gem:(cfg.items||[]).find(x=>x.id==="gem")?.id||ensure("gem","寶石","個","💎"),
+    emerald:(cfg.items||[]).find(x=>x.id==="emerald")?.id||ensure("emerald","翡翠石","個","💚"),
+    stamina:(cfg.items||[]).find(x=>x.id==="stamina")?.id||ensure("stamina","體力","點","⚡"),
+    meteorIron:(cfg.items||[]).find(x=>x.id==="meteorIron")?.id||ensure("meteorIron","天外隕鐵","個","🪨"),
+    amethystBox:ensure("magicAmethystBox","寶石寶箱","個","💎"),
+    ssBrandSelectBox:ensure("ssBrandSelectBox","SS限定烙印自選箱","個","🎁"),
+    ssSArcanaChoiceBox:ensure("ssSArcanaChoiceBox","SS+S裝備奧秘自選箱","個","🎁"),
+    rareRod:ensure("rareFishingRod","稀有魚竿","把","🎣"),
+    epicRod:ensure("epicFishingRod","史詩魚竿","把","🎣"),
+    keySelectionChest:ensure("keySelectionChest","鑰匙自選寶箱","個","🗝️"),
+    wealthFortuneTree:ensure("wealthFortuneTree","財富與幸運樹","個","🌳"),
+    limitedWishLetter:(cfg.items||[]).find(x=>x.id==="limitedWishLetter")?.id||ensure("limitedWishLetter","限時祈願函","個","✉️")
+  }
+}
+
+function fishingOfficialProgressStages(ids){
+  return[
+    {stage:1,requiredScore:210,rewards:[{itemId:ids.keySelectionChest,amount:1},{itemId:ids.stamina,amount:10},{itemId:ids.gem,amount:50}]},
+    {stage:2,requiredScore:630,rewards:[{itemId:ids.box,amount:1},{itemId:ids.meteorIron,amount:20},{itemId:ids.gem,amount:100}]},
+    {stage:3,requiredScore:1060,rewards:[{itemId:ids.box,amount:5},{itemId:ids.wealthFortuneTree,amount:1},{itemId:ids.gem,amount:200}]},
+    {stage:4,requiredScore:2520,rewards:[{itemId:ids.box,amount:20},{itemId:ids.wealthFortuneTree,amount:1},{itemId:ids.gem,amount:300}]},
+    {stage:5,requiredScore:3980,rewards:[{itemId:ids.box,amount:24},{itemId:ids.wealthFortuneTree,amount:1},{itemId:ids.gem,amount:500}]}
+  ]
+}
+
+function fishingOfficialFund(ids){
+  const r=(itemId,amount)=>({itemId,amount});
+  const rows=[
+    [0,[r(ids.gem,50)],[r(ids.rareRod,1)]],
+    [2000,[r(ids.bait,1)],[r(ids.box,1)]],
+    [4000,[r(ids.gem,50)],[r(ids.gem,300)]],
+    [6000,[r(ids.bait,1)],[r(ids.box,1)]],
+    [8000,[r(ids.gem,50)],[r(ids.keySelectionChest,5)]],
+    [10000,[r(ids.bait,1)],[r(ids.box,1)]],
+    [12000,[r(ids.gem,50)],[r(ids.gem,300)]],
+    [14000,[r(ids.bait,1)],[r(ids.box,1)]],
+    [16000,[r(ids.gem,50)],[r(ids.gem,300)]],
+    [18000,[r(ids.bait,1)],[r(ids.keySelectionChest,5)]],
+    [20000,[r(ids.gem,50)],[r(ids.gem,300)]],
+    [22000,[r(ids.bait,2)],[r(ids.box,1)]],
+    [24000,[r(ids.gem,50)],[r(ids.gem,300)]],
+    [26000,[r(ids.bait,2)],[r(ids.box,1)]],
+    [28000,[r(ids.gem,50)],[r(ids.keySelectionChest,5)]],
+    [30000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [32000,[r(ids.gem,50)],[r(ids.box,1)]],
+    [34000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [36000,[r(ids.gem,50)],[r(ids.box,1)]],
+    [38000,[r(ids.bait,2)],[r(ids.keySelectionChest,5)]],
+    [40000,[r(ids.gem,50)],[r(ids.box,1)]],
+    [42000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [44000,[r(ids.gem,50)],[r(ids.box,2)]],
+    [46000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [48000,[r(ids.gem,50)],[r(ids.keySelectionChest,5)]],
+    [50000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [52000,[r(ids.gem,50)],[r(ids.box,2)]],
+    [54000,[r(ids.bait,2)],[r(ids.gem,300)]],
+    [57000,[r(ids.gem,50)],[r(ids.box,2)]],
+    [60000,[r(ids.bait,2)],[r(ids.limitedWishLetter,50)]]
+  ];
+  return{unlockBasis:"itemObtained",unlockItemId:ids.points,premiumCost:{itemId:ids.emerald,amount:1000},milestones:rows.map(([threshold,freeRewards,premiumRewards])=>({id:`fishingOfficialFund${threshold}`,laps:threshold,freeRewards,premiumRewards}))}
+}
+
+function fishingOfficialPackageGroups(ids){
+  const r=(itemId,amount)=>({itemId,amount});
+  return[
+    {id:"fishingBaitDailyPackages",name:"魚餌禮包",dailyReset:true,packages:[
+      {id:"fishingGemBait",name:"魚餌",cost:{itemId:ids.gem,amount:100},rewards:[r(ids.bait,1)],limit:80},
+      {id:"fishingBaitPack1",name:"魚餌禮包 1",cost:{itemId:ids.emerald,amount:500},rewards:[r(ids.bait,30),r(ids.amethystBox,1),r(ids.gem,600)],limit:1},
+      {id:"fishingBaitPack2",name:"魚餌禮包 2",cost:{itemId:ids.emerald,amount:1000},rewards:[r(ids.bait,50),r(ids.amethystBox,2),r(ids.gem,1200)],limit:1},
+      {id:"fishingBaitPack3",name:"魚餌禮包 3",cost:{itemId:ids.emerald,amount:3000},rewards:[r(ids.bait,120),r(ids.amethystBox,5),r(ids.gem,3600)],limit:1},
+      {id:"fishingBaitPack4",name:"魚餌禮包 4",cost:{itemId:ids.emerald,amount:5000},rewards:[r(ids.bait,150),r(ids.amethystBox,8),r(ids.gem,6000)],limit:1},
+      {id:"fishingBaitPack6",name:"魚餌禮包 6",cost:{itemId:ids.emerald,amount:10000},rewards:[r(ids.bait,240),r(ids.amethystBox,15),r(ids.gem,12000)],limit:1}
+    ]},
+    {id:"fishingEventPackages",name:"釣魚活動限購",dailyReset:false,packages:[
+      {id:"fishingMaster1",name:"釣魚大師 I",cost:{itemId:ids.emerald,amount:3000},rewards:[r(ids.epicRod,1),r(ids.bait,150),r(ids.gem,3600)],limit:1},
+      {id:"fishingBaitPack4SS",name:"魚餌禮包 4（SS限定）",cost:{itemId:ids.emerald,amount:10000},rewards:[r(ids.bait,240),r(ids.amethystBox,10),r(ids.ssBrandSelectBox,1),r(ids.gem,12000)],limit:1},
+      {id:"fishingBaitPack5",name:"魚餌禮包 5",cost:{itemId:ids.emerald,amount:10000},rewards:[r(ids.bait,240),r(ids.amethystBox,10),r(ids.ssSArcanaChoiceBox,1),r(ids.gem,12000)],limit:1}
+    ]},
+    {id:"fishingKingDailyPackages",name:"魚王之證禮包",dailyReset:true,packages:[
+      {id:"fishingKingPack1",name:"魚王之證禮包 I",cost:{itemId:ids.emerald,amount:1000},rewards:[r(ids.king,3),r(ids.amethystBox,2),r(ids.gem,1200)],limit:2},
+      {id:"fishingKingPack2",name:"魚王之證禮包 II",cost:{itemId:ids.emerald,amount:2000},rewards:[r(ids.king,6),r(ids.amethystBox,4),r(ids.gem,2400)],limit:2},
+      {id:"fishingKingPack3",name:"魚王之證禮包 III",cost:{itemId:ids.emerald,amount:5000},rewards:[r(ids.king,15),r(ids.amethystBox,8),r(ids.gem,6000)],limit:2},
+      {id:"fishingKingPack4",name:"魚王之證禮包 IV",cost:{itemId:ids.emerald,amount:10000},rewards:[r(ids.king,30),r(ids.amethystBox,15),r(ids.gem,12000)],limit:2}
+    ]}
+  ]
+}
+
+function fishingApplyOfficialDefaults(cfg,g){
+  const ids=fishingEnsureOfficialItems(cfg,g);
+  if(Number(g.officialSchemaVersion||0)<FISHING_OFFICIAL_SCHEMA_VERSION){
+    g.gameTokenId=ids.bait;g.normalExchangeId=ids.points;g.premiumExchangeId=ids.king;
+    g.dailyMissionRewardItemId=ids.bait;g.dailyMissionMaxGameTokens=40;
+    g.firstDayLoginGiftItemId=ids.bait;g.firstDayLoginGiftAmount=5;
+    // 一般來源取得魚餌都 +5，包括銀幣兌換；魚王之證每個 +10。
+    g.pointsPerItemObtained=[{itemId:ids.bait,points:5},{itemId:ids.king,points:10}];
+    g.randomBoxes=[{id:"fishingKingBox",name:"魚王之證隨機箱",boxItemId:ids.box,rewardItemId:ids.king,outcomes:[{amount:1,probability:95},{amount:2,probability:4.9},{amount:3,probability:.1}]}];
+    g.progressStages=fishingOfficialProgressStages(ids);
+    g.fund=fishingOfficialFund(ids);
+    g.packageGroups=fishingOfficialPackageGroups(ids);
+    g.officialSchemaVersion=FISHING_OFFICIAL_SCHEMA_VERSION
+  }
+  return g
+}
+
+const __ensureFishingConfigBeforeOfficialV30=ensureFishingConfig;
+ensureFishingConfig=function(cfg){return fishingApplyOfficialDefaults(cfg,__ensureFishingConfigBeforeOfficialV30(cfg))};
+fishingSettings=function(cfg=config){return ensureFishingConfig(cfg)};
+
+const __loadStoredBaselineBeforeFishingOfficialV30=loadStoredBaseline;
+loadStoredBaseline=function(type=batchGameplayType()){
+  const base=__loadStoredBaselineBeforeFishingOfficialV30(type);
+  if(base?.config&&type==="fishing"){
+    ensureFishingConfig(base.config);normalizeFundConfig(base.config);
+    if(base.state)ensureStateSchema(base.state,base.config)
+  }
+  return base
+};
+
+const __fishingSettingsHtmlBeforeOfficialV30=fishingSettingsHtml;
+fishingSettingsHtml=function(c){
+  return __fishingSettingsHtmlBeforeOfficialV30(c).replace(
+    "這裡控制「每日進度」的分數來源；釣魚積分（銀幣）與每日進度分數是分開的。你尚未提供官方每條魚對每日進度的計分公式，因此這裡不硬猜，可自行加入規則。",
+    "官方規則：每獲得魚餌 ×1 = +5 每日進度；每獲得魚王之證 ×1 = +10。銀幣兌換取得的魚餌也照常計分。釣魚積分（銀幣）本身與每日進度分數分開計算。"
+  )
+};
+
+normalizeFundConfig(config);ensureStateSchema(state,config);ensureFishingState(state);
+simulationBaseline=loadStoredBaseline(batchGameplayType(config));
+if(batchGameplayType(config)==="fishing"){$("dailyDiceInput").value=config.dailyMission.maxGameTokens}
+render();
+</script>
+
+</body>
 </html>
